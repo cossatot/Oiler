@@ -1,3 +1,6 @@
+module BlockRotations
+
+
 """
     VelocityVectorSph(20., )
 Velocity vector in spherical (lon, lat) coordinates, with velocities in
@@ -7,18 +10,18 @@ ve, vn, vu are east, north and up velocities, and ee, en, and eu are the
 1-sigma uncertainties.
 """
 struct VelocityVectorSph
-    latd::AbstractFloat
-    lond::AbstractFloat
-    ve::AbstractFloat
-    vn::AbstractFloat
-    vu::AbstractFloat
-    ee::AbstractFloat
-    en::AbstractFloat
-    eu::AbstractFloat
+    lond::Float64
+    latd::Float64
+    ve::Float64
+    vn::Float64
+    vu::Float64
+    ee::Float64
+    en::Float64
+    eu::Float64
 end
 
 
-function build_Pv_deg(lond::AbstractFloat, latd::AbstractFloat)
+function build_Pv_deg(lond::Float64, latd::Float64)
 
     pv11 = -sind(latd) * cosd(lond)
     pv12 = -sind(latd) * sind(lond)
@@ -39,7 +42,7 @@ function build_Pv_deg(lond::AbstractFloat, latd::AbstractFloat)
 end
 
 
-function build_Gb_deg(lond::AbstractFloat, latd::AbstractFloat; R=6371000.)
+function build_Gb_deg(lond::Float64, latd::Float64; R=6371000.)
     x_hat = R * cosd(latd) * cosd(lond)
     y_hat = R * cosd(latd) * sind(lond)
     z_hat = R * sind(latd);
@@ -60,11 +63,11 @@ words, this predicts the velocity of a point on the earth's surface
 pole.
 
 # Arguments
-- `lond::AbstractFloat`: The longitude of the point, in degrees
-- `latd::AbstractFloat`: The latitude of the point, in degrees
+- `lond::Float64`: The longitude of the point, in degrees
+- `latd::Float64`: The latitude of the point, in degrees
 
 # Returns
-- `PvGb`: 3x3 AbstractFloat matrix
+- `PvGb`: 3x3 Float64 matrix
 
 # Examples
 ```jldoctest
@@ -75,7 +78,7 @@ julia> pg = build_PvGb_deg(0., 0.)
  0.0   0.0      0.0
 ```
 """
-function build_PvGb_deg(lond::AbstractFloat, latd::AbstractFloat)
+function build_PvGb_deg(lond::Float64, latd::Float64)
     Pv = build_Pv_deg(lond, latd)
     Gb = build_Gb_deg(lond, latd)
 
@@ -96,7 +99,7 @@ pole.
 - `vel::VelocityVectorSph`: A velocity vector with `lond` and `latd` attributes
 
 # Returns
-- `PvGb`: 3x3 AbstractFloat matrix
+- `PvGb`: 3x3 Float64 matrix
 
 # Examples
 ```jldoctest
@@ -119,6 +122,12 @@ function build_PvGb_from_vels(vels::Array{VelocityVectorSph,1})
 end
 
 
+function build_PvGb_from_degs(londs::Array{Float64,2},
+                              latds::Array{Float64,2})
+    reduce(vcat, [build_PvGb_deg(lond, latds[i])
+                  for (i,lond) in enumerate(londs)])
+end
+
 function build_vel_column_from_vel(vel::VelocityVectorSph)
     V = [vel.ve; vel.vn; vel.vu]
 end
@@ -133,9 +142,9 @@ end
 Euler Pole (rotation vector) in Cartesian coordinates
 """
 struct EulerPoleCart
-    x::AbstractFloat
-    y::AbstractFloat
-    z::AbstractFloat
+    x::Float64
+    y::Float64
+    z::Float64
 end
 
 
@@ -143,9 +152,9 @@ end
 Euler Pole (rotation vector) in spherical coordinates.
 """
 struct EulerPoleSphere
-    lond::AbstractFloat
-    latd::AbstractFloat
-    rotrate::AbstractFloat
+    lond::Float64
+    latd::Float64
+    rotrate::Float64
 end
 
 
@@ -197,4 +206,49 @@ function euler_pole_sphere_to_cart(pole::EulerPoleSphere)
     z = r * cosd(pole.latd)
 
     EulerPoleCart(x, y, z)
+end
+
+
+function predict_block_vels(londs::Array{Float64,2},
+                            latds::Array{Float64,2},
+                            pole::EulerPoleSphere)
+
+    PvGb = build_PvGb_from_degs(londs, latds)
+
+    cart_pole = euler_pole_sphere_to_cart(pole)
+
+    V_pred = PvGb * [cart_pole.x; cart_pole.y; cart_pole.z]
+    Ve_pred = V_pred[1:3:end]
+    Vn_pred = V_pred[2:3:end]
+    Vu_pred = V_pred[3:3:end]
+
+    n_vels = size(londs)[2]
+
+
+    pred_vels = Array{VelocityVectorSph}(undef, n_vels)
+
+    for n in 1:n_vels
+        pred_vels[n] = VelocityVectorSph(londs[n], latds[n],
+                                         Ve_pred[n], Vn_pred[n], Vu_pred[n],
+                                         0., 0., 0.)
+    end
+    return pred_vels
+end
+    
+
+function calc_strike(lond1::Float64, latd1::Float64,
+                     lond2::Float64, latd2::Float64)
+        
+        y = sind(lond2 - lond1) * cosd(latd1)
+        x = cosd(latd1) * sind(latd2) - sind(latd1) * cosd(latd2) * cos(lond2 - lond1)
+
+        strike = atand(y,x)
+end
+
+function rotate_vecs(dx::Float64, dy::Float64, strike::Float64)
+
+    angle = pi / 2. - strike
+
+    de = dx * 
+
 end
