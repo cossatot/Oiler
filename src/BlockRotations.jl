@@ -239,16 +239,12 @@ end
 function calc_strike(lond1::Float64, latd1::Float64,
                      lond2::Float64, latd2::Float64)
         
-        y = sind(lond2 - lond1) * cosd(latd1)
-        x = cosd(latd1) * sind(latd2) - sind(latd1) * cosd(latd2) * cos(lond2 - lond1)
+    y = sind(lond2 - lond1) * cosd(latd1)
+    x = cosd(latd1) * sind(latd2) - sind(latd1) * cosd(latd2) * cos(lond2 - lond1)
 
-        strike = atand(y,x)
+    strike = atand(y,x)
 end
 
-function rotate_vecs(dx::Float64, dy::Float64, strike::Float64)
 
-    angle = pi / 2. - strike
-
-    de = dx * 
 
 end
