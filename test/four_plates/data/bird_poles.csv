@@ -1,0 +1,53 @@
+Identifier,Plate Name,Area,Latitude,Longitude,Rotation_Rate,Reference
+AF,Africa,1.44065,59.160,−73.174,0.927,DeMets et al. [1994]
+AM,Amur,0.13066,57.645,−83.736,0.9309,Heki et al. [1999]
+AN,Antarctica,1.43268,64.315,−83.984,0.8695,DeMets et al. [1994]
+AP,Altiplano,0.0205,33.639,−81.177,0.916,Lamb [2000]
+AR,Arabia,0.12082000000000001,59.658,−33.193,1.1616,DeMets et al. [1994]
+AS,Aegean Sea,0.00793,74.275,−87.237,0.6497,McClusky et al. [2000]
+AT,Anatolia,0.014180000000000002,56.283,8.932,1.64,McClusky et al. [2000]
+AU,Australia,1.13294,60.080,1.742,1.0744,DeMets et al. [1994]
+BH,Birds Head,0.01295,12.559,87.957,0.3029,this paper
+BR,Balmoral Reef,0.00481,45.900,−111.000,0.2,this paper
+BS,Banda Sea,0.01715,16.007,122.442,2.125,Rangin et al. [1999]
+BU,Burma,0.0127,8.894,−75.511,2.667,Circum‐Pacific Map Project [1986]
+CA,Caribbean,0.07304,54.313,−79.431,0.904,Weber et al. [2001]
+CL,Caroline,0.03765,10.130,−45.570,0.309,Seno et al. [1993]
+CO,Cocos,0.07222999999999999,36.823,−108.629,1.9975,DeMets et al. [1994]
+CR,Conway Reef,0.0035600000000000002,−12.628,175.127,3.605,this paper
+EA,Easter,0.00411,28.300,66.400,11.4,Engeln and Stein [1984]
+EU,Eurasia,1.1963,61.066,−85.819,0.8591,DeMets et al. [1994]
+FT,Futuna,0.00079,−10.158,−178.305,4.848,this paper
+GP,Galapagos,0.00036,9.399,79.690,5.275,Lonsdale [1988]
+IN,India,0.30637,60.494,−30.403,1.1034,DeMets et al. [1994]
+JF,Juan de Fuca,0.00632,35.000,26.000,0.5068,Wilson [1988]
+JZ,Juan Fernandez,0.0024100000000000002,35.910,70.166,22.52,Anderson‐Fontana et al. [1986]
+KE,Kermadec,0.01245,47.521,−3.115,2.831,this paper
+MA,Mariana,0.01037,43.777,149.205,1.278,this paper
+MN,Manus,0.0002,−3.037,150.456,51.3,Martinez and Taylor [1996]
+MO,Maoke,0.0028399999999999996,59.589,78.880,0.8927,this paper
+MS,Molucca Sea,0.0103,11.103,−56.746,4.07,Rangin et al. [1999]
+NA,North America,1.3655899999999999,48.709,−78.167,0.7486,DeMets et al. [1994]
+NB,North Bismarck,0.009559999999999999,−4.000,139.000,0.33,Tregoning et al. [1998]
+ND,North Andes,0.02394,58.664,−89.003,0.7009,Trenkamp et al. [1996]
+NH,New Hebrides,0.01585,13.000,−12.000,2.7,this paper
+NI,Niuafo'ou,0.0030600000000000002,6.868,−168.868,3.255,Zellmer and Taylor [2001]
+NZ,Nazca,0.39669,55.578,−90.096,1.3599,DeMets et al. [1994]
+OK,Okhotsk,0.07482,55.421,−82.859,0.845,Cook et al. [1986]
+ON,Okinawa,0.008020000000000001,48.351,142.415,2.853,this paper
+PA,Pacific,2.57685,0.000,0.000,0.0,(abritrary choice of reference frame)
+PM,Panama,0.00674,54.058,−90.247,0.9069,Kellogg et al. [1995]
+PS,Philippine Sea,0.13409000000000001,−1.200,−45.800,1.0,Seno et al. [1993]; Kato et al. [1998]
+RI,Rivera,0.00249,26.700,−105.200,4.6923,DeMets and Traylen [2000]
+SA,South America,1.03045,54.999,−85.752,0.6365,DeMets et al. [1994]
+SB,South Bismarck,0.00762,10.610,−32.990,8.44,Tregoning et al. [1999]
+SC,Scotia,0.0419,48.625,−81.454,0.6516,Pelayo and Wiens [1989]
+SL,Shetland,0.0017800000000000001,63.121,−97.084,0.8558,(hypothetical; see text)
+SO,Somalia,0.47192,58.789,−81.637,0.9783,Chu and Gordon [1999]
+SS,Solomon Sea,0.00317,19.529,135.017,1.478,this paper
+SU,Sunda,0.21966999999999998,55.442,−72.955,1.103,Rangin et al. [1999]
+SW,Sandwich,0.00454,−19.019,−39.640,1.84,Pelayo and Wiens [1989]
+TI,Timor,0.0087,19.524,112.175,1.514,this paper
+TO,Tonga,0.00625,28.807,2.263,9.3,Zellmer and Taylor [2001]
+WL,Woodlark,0.01116,22.134,132.330,1.546,Tregoning et al. [1998]
+YA,Yangtze,0.05425,69.067,−97.718,0.9983,Heki et al. [1999]

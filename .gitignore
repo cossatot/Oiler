@@ -1,1 +1,9 @@
-.ipynb_checkpoints/
+*.jl.*.cov
+*.jl.cov
+*.jl.mem
+.DS_Store
+/Manifest.toml
+/dev/
+/docs/build/
+/docs/site/
+.ipynb_notebooks/
