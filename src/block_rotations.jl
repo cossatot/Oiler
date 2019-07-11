@@ -1,6 +1,3 @@
-module BlockRotations
-
-
 """
     VelocityVectorSph(20., )
 Velocity vector in spherical (lon, lat) coordinates, with velocities in
@@ -42,7 +39,7 @@ function build_Pv_deg(lond::Float64, latd::Float64)
 end
 
 
-function build_Gb_deg(lond::Float64, latd::Float64; R=6371000.)
+function build_Gb_deg(lond::Float64, latd::Float64; R = 6371000.)
     x_hat = R * cosd(latd) * cosd(lond)
     y_hat = R * cosd(latd) * sind(lond)
     z_hat = R * sind(latd);
@@ -116,6 +113,7 @@ end
 
 
 """
+
 """
 function build_PvGb_from_vels(vels::Array{VelocityVectorSph,1})
     reduce(vcat, [build_PvGb_vel(vel) for vel in vels])
@@ -125,7 +123,7 @@ end
 function build_PvGb_from_degs(londs::Array{Float64,2},
                               latds::Array{Float64,2})
     reduce(vcat, [build_PvGb_deg(lond, latds[i])
-                  for (i,lond) in enumerate(londs)])
+                  for (i, lond) in enumerate(londs)])
 end
 
 function build_vel_column_from_vel(vel::VelocityVectorSph)
@@ -242,9 +240,5 @@ function calc_strike(lond1::Float64, latd1::Float64,
     y = sind(lond2 - lond1) * cosd(latd1)
     x = cosd(latd1) * sind(latd2) - sind(latd1) * cosd(latd2) * cos(lond2 - lond1)
 
-    strike = atand(y,x)
-end
-
-
-
+    strike = atand(y, x)
 end
