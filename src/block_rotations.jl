@@ -156,20 +156,19 @@ struct EulerPoleSphere
 end
 
 
-function add_poles(pole1::EulerPoleCart, pole2::EulerPoleCart)
-    xn = pole1.x + pole2.x
-    yn = pole1.y + pole2.y
-    zn = pole1.z + pole2.z
+function add_poles(poles::EulerPoleCart...)
+    xn = sum(pole.x for pole in poles)
+    yn = sum(pole.y for pole in poles)
+    zn = sum(pole.z for pole in poles)
 
     EulerPoleCart(xn, yn, zn)
 end
 
 
-function add_poles(pole1::EulerPoleSphere, pole2::EulerPoleSphere)
-    cart_pole_1 = euler_pole_sphere_to_cart(pole1)
-    cart_pole_2 = euler_pole_sphere_to_cart(pole2)
+function add_poles(poles::EulerPoleSphere...)
+    cart_poles = [euler_pole_sphere_to_cart(pole) for pole in poles]
 
-    cart_pole_sum = add_poles(cart_pole_1, cart_pole_2)
+    cart_pole_sum = add_poles(cart_poles...)
     euler_pole_cart_to_sphere(cart_pole_sum)
 end
 
