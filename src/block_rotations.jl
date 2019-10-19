@@ -115,13 +115,13 @@ end
 """
 
 """
-function build_PvGb_from_vels(vels::Array{VelocityVectorSph,1})
+function build_PvGb_from_vels(vels::Array{VelocityVectorSph})
     reduce(vcat, [build_PvGb_vel(vel) for vel in vels])
 end
 
 
-function build_PvGb_from_degs(londs::Array{Float64,2},
-                              latds::Array{Float64,2})
+function build_PvGb_from_degs(londs::Array{Float64},
+                              latds::Array{Float64})
     reduce(vcat, [build_PvGb_deg(lond, latds[i])
                   for (i, lond) in enumerate(londs)])
 end
@@ -131,7 +131,7 @@ function build_vel_column_from_vel(vel::VelocityVectorSph)
 end
 
 
-function build_vel_column_from_vels(vels::Array{VelocityVectorSph,1})
+function build_vel_column_from_vels(vels::Array{VelocityVectorSph})
     reduce(vcat, [build_vel_column_from_vel(vel) for vel in vels])
 end
 
@@ -206,8 +206,8 @@ function euler_pole_sphere_to_cart(pole::EulerPoleSphere)
 end
 
 
-function predict_block_vels(londs::Array{Float64,2},
-                            latds::Array{Float64,2},
+function predict_block_vels(londs::Array{Float64},
+                            latds::Array{Float64},
                             pole::EulerPoleSphere)
 
     PvGb = build_PvGb_from_degs(londs, latds)
@@ -219,7 +219,7 @@ function predict_block_vels(londs::Array{Float64,2},
     Vn_pred = V_pred[2:3:end]
     Vu_pred = V_pred[3:3:end]
 
-    n_vels = size(londs)[2]
+    n_vels = length(londs)
 
 
     pred_vels = Array{VelocityVectorSph}(undef, n_vels)

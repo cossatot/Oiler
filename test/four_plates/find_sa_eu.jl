@@ -78,4 +78,3 @@ na_sa_pole = Oiler.EulerPoleCart(omegas[10], omegas[11], omegas[12]);
 af_sa_pole = Oiler.EulerPoleCart(omegas[13], omegas[14], omegas[15]);
 
 sa_eu_pole = Oiler.add_poles(na_sa_pole, na_eu_pole);
-
