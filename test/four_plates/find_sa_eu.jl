@@ -1,5 +1,6 @@
 using DataFrames
 using CSV
+using PyPlot
 
 using Oiler
 
@@ -77,4 +78,33 @@ na_eu_pole = Oiler.EulerPoleCart(omegas[7], omegas[8], omegas[9]);
 na_sa_pole = Oiler.EulerPoleCart(omegas[10], omegas[11], omegas[12]);
 af_sa_pole = Oiler.EulerPoleCart(omegas[13], omegas[14], omegas[15]);
 
-sa_eu_pole = Oiler.add_poles(na_sa_pole, na_eu_pole);
+sa_eu_pole_1 = Oiler.euler_pole_cart_to_sphere(Oiler.add_poles(na_sa_pole, na_eu_pole));
+sa_eu_pole_2 = Oiler.euler_pole_cart_to_sphere(Oiler.add_poles(na_af_pole, af_eu_pole));
+
+sa_eu_vels = CSV.read(("./data/sa_eu_vels.csv"));
+sa_eu_gps = [vel_from_row(sa_eu_vels[i,:]) for i in 1:size(sa_eu_vels, 1)];
+
+sa_eu_v_lons = [v.lond for v in sa_eu_gps];
+sa_eu_v_lats = [v.latd for v in sa_eu_gps];
+
+sa_eu_1_pred = Oiler.predict_block_vels(sa_eu_v_lons, sa_eu_v_lats, 
+                                        sa_eu_pole_1);
+
+sa_eu_2_pred = Oiler.predict_block_vels(sa_eu_v_lons, sa_eu_v_lats, 
+                                        sa_eu_pole_2);
+
+sa_eu_1p_ve = [pv.ve for pv in sa_eu_1_pred];
+sa_eu_1p_vn = [pv.vn for pv in sa_eu_1_pred];
+
+sa_eu_2p_ve = [pv.ve for pv in sa_eu_2_pred];
+sa_eu_2p_vn = [pv.vn for pv in sa_eu_2_pred];
+
+v_scale = 200.
+
+figure()
+quiver(sa_eu_v_lons, sa_eu_v_lats, [v.ve for v in sa_eu_gps], 
+       [v.vn for v in sa_eu_gps], color = "black", scale = v_scale)
+quiver(sa_eu_v_lons, sa_eu_v_lats, sa_eu_1p_ve, sa_eu_1p_vn, color = "red", scale = v_scale)
+quiver(sa_eu_v_lons, sa_eu_v_lats, sa_eu_2p_ve, sa_eu_2p_vn, color = "blue",
+scale = v_scale)
+show()

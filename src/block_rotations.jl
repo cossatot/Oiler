@@ -26,14 +26,14 @@ function build_Pv_deg(lond::Float64, latd::Float64)
 
     pv21 = -sind(lond)
     pv22 = cosd(lond)
-    pv23 = 0
+    pv23 = 0.
 
     pv31 = -cosd(latd) * cosd(lond)
     pv32 = -cosd(latd) * sind(lond)
     pv33 = -sind(latd)
 
     Pv = [pv11 pv12 pv13;
-          pv12 pv22 pv23;
+          pv21 pv22 pv23;
           pv31 pv32 pv33]
     return Pv
 end
@@ -44,9 +44,9 @@ function build_Gb_deg(lond::Float64, latd::Float64; R = 6371000.)
     y_hat = R * cosd(latd) * sind(lond)
     z_hat = R * sind(latd);
 
-    Gb = [ 0      z_hat  -y_hat;
-          -z_hat  0       x_hat;
-           y_hat -x_hat   0]
+    Gb = [ 0.     z_hat  -y_hat;
+          -z_hat  0.      x_hat;
+           y_hat -x_hat   0.]
 end
 
 
@@ -187,7 +187,7 @@ function euler_pole_cart_to_sphere(pole::EulerPoleCart)
     pole_z_norm = pole.z / rotation_rate_cart
 
     pole_lon = atand(pole_y_norm, pole_x_norm)
-    pole_lat = acosd(pole_z_norm)
+    pole_lat = atand(pole_z_norm / sqrt(pole_x_norm^2 + pole_y_norm^2))
 
     rotation_rate_deg_Myr = rad2deg(rotation_rate_cart) * 1e6
 
@@ -198,9 +198,9 @@ end
 function euler_pole_sphere_to_cart(pole::EulerPoleSphere)
     r = deg2rad(pole.rotrate / 1e6)
 
-    x = r * sind(pole.latd) * cosd(pole.lond)
-    y = r * sind(pole.latd) * sind(pole.lond)
-    z = r * cosd(pole.latd)
+    x = r * cosd(pole.latd) * cosd(pole.lond)
+    y = r * cosd(pole.latd) * sind(pole.lond)
+    z = r * sind(pole.latd)
 
     EulerPoleCart(x, y, z)
 end
