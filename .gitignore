@@ -9,3 +9,10 @@
 .ipynb_notebooks/
 .vscode/settings.json
 tests/four_plates/notebooks/.ipynb_checkpoints/fault_slip_vectors-checkpoint.ipynb
+registries/
+packages/
+environments/
+logs/
+compiled/
+conda/
+prefs/
