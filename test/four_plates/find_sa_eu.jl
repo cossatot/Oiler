@@ -1,5 +1,8 @@
+using Revise
+
 using DataFrames
 using CSV
+using PyPlot
 
 using Oiler
 
@@ -36,33 +39,9 @@ na_eu_PvGb = Oiler.build_PvGb_from_vels(na_eu_vels);
 na_sa_PvGb = Oiler.build_PvGb_from_vels(na_sa_vels);
 af_sa_PvGb = Oiler.build_PvGb_from_vels(af_sa_vels);
 
-function diagonalize_matrices(matrices)
-
-    rowz = [size(m, 1) for m in matrices]
-    colz = [size(m, 2) for m in matrices]
-
-    n_rows = sum(rowz)
-    n_cols = sum(colz)
-
-    big_mat = zeros(n_rows, n_cols)
-
-    i_row = 1
-    i_col = 1
-
-    for (i, mat) in enumerate(matrices)
-        row_end = i_row + rowz[i] - 1
-        col_end = i_col + colz[i] - 1
-
-        big_mat[i_row:row_end, i_col:col_end] = mat
-
-        i_row = row_end + 1
-        i_col = col_end + 1
-    end
-    return big_mat
-end
 
 
-big_PvGb = diagonalize_matrices((af_eu_PvGb, na_af_PvGb, na_eu_PvGb, na_sa_PvGb,
+big_PvGb = Oiler.diagonalize_matrices((af_eu_PvGb, na_af_PvGb, na_eu_PvGb, na_sa_PvGb,
                                  af_sa_PvGb));
 
 
@@ -79,3 +58,19 @@ af_sa_pole = Oiler.EulerPoleCart(omegas[13], omegas[14], omegas[15]);
 
 sa_eu_pole = Oiler.add_poles(na_sa_pole, na_eu_pole);
 
+na_eu_lats = [vel.latd for vel in na_eu_vels];
+na_eu_lons = [vel.lond for vel in na_eu_vels];
+
+na_eu_pred = Oiler.predict_block_vels(na_eu_lons, na_eu_lats, na_eu_pole);
+na_eu_pole_af = Oiler.subtract_poles(na_af_pole, af_eu_pole)
+na_eu_pred_af = Oiler.predict_block_vels(na_eu_lons, na_eu_lats, na_eu_pole_af);
+
+
+figure()
+quiver(na_eu_lons, na_eu_lats, [v.ve for v in na_eu_vels], 
+       [v.vn for v in na_eu_vels], color = "blue", scale = 100)
+quiver(na_eu_lons, na_eu_lats, [v.ve for v in na_eu_pred], 
+       [v.vn for v in na_eu_pred], color = "red", scale = 100)
+quiver(na_eu_lons, na_eu_lats, [v.ve for v in na_eu_pred_af], 
+       [v.vn for v in na_eu_pred_af], color = "green", scale = 100)
+show()
