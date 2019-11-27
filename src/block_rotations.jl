@@ -175,7 +175,6 @@ function add_poles(poles::EulerPoleSphere...)
 end
 
 
-
 function subtract_poles(pole1::EulerPoleCart, pole2::EulerPoleCart)
     xx = pole1.x - pole2.x
     yy = pole1.y - pole2.y

@@ -9,7 +9,8 @@ using Oiler
 vels = CSV.read("./data/fault_vels.csv");
 
 function vel_from_row(row::DataFrameRow)
-    Oiler.VelocityVectorSph(lond = row.lon, latd = row.lat, ve = row.ve, vn = row.vn)
+    Oiler.VelocityVectorSph(lond = row.lon, latd = row.lat, 
+                            ve = row.ve, vn = row.vn)
 end
 
 af_eu_vels = Array{Oiler.VelocityVectorSph,1}();
