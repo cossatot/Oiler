@@ -1,3 +1,5 @@
+using Parameters
+
 """
     VelocityVectorSph(20., )
 Velocity vector in spherical (lon, lat) coordinates, with velocities in
@@ -6,15 +8,15 @@ mm/yr.
 ve, vn, vu are east, north and up velocities, and ee, en, and eu are the 
 1-sigma uncertainties.
 """
-struct VelocityVectorSph
+@with_kw struct VelocityVectorSph
     lond::Float64
     latd::Float64
     ve::Float64
     vn::Float64
-    vu::Float64
-    ee::Float64
-    en::Float64
-    eu::Float64
+    vu::Float64 = 0.
+    ee::Float64 = 0.
+    en::Float64 = 0.
+    eu::Float64 = 0.
 end
 
 
