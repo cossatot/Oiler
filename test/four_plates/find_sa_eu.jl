@@ -52,15 +52,15 @@ big_vels = Oiler.build_vel_column_from_vels([af_eu_vels; na_af_vels; na_eu_vels;
 omegas = big_PvGb \ big_vels;
 
 af_eu_pole = Oiler.EulerPoleCart(x = omegas[1], y = omegas[2], z = omegas[3],
-                                fix = "af", rel = "eu");
+                                fix = "af", mov = "eu");
 na_af_pole = Oiler.EulerPoleCart(x = omegas[4], y = omegas[5], z = omegas[6],
-                                 fix = "na", rel = "af");
+                                 fix = "na", mov = "af");
 na_eu_pole = Oiler.EulerPoleCart(x = omegas[7], y = omegas[8], z = omegas[9],
-                                 fix = "na", rel = "eu");
+                                 fix = "na", mov = "eu");
 na_sa_pole = Oiler.EulerPoleCart(x = omegas[10], y = omegas[11], z = omegas[12],
-                                 fix = "na", rel = "sa");
+                                 fix = "na", mov = "sa");
 af_sa_pole = Oiler.EulerPoleCart(x = omegas[13], y = omegas[14], z = omegas[15],
-                                 fix = "af", rel = "sa");
+                                 fix = "af", mov = "sa");
 
 sa_eu_pole_1 = Oiler.euler_pole_cart_to_sphere(Oiler.add_poles(na_sa_pole, na_eu_pole));
 sa_eu_pole_2 = Oiler.euler_pole_cart_to_sphere(Oiler.add_poles(na_af_pole, af_eu_pole));
