@@ -1,4 +1,4 @@
-#using Revise
+using Revise
 
 using DataFrames
 using CSV
@@ -9,27 +9,27 @@ using Oiler
 vels = CSV.read("./data/fault_vels.csv");
 
 function vel_from_row(row::DataFrameRow)
-    Oiler.VelocityVectorSph(lond = row.lon, latd = row.lat, 
-                            ve = row.ve, vn = row.vn)
+    Oiler.VelocityVectorSphere(lond = row.lon, latd = row.lat, 
+                            ve = row.ve, vn = row.vn, fix=row.fix, mov=row.mov)
 end
 
-af_eu_vels = Array{Oiler.VelocityVectorSph,1}();
-na_af_vels = Array{Oiler.VelocityVectorSph,1}();
-na_eu_vels = Array{Oiler.VelocityVectorSph,1}();
-na_sa_vels = Array{Oiler.VelocityVectorSph,1}();
-af_sa_vels = Array{Oiler.VelocityVectorSph,1}();
+af_eu_vels = Array{Oiler.VelocityVectorSphere,1}();
+na_af_vels = Array{Oiler.VelocityVectorSphere,1}();
+na_eu_vels = Array{Oiler.VelocityVectorSphere,1}();
+na_sa_vels = Array{Oiler.VelocityVectorSphere,1}();
+af_sa_vels = Array{Oiler.VelocityVectorSphere,1}();
 
 for i in 1:size(vels, 1)
     row = vels[i,:]
-    if row.plates == "af_eu"
+    if row.mov == "af" && row.fix == "eu"
         push!(af_eu_vels, vel_from_row(row));
-    elseif row.plates == "na_af"
+    elseif row.mov == "na" && row.fix == "af"
         push!(na_af_vels, vel_from_row(row));
-    elseif row.plates == "na_eu"
+    elseif row.mov == "na" && row.fix == "eu"
         push!(na_eu_vels, vel_from_row(row));
-    elseif row.plates == "na_sa"
+    elseif row.mov == "na" && row.fix == "sa"
         push!(na_sa_vels, vel_from_row(row));
-    elseif row.plates == "af_sa"
+    elseif row.mov == "af" && row.fix == "sa"
         push!(af_sa_vels, vel_from_row(row));
     end
 end

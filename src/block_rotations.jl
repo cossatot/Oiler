@@ -1,4 +1,10 @@
+#module BlockRotations
+
+import Base.+
+import Base.-
+
 using Parameters
+
 
 """
     VelocityVectorSph(20., )
@@ -8,7 +14,7 @@ mm/yr.
 ve, vn, vu are east, north and up velocities, and ee, en, and eu are the 
 1-sigma uncertainties.
 """
-@with_kw struct VelocityVectorSph
+@with_kw struct VelocityVectorSphere
     lond::Float64
     latd::Float64
     ve::Float64
@@ -17,8 +23,10 @@ ve, vn, vu are east, north and up velocities, and ee, en, and eu are the
     ee::Float64 = 0.
     en::Float64 = 0.
     eu::Float64 = 0.
+    fix::String = ""
+    mov::String = ""
 end
-
+#export VelocityVectorSph
 
 function build_Pv_deg(lond::Float64, latd::Float64)
 
@@ -95,7 +103,7 @@ words, this predicts the velocity of a point on the earth's surface
 pole.
 
 # Arguments
-- `vel::VelocityVectorSph`: A velocity vector with `lond` and `latd` attributes
+- `vel::VelocityVectorSphere`: A velocity vector with `lond` and `latd` attributes
 
 # Returns
 - `PvGb`: 3x3 Float64 matrix
@@ -109,7 +117,7 @@ julia> pg = build_PvGb_deg(0., 0.)
  0.0   0.0      0.0
 ```
 """
-function build_PvGb_vel(vel::VelocityVectorSph)
+function build_PvGb_vel(vel::VelocityVectorSphere)
     build_PvGb_deg(vel.lond, vel.latd)
 end
 
@@ -117,7 +125,7 @@ end
 """
 
 """
-function build_PvGb_from_vels(vels::Array{VelocityVectorSph})
+function build_PvGb_from_vels(vels::Array{VelocityVectorSphere})
     reduce(vcat, [build_PvGb_vel(vel) for vel in vels])
 end
 
@@ -128,12 +136,12 @@ function build_PvGb_from_degs(londs::Array{Float64},
                   for (i, lond) in enumerate(londs)])
 end
 
-function build_vel_column_from_vel(vel::VelocityVectorSph)
+function build_vel_column_from_vel(vel::VelocityVectorSphere)
     V = [vel.ve; vel.vn; vel.vu]
 end
 
 
-function build_vel_column_from_vels(vels::Array{VelocityVectorSph})
+function build_vel_column_from_vels(vels::Array{VelocityVectorSphere})
     reduce(vcat, [build_vel_column_from_vel(vel) for vel in vels])
 end
 
@@ -173,6 +181,11 @@ Euler Pole (rotation vector) in spherical coordinates.
     rotrate::Float64
     fix::String = ""
     mov::String = ""
+end
+
+
+function -(pole::EulerPoleCart)
+    EulerPoleCart(x=-pole.x, y=-pole.y, z=-pole.z, fix=pole.mov, mov=pole.fix)
 end
 
 
@@ -261,12 +274,12 @@ function predict_block_vels(londs::Array{Float64},
 
     n_vels = length(londs)
 
-    pred_vels = Array{VelocityVectorSph}(undef, n_vels)
+    pred_vels = Array{VelocityVectorSphere}(undef, n_vels)
 
     for n in 1:n_vels
-        pred_vels[n] = VelocityVectorSph(londs[n], latds[n],
-                                         Ve_pred[n], Vn_pred[n], Vu_pred[n],
-                                         0., 0., 0.)
+        pred_vels[n] = VelocityVectorSphere(lond=londs[n], latd=latds[n],
+                                            ve=Ve_pred[n], vn=Vn_pred[n],
+                                            fix=pole.fix, mov=pole.mov)
     end
     return pred_vels
 end
@@ -288,12 +301,12 @@ function predict_block_vels(londs::Array{Float64},
         n_vels = size(londs)[2]
     end
 
-    pred_vels = Array{VelocityVectorSph}(undef, n_vels)
+    pred_vels = Array{VelocityVectorSphere}(undef, n_vels)
 
     for n in 1:n_vels
-        pred_vels[n] = VelocityVectorSph(londs[n], latds[n],
-                                         Ve_pred[n], Vn_pred[n], Vu_pred[n],
-                                         0., 0., 0.)
+        pred_vels[n] = VelocityVectorSphere(lond=londs[n], latd=latds[n],
+                                            ve=Ve_pred[n], vn=Vn_pred[n],
+                                            fix=pole.fix, mov=pole.mov)
     end
     return pred_vels
 end
@@ -308,3 +321,5 @@ function calc_strike(lond1::Float64, latd1::Float64,
 
     strike = atand(y, x)
 end
+
+#end

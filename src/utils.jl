@@ -1,3 +1,9 @@
+#module Utils
+
+#using ..BlockRotations
+
+include("./block_rotations.jl")
+
 function diagonalize_matrices(matrices)
 
     rowz = [size(m, 1) for m in matrices]
@@ -22,3 +28,35 @@ function diagonalize_matrices(matrices)
     end
     return big_mat
 end
+
+
+function make_digraph_from_vels(vels::VelocityVectorSphere...)
+#function make_digraph_from_vels(vels)
+
+    vel_graph = Dict{String, Array{String}}()
+
+    for vel in vels
+        if haskey(vel_graph, vel.fix)
+            if vel.mov in vel_graph[vel.fix]
+            # pass
+            else
+                push!(vel_graph[vel.fix], vel.mov)
+            end
+        else
+            vel_graph[vel.fix] = [vel.mov]
+        end
+    end
+    vel_graph
+end
+
+
+
+#function make_digraph_from_poles(poles::Union{EulerPoleCart, EulerPoleSphere})
+#
+#    pole_graph = SimpleDiGraph()
+#
+#    for pole in poles
+#        if pole.fix != 
+#    end
+
+#end
