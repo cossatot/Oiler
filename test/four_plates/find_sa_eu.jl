@@ -51,11 +51,16 @@ big_vels = Oiler.build_vel_column_from_vels([af_eu_vels; na_af_vels; na_eu_vels;
 
 omegas = big_PvGb \ big_vels;
 
-af_eu_pole = Oiler.EulerPoleCart(omegas[1], omegas[2], omegas[3]);
-na_af_pole = Oiler.EulerPoleCart(omegas[4], omegas[5], omegas[6]);
-na_eu_pole = Oiler.EulerPoleCart(omegas[7], omegas[8], omegas[9]);
-na_sa_pole = Oiler.EulerPoleCart(omegas[10], omegas[11], omegas[12]);
-af_sa_pole = Oiler.EulerPoleCart(omegas[13], omegas[14], omegas[15]);
+af_eu_pole = Oiler.EulerPoleCart(x = omegas[1], y = omegas[2], z = omegas[3],
+                                fix = "af", rel = "eu");
+na_af_pole = Oiler.EulerPoleCart(x = omegas[4], y = omegas[5], z = omegas[6],
+                                 fix = "na", rel = "af");
+na_eu_pole = Oiler.EulerPoleCart(x = omegas[7], y = omegas[8], z = omegas[9],
+                                 fix = "na", rel = "eu");
+na_sa_pole = Oiler.EulerPoleCart(x = omegas[10], y = omegas[11], z = omegas[12],
+                                 fix = "na", rel = "sa");
+af_sa_pole = Oiler.EulerPoleCart(x = omegas[13], y = omegas[14], z = omegas[15],
+                                 fix = "af", rel = "sa");
 
 sa_eu_pole = Oiler.add_poles(na_sa_pole, na_eu_pole);
 
@@ -63,7 +68,7 @@ na_eu_lats = [vel.latd for vel in na_eu_vels];
 na_eu_lons = [vel.lond for vel in na_eu_vels];
 
 na_eu_pred = Oiler.predict_block_vels(na_eu_lons, na_eu_lats, na_eu_pole);
-na_eu_pole_af = Oiler.subtract_poles(na_af_pole, af_eu_pole)
+na_eu_pole_af = Oiler.add_poles(na_af_pole, af_eu_pole)
 na_eu_pred_af = Oiler.predict_block_vels(na_eu_lons, na_eu_lats, na_eu_pole_af);
 
 

@@ -140,21 +140,39 @@ end
 
 """
 Euler Pole (rotation vector) in Cartesian coordinates
+
+# Arguments
+- `x::Float64`: *x* coordinate in the Cartesian system
+- `y::Float64`: *y* coordinate in the Cartesian system
+- `z::Float64`: *z* coordinate in the Cartesian system
+- `fix::String`: Name of fixed block. Defaults to "".
+- `rel::String`: Name of moving (relative) block.  Defaults to "".
 """
-struct EulerPoleCart
+@with_kw struct EulerPoleCart
     x::Float64
     y::Float64
     z::Float64
+    fix::String = ""
+    rel::String = ""
 end
 
 
 """
 Euler Pole (rotation vector) in spherical coordinates.
+
+# Arguments
+- `lond::Float64`: Longitude coordinate in the spherical system (in degrees)
+- `latd::Float64`: Latitude coordinate in the spherical system (in degrees)
+- `rotrate::Float64`: Rotation rate (in degree / time unit, unspecified)
+- `fix::String`: Name of fixed block. Defaults to "".
+- `rel::String`: Name of moving (relative) block.  Defaults to "".
 """
-struct EulerPoleSphere
+@with_kw struct EulerPoleSphere
     lond::Float64
     latd::Float64
     rotrate::Float64
+    fix::String = ""
+    rel::String = ""
 end
 
 
@@ -163,7 +181,8 @@ function add_poles(poles::EulerPoleCart...)
     yn = sum(pole.y for pole in poles)
     zn = sum(pole.z for pole in poles)
 
-    EulerPoleCart(xn, yn, zn)
+    EulerPoleCart(x = xn, y = yn, z = zn, fix = poles[1].fix, 
+                  rel = poles[end].rel)
 end
 
 
@@ -180,7 +199,7 @@ function subtract_poles(pole1::EulerPoleCart, pole2::EulerPoleCart)
     yy = pole1.y - pole2.y
     zz = pole1.z - pole2.z
 
-    EulerPoleCart(xx, yy, zz)
+    EulerPoleCart(x = xx, y = yy, z = zz, fix = pole1.fix, rel = pole2.fix)
 end
 
 function subtract_poles(pole1::EulerPoleSphere, pole2::EulerPoleSphere)
@@ -210,7 +229,9 @@ function euler_pole_cart_to_sphere(pole::EulerPoleCart)
 
     rotation_rate_deg_Myr = rad2deg(rotation_rate_cart) * 1e6
 
-    EulerPoleSphere(pole_lon, pole_lat, rotation_rate_deg_Myr)
+    EulerPoleSphere(lond = pole_lon, latd = pole_lat, 
+                    rotrate = rotation_rate_deg_Myr,
+    fix = pole.fix, rel = pole.rel)
 end
 
 
@@ -221,7 +242,7 @@ function euler_pole_sphere_to_cart(pole::EulerPoleSphere)
     y = r * sind(pole.latd) * sind(pole.lond)
     z = r * cosd(pole.latd)
 
-    EulerPoleCart(x, y, z)
+    EulerPoleCart(x = x, y = y, z = z, fix = pole.fix, rel = pole.rel)
 end
 
 
