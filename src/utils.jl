@@ -1,4 +1,3 @@
-
 function diagonalize_matrices(matrices)
 
     rowz = [size(m, 1) for m in matrices]
