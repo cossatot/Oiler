@@ -96,7 +96,7 @@ na_eu_lats = [vel.latd for vel in na_eu_vels];
 na_eu_lons = [vel.lond for vel in na_eu_vels];
 
 na_eu_pred = Oiler.predict_block_vels(na_eu_lons, na_eu_lats, na_eu_pole);
-na_eu_pole_af = Oiler.add_poles(na_af_pole, af_eu_pole)
+na_eu_pole_af = Oiler.add_poles(af_eu_pole, na_af_pole)
 
 na_eu_pred_af = Oiler.predict_block_vels(na_eu_lons, na_eu_lats, na_eu_pole_af);
 
