@@ -148,13 +148,11 @@ function find_tricycles(graph::Dict; reduce::Bool = true)
 end
 
 
-function make_block_inversion_matrices_from_vels(
-    vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
+function make_block_inversion_matrices_from_vels(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
 
     vel_group_list = keys(vel_groups)
 
-    big_PvGb = diagonalize_matrices(
-        [build_PvGb_from_vels(vel_groups[gr]) for gr in vel_group_list])
+    big_PvGb = diagonalize_matrices([build_PvGb_from_vels(vel_groups[gr]) for gr in vel_group_list])
 
     rhs_vel_column = reduce(vcat,
         [build_vel_column_from_vels(vel_groups[gr]) for gr in vel_group_list])
@@ -162,3 +160,93 @@ function make_block_inversion_matrices_from_vels(
     return Dict("PvGb" => big_PvGb, "Vc" => rhs_vel_column, 
                 "keys" => Tuple(keys(vel_groups)))
 end
+
+
+function get_cycle_inds(vel_group_keys, cycle_tup)
+
+    v_ind = findall(x->x == cycle_tup, vel_group_keys)
+    if v_ind != []
+        res = Dict("ind" => v_ind[1], "val" => 1)
+    else
+        cycle_tup = Base.reverse(cycle_tup)
+        v_ind = findall(x->x == (cycle_tup), vel_group_keys)
+        if v_ind != []
+            res = Dict("ind" => v_ind[1], "val" => -1)
+        else
+            println("v apparently not in cycle")
+        end
+    end
+    res
+end
+
+
+function find_vel_cycles(vel_group_keys)
+
+    cycle_inds = Dict()
+    dg = make_digraph_from_tuples(vel_group_keys)
+    tricycles = find_tricycles(make_ugraph_from_digraph(dg))
+
+    for (i, tri) in enumerate(tricycles)
+        cycle_inds[i] = Dict()
+        for ctup in [(tri[1], tri[2]),(tri[2], tri[3]),(tri[3], tri[1])]
+            cycle_inds[i][ctup] = get_cycle_inds(vel_group_keys, ctup)
+        end
+    end
+    cycle_inds
+end
+
+
+function build_constraint_matrix(cycle, vel_group_keys)
+    constraint_mat = zeros(3, length(vel_group_keys) * 3)
+
+    for (v, inds) in cycle
+        end_ind = 3 * inds["ind"]
+
+        constraint_mat[3, end_ind] = inds["val"]
+        constraint_mat[2, end_ind - 1] = inds["val"]
+        constraint_mat[1, end_ind - 2] = inds["val"]
+    end
+    constraint_mat
+end
+
+function build_constraint_matrices(cycles, vel_group_keys)
+    reduce(vcat, [build_constraint_matrix(cyc, vel_group_keys) for (i, cyc) in
+    cycles])
+end
+
+
+function set_up_block_inv_w_constraints(vel_groups; sparse::Bool = false)
+    # do sparse later
+
+    vd = make_block_inversion_matrices_from_vels(vel_groups)
+    cycles = find_vel_cycles(vd["keys"])
+
+    cm = build_constraint_matrices(cycles, vd["keys"])
+
+    m, n = size(vd["PvGb"])
+    p = size(cm)[1]
+
+    constraint_rhs = zeros(p)
+    lhs_term_1 = 2 * vd["PvGb"]' * vd["PvGb"]
+    lhs = [lhs_term_1 cm'; cm zeros(p, p)]
+    rhs = [2 * vd["PvGb"]' * vd["Vc"]; constraint_rhs]
+
+    Dict("lhs" => lhs, "rhs" => rhs, "keys" => vd["keys"])
+end
+
+
+function solve_block_invs_from_vel_groups(vel_groups)
+    block_inv_setup = set_up_block_inv_w_constraints(vel_groups)
+
+    kkt_soln = block_inv_setup["lhs"] \ block_inv_setup["rhs"]
+
+    poles = Dict()
+    for (i, (fix, mov)) in enumerate(block_inv_setup["keys"])
+        poles[(fix, mov)] = EulerPoleCart(x = kkt_soln[i * 3 - 2], 
+                                         y = kkt_soln[i * 3 - 1],
+                                         z = kkt_soln[i * 3],
+                                         fix = fix, mov = mov)
+    end
+    poles
+end
+
