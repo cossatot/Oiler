@@ -2,7 +2,8 @@
 
 #using ..BlockRotations
 
-include("./block_rotations.jl")
+#include("./block_rotations.jl")
+include("./io.jl")
 
 function diagonalize_matrices(matrices)
 
@@ -56,7 +57,7 @@ The graph is in an adjacency list format.
 
 """
 function make_digraph_from_vels(vels::Array{VelocityVectorSphere})
-    vel_graph = Dict{String, Array{String}}()
+    vel_graph = Dict{String,Array{String}}()
 
     for vel in vels
         if haskey(vel_graph, vel.fix)
@@ -74,7 +75,7 @@ end
 
 
 function make_ugraph_from_digraph(digraph::Dict)
-    ug = Dict{String, Array{String}}()
+    ug = Dict{String,Array{String}}()
 
     for (fix, movs) in digraph
         for mov in movs
@@ -94,12 +95,42 @@ function make_ugraph_from_digraph(digraph::Dict)
 end
 
 
-#function make_digraph_from_poles(poles::Union{EulerPoleCart, EulerPoleSphere})
-#
-#    pole_graph = SimpleDiGraph()
-#
-#    for pole in poles
-#        if pole.fix != 
-#    end
+function find_tricycles(graph::Dict; reduce::Bool = false)
 
-#end
+    all_tris = []
+
+    for (from, tos) in graph
+        for to in tos
+            if to != from
+                for next in graph[to]
+                    if next != from
+                        for fin in graph[next]
+                            if fin == from
+                                path = [from, to, next]
+                                push!(all_tris, path)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if reduce == true
+        sets = []
+        unique_tris = []
+
+        for tri in all_tris
+            if !(Set(tri) in sets)
+                push!(sets, Set(tri))
+                push!(unique_tris, tri)
+            end
+        end
+        return unique_tris
+    else 
+        return all_tris
+    end
+end
+
+
+

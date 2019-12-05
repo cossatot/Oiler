@@ -28,6 +28,24 @@ ve, vn, vu are east, north and up velocities, and ee, en, and eu are the
 end
 #export VelocityVectorSph
 
+function reverse(vel::VelocityVectorSphere)
+    VelocityVectorSphere(lond = vel.lond,
+        latd = vel.latd,
+        ve = -vel.ve,
+        vn = -vel.vn,
+        vu = -vel.vu,
+        ee = vel.ee,
+        en = vel.en,
+        eu = vel.eu,
+        fix = vel.mov,
+        mov = vel.fix)
+end
+
+
+function -(vel::VelocityVectorSphere)
+    reverse(vel)
+end
+
 function build_Pv_deg(lond::Float64, latd::Float64)
 
     pv11 = -sind(latd) * cosd(lond)
@@ -185,7 +203,7 @@ end
 
 
 function -(pole::EulerPoleCart)
-    EulerPoleCart(x=-pole.x, y=-pole.y, z=-pole.z, fix=pole.mov, mov=pole.fix)
+    EulerPoleCart(x = -pole.x, y = -pole.y, z = -pole.z, fix = pole.mov, mov = pole.fix)
 end
 
 
@@ -277,9 +295,9 @@ function predict_block_vels(londs::Array{Float64},
     pred_vels = Array{VelocityVectorSphere}(undef, n_vels)
 
     for n in 1:n_vels
-        pred_vels[n] = VelocityVectorSphere(lond=londs[n], latd=latds[n],
-                                            ve=Ve_pred[n], vn=Vn_pred[n],
-                                            fix=pole.fix, mov=pole.mov)
+        pred_vels[n] = VelocityVectorSphere(lond = londs[n], latd = latds[n],
+                                            ve = Ve_pred[n], vn = Vn_pred[n],
+                                            fix = pole.fix, mov = pole.mov)
     end
     return pred_vels
 end
@@ -304,9 +322,9 @@ function predict_block_vels(londs::Array{Float64},
     pred_vels = Array{VelocityVectorSphere}(undef, n_vels)
 
     for n in 1:n_vels
-        pred_vels[n] = VelocityVectorSphere(lond=londs[n], latd=latds[n],
-                                            ve=Ve_pred[n], vn=Vn_pred[n],
-                                            fix=pole.fix, mov=pole.mov)
+        pred_vels[n] = VelocityVectorSphere(lond = londs[n], latd = latds[n],
+                                            ve = Ve_pred[n], vn = Vn_pred[n],
+                                            fix = pole.fix, mov = pole.mov)
     end
     return pred_vels
 end
@@ -321,5 +339,3 @@ function calc_strike(lond1::Float64, latd1::Float64,
 
     strike = atand(y, x)
 end
-
-#end
