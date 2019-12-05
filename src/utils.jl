@@ -74,6 +74,21 @@ function make_digraph_from_vels(vels::Array{VelocityVectorSphere})
 end
 
 
+function make_digraph_from_tuples(tups)
+    graph = Dict()
+
+    for (t1, t2) in tups
+        if haskey(graph, t1)
+            if !(t2 in graph[t1])
+                push!(graph[t1], t2)
+            end
+        else
+            graph[t1] = [t2]
+        end
+    end
+    graph
+end
+
 function make_ugraph_from_digraph(digraph::Dict)
     ug = Dict{String,Array{String}}()
 
@@ -95,7 +110,7 @@ function make_ugraph_from_digraph(digraph::Dict)
 end
 
 
-function find_tricycles(graph::Dict; reduce::Bool = false)
+function find_tricycles(graph::Dict; reduce::Bool = true)
 
     all_tris = []
 
@@ -133,4 +148,17 @@ function find_tricycles(graph::Dict; reduce::Bool = false)
 end
 
 
+function make_block_inversion_matrices_from_vels(
+    vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
 
+    vel_group_list = keys(vel_groups)
+
+    big_PvGb = diagonalize_matrices(
+        [build_PvGb_from_vels(vel_groups[gr]) for gr in vel_group_list])
+
+    rhs_vel_column = reduce(vcat,
+        [build_vel_column_from_vels(vel_groups[gr]) for gr in vel_group_list])
+
+    return Dict("PvGb" => big_PvGb, "Vc" => rhs_vel_column, 
+                "keys" => Tuple(keys(vel_groups)))
+end

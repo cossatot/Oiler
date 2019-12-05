@@ -6,40 +6,20 @@ using PyPlot
 
 using Oiler
 
-vels = CSV.read("./data/fault_vels.csv");
+vels = Oiler.load_vels_from_csv("./data/fault_vels.csv");
+vel_groups = Oiler.group_vels_by_fix_mov(vels);
 
-function vel_from_row(row::DataFrameRow)
-    Oiler.VelocityVectorSphere(lond = row.lon, latd = row.lat, 
-                            ve = row.ve, vn = row.vn, fix=row.fix, mov=row.mov)
-end
-
-af_eu_vels = Array{Oiler.VelocityVectorSphere,1}();
-na_af_vels = Array{Oiler.VelocityVectorSphere,1}();
-na_eu_vels = Array{Oiler.VelocityVectorSphere,1}();
-na_sa_vels = Array{Oiler.VelocityVectorSphere,1}();
-af_sa_vels = Array{Oiler.VelocityVectorSphere,1}();
-
-for i in 1:size(vels, 1)
-    row = vels[i,:]
-    if row.mov == "af" && row.fix == "eu"
-        push!(af_eu_vels, vel_from_row(row));
-    elseif row.mov == "na" && row.fix == "af"
-        push!(na_af_vels, vel_from_row(row));
-    elseif row.mov == "na" && row.fix == "eu"
-        push!(na_eu_vels, vel_from_row(row));
-    elseif row.mov == "na" && row.fix == "sa"
-        push!(na_sa_vels, vel_from_row(row));
-    elseif row.mov == "af" && row.fix == "sa"
-        push!(af_sa_vels, vel_from_row(row));
-    end
-end
+af_eu_vels = vel_groups[("eu","af")]
+na_af_vels = vel_groups[("af","na")]
+na_eu_vels = vel_groups[("eu","na")]
+na_sa_vels = vel_groups[("sa","na")]
+af_sa_vels = vel_groups[("sa","af")]
 
 af_eu_PvGb = Oiler.build_PvGb_from_vels(af_eu_vels);
 na_af_PvGb = Oiler.build_PvGb_from_vels(na_af_vels);
 na_eu_PvGb = Oiler.build_PvGb_from_vels(na_eu_vels);
 na_sa_PvGb = Oiler.build_PvGb_from_vels(na_sa_vels);
 af_sa_PvGb = Oiler.build_PvGb_from_vels(af_sa_vels);
-
 
 
 big_PvGb = Oiler.diagonalize_matrices((af_eu_PvGb, na_af_PvGb, na_eu_PvGb, na_sa_PvGb,
@@ -89,7 +69,7 @@ na_sa_pole = Oiler.EulerPoleCart(x = omegas[10], y = omegas[11], z = omegas[12],
 af_sa_pole = Oiler.EulerPoleCart(x = omegas[13], y = omegas[14], z = omegas[15],
                                  mov = "af", fix = "sa");
 
-sa_eu_pole_1 = Oiler.euler_pole_cart_to_sphere(Oiler.add_poles(na_sa_pole, na_eu_pole));
+sa_eu_pole_1 = Oiler.euler_pole_cart_to_sphere(Oiler.add_poles(na_sa_pole, -na_eu_pole));
 sa_eu_pole_2 = Oiler.euler_pole_cart_to_sphere(Oiler.add_poles(na_af_pole, af_eu_pole));
 
 na_eu_lats = [vel.latd for vel in na_eu_vels];
