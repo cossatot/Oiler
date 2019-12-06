@@ -5,6 +5,8 @@
 #include("./block_rotations.jl")
 include("./io.jl")
 
+using SparseArrays
+
 function diagonalize_matrices(matrices)
 
     rowz = [size(m, 1) for m in matrices]
@@ -13,7 +15,7 @@ function diagonalize_matrices(matrices)
     n_rows = sum(rowz)
     n_cols = sum(colz)
 
-    big_mat = zeros(n_rows, n_cols)
+    big_mat = spzeros(n_rows, n_cols)
 
     i_row = 1
     i_col = 1
@@ -166,12 +168,12 @@ function get_cycle_inds(vel_group_keys, cycle_tup)
 
     v_ind = findall(x->x == cycle_tup, vel_group_keys)
     if v_ind != []
-        res = Dict("ind" => v_ind[1], "val" => 1)
+        res = Dict("ind" => v_ind[1], "val" => 1.)
     else
         cycle_tup = Base.reverse(cycle_tup)
         v_ind = findall(x->x == (cycle_tup), vel_group_keys)
         if v_ind != []
-            res = Dict("ind" => v_ind[1], "val" => -1)
+            res = Dict("ind" => v_ind[1], "val" => -1.)
         else
             println("v apparently not in cycle")
         end
@@ -197,7 +199,7 @@ end
 
 
 function build_constraint_matrix(cycle, vel_group_keys)
-    constraint_mat = zeros(3, length(vel_group_keys) * 3)
+    constraint_mat = spzeros(3, length(vel_group_keys) * 3)
 
     for (v, inds) in cycle
         end_ind = 3 * inds["ind"]
@@ -215,8 +217,7 @@ function build_constraint_matrices(cycles, vel_group_keys)
 end
 
 
-function set_up_block_inv_w_constraints(vel_groups; sparse::Bool = false)
-    # do sparse later
+function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
 
     vd = make_block_inversion_matrices_from_vels(vel_groups)
     cycles = find_vel_cycles(vd["keys"])
@@ -228,14 +229,14 @@ function set_up_block_inv_w_constraints(vel_groups; sparse::Bool = false)
 
     constraint_rhs = zeros(p)
     lhs_term_1 = 2 * vd["PvGb"]' * vd["PvGb"]
-    lhs = [lhs_term_1 cm'; cm zeros(p, p)]
+    lhs = [lhs_term_1 cm'; cm spzeros(p, p)]
     rhs = [2 * vd["PvGb"]' * vd["Vc"]; constraint_rhs]
 
     Dict("lhs" => lhs, "rhs" => rhs, "keys" => vd["keys"])
 end
 
 
-function solve_block_invs_from_vel_groups(vel_groups)
+function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
     block_inv_setup = set_up_block_inv_w_constraints(vel_groups)
 
     kkt_soln = block_inv_setup["lhs"] \ block_inv_setup["rhs"]
@@ -249,4 +250,3 @@ function solve_block_invs_from_vel_groups(vel_groups)
     end
     poles
 end
-
