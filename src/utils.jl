@@ -8,7 +8,7 @@ include("./io.jl")
 using Base.Iterators
 using DataFrames
 using SparseArrays
-using SuiteSparse
+using LinearAlgebra
 
 
 function diagonalize_matrices(matrices)
@@ -154,30 +154,6 @@ function find_tricycles(graph::Dict; reduce::Bool = true)
 end
 
 
-function make_block_inversion_matrices_from_vels(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
-
-    out_dict = make_block_lhs_from_vels(vel_groups)
-
-    out_dict["Vc"] = reduce(vcat,
-        [build_vel_column_from_vels(vel_groups[gr]) for gr in out_dict["keys"]])
-
-    return out_dict
-end
-
-
-function make_block_lhs_from_vels(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
-
-    vel_group_list = keys(vel_groups)
-
-    big_PvGb = diagonalize_matrices([build_PvGb_from_vels(vel_groups[gr]) for gr
-    in vel_group_list])
-    
-    return Dict("PvGb" => big_PvGb, 
-                "keys" => collect(Tuple(keys(vel_groups))))
-end
-
-
-
 function get_cycle_inds(vel_group_keys, cycle_tup)
 
     v_ind = findall(x->x == cycle_tup, vel_group_keys)
@@ -225,9 +201,47 @@ function build_constraint_matrix(cycle, vel_group_keys)
     constraint_mat
 end
 
+
 function build_constraint_matrices(cycles, vel_group_keys)
     reduce(vcat, [build_constraint_matrix(cyc, vel_group_keys) for (i, cyc) in
     cycles])
+end
+
+
+function make_block_PvGb_from_vels(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
+
+    vel_group_list = keys(vel_groups)
+
+    big_PvGb = diagonalize_matrices([build_PvGb_from_vels(vel_groups[gr]) for gr
+    in vel_group_list])
+    
+    return Dict("PvGb" => big_PvGb, 
+                "keys" => collect(Tuple(keys(vel_groups))))
+end
+
+
+function make_block_inversion_matrices_from_vels(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
+
+    out_dict = make_block_PvGb_from_vels(vel_groups)
+
+    out_dict["Vc"] = reduce(vcat,
+        [build_vel_column_from_vels(vel_groups[gr]) for gr in out_dict["keys"]])
+
+    return out_dict
+end
+
+function make_block_inv_rhs(PvGb::SparseMatrixCSC{Float64,Int64},
+Vc::Array{Float64,1}, constraint_rhs::Vector{Float64})
+    rhs = [2 * PvGb' * Vc; constraint_rhs]
+end
+
+
+function make_block_inv_lhs_constraints(PvGb, cm)
+    m, n = size(PvGb)
+    p = size(cm)[1]
+
+    lhs_term_1 = 2 * PvGb' * PvGb
+    lhs = [lhs_term_1 cm'; cm spzeros(p, p)]
 end
 
 
@@ -237,13 +251,11 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
     cycles = find_vel_cycles(vd["keys"])
 
     cm = build_constraint_matrices(cycles, vd["keys"])
-
-    m, n = size(vd["PvGb"])
     p = size(cm)[1]
 
+    lhs = make_block_inv_lhs_constraints(vd["PvGb"], cm)
+    
     constraint_rhs = zeros(p)
-    lhs_term_1 = 2 * vd["PvGb"]' * vd["PvGb"]
-    lhs = [lhs_term_1 cm'; cm spzeros(p, p)]
     rhs = [2 * vd["PvGb"]' * vd["Vc"]; constraint_rhs]
 
     Dict("lhs" => lhs, "rhs" => rhs, "keys" => vd["keys"])
@@ -271,46 +283,31 @@ function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},A
     # consider making .oiler_config file w/ defaults such as max_iters_per_chunk
 
     # left hand side
-    vlhs = make_block_lhs_from_vels(vel_groups)
-    cycles = find_vel_cycles(vlhs["keys"])
-    cm = build_constraint_matrices(cycles, vlhs["keys"])
-    m, n = size(vlhs["PvGb"])
+    vd = make_block_PvGb_from_vels(vel_groups)
+    cycles = find_vel_cycles(vd["keys"])
+    cm = build_constraint_matrices(cycles, vd["keys"])
     p = size(cm)[1]
 
-    lhs_term_1 = 2 * vlhs["PvGb"]' * vlhs["PvGb"]
-    lhs = [lhs_term_1 cm'; cm spzeros(p, p)]
+    lhs = make_block_inv_lhs_constraints(vd["PvGb"], cm)
+    lhs = lu(lhs)
 
-    lhs_lu = lu(lhs)
+    rand_vels = random_sample_vel_groups(vel_groups, n_iters)
 
+    results = Dict("vels" => rand_vels, "poles" => Dict{Int,Array{EulerPoleCart,1}}())
 
+    for iter in 1:n_iters
+        Vc = build_Vc_from_vel_samples(rand_vels, vd["keys"], iter)
+        rhs = make_block_inv_rhs(vd["PvGb"], Vc, zeros(p))
 
+        kkt_soln = lhs \ rhs
 
-
-    
-end
-
-
-function make_block_inv_rhs(PvGb::SparseMatrixCSC{Float64,Int64},
-Vc::Array{Float64,1}, constraint_rhs::SparseVector{Float64,Int64})
-    rhs = [2 * PvGb' * Vc; constraint_rhs]
-end
-
-
-function find_shortest_path(graph::Dict{String,Array{String,1}}, 
-    start::String, stop::String)
-
-    dist = Dict{String,Any}(start => [start])
-    q = [start]
-    while length(q) > 0
-        at = popfirst!(q)
-        for next in graph[at]
-            if !haskey(dist, next)
-                dist[next] = [dist[at], next]
-                push!(q, next)
-            end
-        end
+        results["poles"][iter] = [EulerPoleCart(x = kkt_soln[i * 3 - 2],
+                                                y = kkt_soln[i * 3 - 1],
+                                                z = kkt_soln[i * 3],
+                                                fix = fix, mov = mov)
+               for (i, (fix, mov)) in enumerate(vd["keys"])]
     end
-    collect(flatten(dist[stop]))
+    results
 end
 
 
@@ -337,8 +334,7 @@ function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int)
 end
 
 
-function
-random_sample_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+function random_sample_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
 n_samps::Int)
     vel_group_samps = Dict{Tuple{String,String},Dict{String,Array{Float64,2}}}()
     for (key, group) in vel_groups
@@ -364,7 +360,7 @@ end
 
 
 function build_Vc_from_vel_samples(vel_samps::Dict{Tuple{String,String},Dict{String,Array{Float64,2}}},
-    ind::Int, vel_keys::Array{Tuple{String,String}})
+    vel_keys::Array{Tuple{String,String}}, ind::Int)
 
     reduce(vcat, [build_Vc_from_vel_sample(vel_samps[key], ind) for key in vel_keys])
 end
@@ -372,4 +368,22 @@ end
 
         
 
+
+
+function find_shortest_path(graph::Dict{String,Array{String,1}}, 
+    start::String, stop::String)
+
+    dist = Dict{String,Any}(start => [start])
+    q = [start]
+    while length(q) > 0
+        at = popfirst!(q)
+        for next in graph[at]
+            if !haskey(dist, next)
+                dist[next] = [dist[at], next]
+                push!(q, next)
+            end
+        end
+    end
+    collect(flatten(dist[stop]))
+end
 
