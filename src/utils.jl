@@ -6,7 +6,6 @@
 include("./io.jl")
 
 using Base.Iterators
-using Random
 using DataFrames
 using SparseArrays
 using SuiteSparse
@@ -283,7 +282,7 @@ function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},A
 
     lhs_lu = lu(lhs)
 
-    
+
 
 
 
