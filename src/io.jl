@@ -4,7 +4,21 @@ using DataFrames
 include("./block_rotations.jl")
 
 function vel_from_row(row::DataFrameRow)
-    VelocityVectorSphere(lond = row.lon, latd = row.lat, 
+    # maybe use dict here to match keys
+
+    if :ee in names(row)
+        ee = row.ee
+    else
+        ee = 0.
+    end
+
+    if :en in names(row)
+        en = row.en
+    else
+        en = 0.
+    end
+    
+    VelocityVectorSphere(lond = row.lon, latd = row.lat, ee = ee, en = en,
                          ve = row.ve, vn = row.vn, fix = row.fix, mov = row.mov)
 end
 

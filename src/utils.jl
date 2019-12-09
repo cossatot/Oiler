@@ -5,8 +5,12 @@
 #include("./block_rotations.jl")
 include("./io.jl")
 
-using SparseArrays
 using Base.Iterators
+using Random
+using DataFrames
+using SparseArrays
+using SuiteSparse
+
 
 function diagonalize_matrices(matrices)
 
@@ -153,16 +157,26 @@ end
 
 function make_block_inversion_matrices_from_vels(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
 
+    out_dict = make_block_lhs_from_vels(vel_groups)
+
+    out_dict["Vc"] = reduce(vcat,
+        [build_vel_column_from_vels(vel_groups[gr]) for gr in out_dict["keys"]])
+
+    return out_dict
+end
+
+
+function make_block_lhs_from_vels(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
+
     vel_group_list = keys(vel_groups)
 
-    big_PvGb = diagonalize_matrices([build_PvGb_from_vels(vel_groups[gr]) for gr in vel_group_list])
-
-    rhs_vel_column = reduce(vcat,
-        [build_vel_column_from_vels(vel_groups[gr]) for gr in vel_group_list])
-
-    return Dict("PvGb" => big_PvGb, "Vc" => rhs_vel_column, 
-                "keys" => Tuple(keys(vel_groups)))
+    big_PvGb = diagonalize_matrices([build_PvGb_from_vels(vel_groups[gr]) for gr
+    in vel_group_list])
+    
+    return Dict("PvGb" => big_PvGb, 
+                "keys" => collect(Tuple(keys(vel_groups))))
 end
+
 
 
 function get_cycle_inds(vel_group_keys, cycle_tup)
@@ -253,6 +267,36 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 end
 
 
+function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+    n_iters::Int)
+    # consider making .oiler_config file w/ defaults such as max_iters_per_chunk
+
+    # left hand side
+    vlhs = make_block_lhs_from_vels(vel_groups)
+    cycles = find_vel_cycles(vlhs["keys"])
+    cm = build_constraint_matrices(cycles, vlhs["keys"])
+    m, n = size(vlhs["PvGb"])
+    p = size(cm)[1]
+
+    lhs_term_1 = 2 * vlhs["PvGb"]' * vlhs["PvGb"]
+    lhs = [lhs_term_1 cm'; cm spzeros(p, p)]
+
+    lhs_lu = lu(lhs)
+
+    
+
+
+
+    
+end
+
+
+function make_block_inv_rhs(PvGb::SparseMatrixCSC{Float64,Int64},
+Vc::Array{Float64,1}, constraint_rhs::SparseVector{Float64,Int64})
+    rhs = [2 * PvGb' * Vc; constraint_rhs]
+end
+
+
 function find_shortest_path(graph::Dict{String,Array{String,1}}, 
     start::String, stop::String)
 
@@ -269,4 +313,64 @@ function find_shortest_path(graph::Dict{String,Array{String,1}},
     end
     collect(flatten(dist[stop]))
 end
-    
+
+
+function random_sample_vel(vel::VelocityVectorSphere)
+    rnd = randn(2)
+    ve = vel.ve + rnd[1] * vel.ee
+    vn = vel.vn + rnd[2] * vel.en
+    (ve, vn)
+end
+
+
+function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int)
+    rnd_ve_block = randn((length(vels), n_samps))
+    rnd_vn_block = randn((length(vels), n_samps))
+
+    ve_out = zeros(size(rnd_ve_block))
+    vn_out = zeros(size(rnd_vn_block))
+
+    for (row, vel) in enumerate(vels)
+        ve_out[row,:] = vel.ve .+ rnd_ve_block[row,:] .* vel.ee
+        vn_out[row,:] = vel.vn .+ rnd_ve_block[row,:] .* vel.en
+    end
+    (ve_out, vn_out)
+end
+
+
+function
+random_sample_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+n_samps::Int)
+    vel_group_samps = Dict{Tuple{String,String},Dict{String,Array{Float64,2}}}()
+    for (key, group) in vel_groups
+        (ve, vn) = random_sample_vels(group, n_samps)
+        vel_group_samps[key] = Dict("ve" => ve, "vn" => vn)
+    end
+    vel_group_samps
+end
+
+
+function Vc_trip_from_vals(ve::Float64, vn::Float64)
+    [ve; vn; 0]
+end
+
+
+function build_Vc_from_vel_sample(vel_samp::Dict{String,Array{Float64,2}},
+    ind::Int)
+
+    reduce(vcat, [Vc_trip_from_vals(ve, vel_samp["vn"][i,ind])
+    for (i, ve) in enumerate(vel_samp["ve"][:,ind])])
+
+end
+
+
+function build_Vc_from_vel_samples(vel_samps::Dict{Tuple{String,String},Dict{String,Array{Float64,2}}},
+    ind::Int, vel_keys::Array{Tuple{String,String}})
+
+    reduce(vcat, [build_Vc_from_vel_sample(vel_samps[key], ind) for key in vel_keys])
+end
+
+
+        
+
+
