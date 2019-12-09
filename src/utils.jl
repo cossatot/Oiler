@@ -6,6 +6,7 @@
 include("./io.jl")
 
 using SparseArrays
+using Base.Iterators
 
 function diagonalize_matrices(matrices)
 
@@ -250,3 +251,22 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     end
     poles
 end
+
+
+function find_shortest_path(graph::Dict{String,Array{String,1}}, 
+    start::String, stop::String)
+
+    dist = Dict{String,Any}(start => [start])
+    q = [start]
+    while length(q) > 0
+        at = popfirst!(q)
+        for next in graph[at]
+            if !haskey(dist, next)
+                dist[next] = [dist[at], next]
+                push!(q, next)
+            end
+        end
+    end
+    collect(flatten(dist[stop]))
+end
+    
