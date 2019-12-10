@@ -219,6 +219,16 @@ function add_poles(poles::EulerPoleCart...)
 end
 
 
+function add_poles(poles::Array{EulerPoleCart})
+    xn = sum(pole.x for pole in poles)
+    yn = sum(pole.y for pole in poles)
+    zn = sum(pole.z for pole in poles)
+
+    EulerPoleCart(x = xn, y = yn, z = zn, fix = poles[1].fix, 
+                  mov = poles[end].mov)
+end
+
+
 function add_poles(poles::EulerPoleSphere...)
     cart_poles = [euler_pole_sphere_to_cart(pole) for pole in poles]
 

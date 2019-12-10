@@ -5,7 +5,7 @@
 #include("./block_rotations.jl")
 include("./io.jl")
 
-using Base.Iterators
+#using Base.Iterators
 using DataFrames
 using SparseArrays
 using LinearAlgebra
@@ -77,6 +77,22 @@ function make_digraph_from_vels(vels::Array{VelocityVectorSphere})
         end
     end
     vel_graph
+end
+
+
+function make_digraph_from_poles(poles::Union{Array{EulerPoleCart},Array{EulerPoleSphere}})
+    pole_graph = Dict{String,Array{String}}()
+
+    for pole in poles
+        if haskey(pole_graph, pole.fix)
+            if !(pole.mov in pole_graph[pole.fix])
+                push!(pole_graph[pole.fix], pole.mov)
+            end
+        else
+            pole_graph[pole.fix] = [pole.mov]
+        end
+    end
+    pole_graph
 end
 
 
@@ -366,11 +382,9 @@ function build_Vc_from_vel_samples(vel_samps::Dict{Tuple{String,String},Dict{Str
 end
 
 
-        
+flat(x,y = vcat(x...)) = x == y ? x : flat(y)
 
-
-
-function find_shortest_path(graph::Dict{String,Array{String,1}}, 
+function find_shortest_path(graph::Dict{String,Array{String}}, 
     start::String, stop::String)
 
     dist = Dict{String,Any}(start => [start])
@@ -384,6 +398,47 @@ function find_shortest_path(graph::Dict{String,Array{String,1}},
             end
         end
     end
-    collect(flatten(dist[stop]))
+   flat(dist[stop])
 end
 
+
+function get_pole_path(poles::Array{EulerPoleCart}, path::Array{String})
+
+    steps = length(path) - 1
+    pole_path = Array{EulerPoleCart,1}(undef, steps)
+
+
+    for i in 1:steps
+        place = path[i]
+        next = path[i+1]
+
+        for pole in poles
+            if pole.fix == place && pole.mov == next
+                pole_path[i] = pole
+            elseif pole.fix == next && pole.mov == place
+                pole_path[i] = -pole
+            end
+        end
+    end
+    pole_path
+end
+
+function get_path_euler_pole(poles::Array{EulerPoleCart,1}, fix::String, mov::String)
+
+    vel_dg = make_digraph_from_poles(poles)
+    vel_ug = make_ugraph_from_digraph(vel_dg)
+
+    path = find_shortest_path(vel_ug, fix, mov)
+
+    pole_path = get_pole_path(poles, path)
+
+    final_pole = add_poles(pole_path)
+end
+
+
+#function flattenall(a::Array{Str})
+#    while any(x->typeof(x)<:AbstractArray, a)
+#        a = collect(Base.flatten(a))
+#    end
+#    return a
+#end
