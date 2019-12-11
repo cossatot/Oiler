@@ -423,22 +423,41 @@ function get_pole_path(poles::Array{EulerPoleCart}, path::Array{String})
     pole_path
 end
 
-function get_path_euler_pole(poles::Array{EulerPoleCart,1}, fix::String, mov::String)
+function get_path_euler_pole(poles::Array{EulerPoleCart,1}, fix::String,
+mov::String)
+    
+    if fix == mov
+        final_pole = EulerPoleCart(x=0., y=0., z=0., fix=fix, mov=mov)
+    else
+        vel_dg = make_digraph_from_poles(poles)
+        vel_ug = make_ugraph_from_digraph(vel_dg)
 
-    vel_dg = make_digraph_from_poles(poles)
-    vel_ug = make_ugraph_from_digraph(vel_dg)
+        path = find_shortest_path(vel_ug, fix, mov)
 
-    path = find_shortest_path(vel_ug, fix, mov)
+        pole_path = get_pole_path(poles, path)
 
-    pole_path = get_pole_path(poles, path)
-
-    final_pole = add_poles(pole_path)
+        final_pole = add_poles(pole_path)
+    end
+    final_pole
 end
 
 
-#function flattenall(a::Array{Str})
-#    while any(x->typeof(x)<:AbstractArray, a)
-#        a = collect(Base.flatten(a))
-#    end
-#    return a
-#end
+function
+predict_vels_from_poles(block_things::Dict{String,AbstractArray},
+    poles::Array{EulerPoleCart,1})
+
+    pole_list = [get_path_euler_pole(poles, fix, mov) for (fix, mov) in
+    block_things["keys"]]
+    
+    pole_vec = reduce(vcat, [[p.x; p.y; p.z] for p in pole_list])
+
+    V_pred = block_things["PvGb"] * pole_vec
+
+    Ve_pred = V_pred[1:3:end]
+    Vn_pred = V_pred[2:3:end]
+    #Vu_pred = V_pred[3:3:end]
+
+    (Ve_pred, Vn_pred)
+end
+
+
