@@ -69,7 +69,7 @@ function build_Pv_deg(lond::Float64, latd::Float64)
 end
 
 
-function build_Gb_deg(lond::Float64, latd::Float64; R = 6371000.)
+function build_Gb_deg(lond::Float64, latd::Float64; R = 6371000000.)
     x_hat = R * cosd(latd) * cosd(lond)
     y_hat = R * cosd(latd) * sind(lond)
     z_hat = R * sind(latd);
@@ -340,7 +340,15 @@ function predict_block_vels(londs::Array{Float64},
     end
     return pred_vels
 end
-    
+   
+
+function predict_block_vels(vels::Array{VelocityVectorSphere},
+pole::EulerPoleCart)
+    londs = [v.lond for v in vels]
+    latds = [v.latd for v in vels]
+
+    predict_block_vels(londs, latds, pole)
+end
 
 
 function calc_strike(lond1::Float64, latd1::Float64,

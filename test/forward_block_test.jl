@@ -1,12 +1,14 @@
+using Revise
+
 using Oiler
 
 using PyPlot
 
 
-AVES = Oiler.VelocityVectorSph(-63.62, 15.67, 13.2, 14.2, 0., 0., 0., 0.);
-ROJO = Oiler.VelocityVectorSph(-71.67, 17.9, 13.5, 6.9, 0., 0., 0., 0.);
-SANA = Oiler.VelocityVectorSph(-81.73, 12.53, 14.8, 7.4, 0., 0., 0., 0.);
-CRO1 = Oiler.VelocityVectorSph(-64.58, 17.76, 9.8, 13.3, 0., 0., 0., 0.);
+AVES = Oiler.VelocityVectorSphere(lond = -63.62, latd = 15.67, ve = 13.2, vn = 14.2);
+ROJO = Oiler.VelocityVectorSphere(lond = -71.67, latd = 17.90, ve = 13.5, vn = 6.90);
+SANA = Oiler.VelocityVectorSphere(lond = -81.73, latd = 12.53, ve = 14.8, vn = 7.4);
+CRO1 = Oiler.VelocityVectorSphere(lond = -64.58, latd = 17.76, ve = 9.80, vn = 13.3);
 
 vels = [AVES; ROJO; SANA; CRO1];
 
@@ -16,8 +18,8 @@ V = Oiler.build_vel_column_from_vels(vels);
 
 omega_hat = A \ V;
 
-euler_cart = Oiler.EulerPoleCart(omega_hat[1], omega_hat[2],
-                           omega_hat[3]);
+euler_cart = Oiler.EulerPoleCart(x = omega_hat[1], y = omega_hat[2], z = omega_hat[3],
+                                 fix = "", mov = "");
 
 euler_sphere = Oiler.euler_pole_cart_to_sphere(euler_cart)
 
