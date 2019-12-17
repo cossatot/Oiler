@@ -19,10 +19,10 @@ ve, vn, vu are east, north and up velocities, and ee, en, and eu are the
     latd::Float64
     ve::Float64
     vn::Float64
-    vu::Float64 = 0.
+    vd::Float64 = 0.
     ee::Float64 = 0.
     en::Float64 = 0.
-    eu::Float64 = 0.
+    ed::Float64 = 0.
     fix::String = ""
     mov::String = ""
     name::String = ""
@@ -34,10 +34,10 @@ function reverse(vel::VelocityVectorSphere)
         latd = vel.latd,
         ve = -vel.ve,
         vn = -vel.vn,
-        vu = -vel.vu,
+        vd = -vel.vd,
         ee = vel.ee,
         en = vel.en,
-        eu = vel.eu,
+        ed = vel.ed,
         fix = vel.mov,
         mov = vel.fix,
         name = name)
@@ -69,7 +69,7 @@ function build_Pv_deg(lond::Float64, latd::Float64)
 end
 
 
-function build_Gb_deg(lond::Float64, latd::Float64; R = 6371000.)
+function build_Gb_deg(lond::Float64, latd::Float64; R = 6371000000.)
     x_hat = R * cosd(latd) * cosd(lond)
     y_hat = R * cosd(latd) * sind(lond)
     z_hat = R * sind(latd);
@@ -157,7 +157,7 @@ function build_PvGb_from_degs(londs::Array{Float64},
 end
 
 function build_vel_column_from_vel(vel::VelocityVectorSphere)
-    V = [vel.ve; vel.vn; vel.vu]
+    V = [vel.vn; vel.ve; vel.vd]
 end
 
 
@@ -298,9 +298,9 @@ function predict_block_vels(londs::Array{Float64},
     cart_pole = euler_pole_sphere_to_cart(pole)
 
     V_pred = PvGb * [cart_pole.x; cart_pole.y; cart_pole.z]
-    Ve_pred = V_pred[1:3:end]
-    Vn_pred = V_pred[2:3:end]
-    Vu_pred = V_pred[3:3:end]
+    Vn_pred = V_pred[1:3:end]
+    Ve_pred = V_pred[2:3:end]
+    Vd_pred = V_pred[3:3:end]
 
     n_vels = length(londs)
 
@@ -321,9 +321,9 @@ function predict_block_vels(londs::Array{Float64},
     PvGb = build_PvGb_from_degs(londs, latds)
 
     V_pred = PvGb * [pole.x; pole.y; pole.z]
-    Ve_pred = V_pred[1:3:end]
-    Vn_pred = V_pred[2:3:end]
-    Vu_pred = V_pred[3:3:end]
+    Vn_pred = V_pred[1:3:end]
+    Ve_pred = V_pred[2:3:end]
+    Vd_pred = V_pred[3:3:end]
 
     if length(size(londs)) == 1
         n_vels = size(londs)[1]
