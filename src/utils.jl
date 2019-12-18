@@ -67,9 +67,7 @@ function make_digraph_from_vels(vels::Array{VelocityVectorSphere})
 
     for vel in vels
         if haskey(vel_graph, vel.fix)
-            if vel.mov in vel_graph[vel.fix]
-            # pass
-            else
+            if !(vel.mov in vel_graph[vel.fix])
                 push!(vel_graph[vel.fix], vel.mov)
             end
         else
@@ -382,7 +380,7 @@ function build_Vc_from_vel_samples(vel_samps::Dict{Tuple{String,String},Dict{Str
 end
 
 
-flat(x,y = vcat(x...)) = x == y ? x : flat(y)
+flat(x, y = vcat(x...)) = x == y ? x : flat(y)
 
 function find_shortest_path(graph::Dict{String,Array{String}}, 
     start::String, stop::String)
@@ -398,7 +396,7 @@ function find_shortest_path(graph::Dict{String,Array{String}},
             end
         end
     end
-   flat(dist[stop])
+    flat(dist[stop])
 end
 
 
@@ -410,7 +408,7 @@ function get_pole_path(poles::Array{EulerPoleCart}, path::Array{String})
 
     for i in 1:steps
         place = path[i]
-        next = path[i+1]
+        next = path[i + 1]
 
         for pole in poles
             if pole.fix == place && pole.mov == next
@@ -427,7 +425,7 @@ function get_path_euler_pole(poles::Array{EulerPoleCart,1}, fix::String,
 mov::String)
     
     if fix == mov
-        final_pole = EulerPoleCart(x=0., y=0., z=0., fix=fix, mov=mov)
+        final_pole = EulerPoleCart(x = 0., y = 0., z = 0., fix = fix, mov = mov)
     else
         vel_dg = make_digraph_from_poles(poles)
         vel_ug = make_ugraph_from_digraph(vel_dg)
@@ -460,4 +458,10 @@ predict_vels_from_poles(block_things::Dict{String,AbstractArray},
     (Ve_pred, Vn_pred)
 end
 
+function predict_vels_from_poles(block_things::Dict{String,AbstractArray},
+    poles::Array{EulerPoleSphere})
 
+    cpoles = [euler_pole_sphere_to_cart(pole) for pole in poles]
+
+    predict_vels_from_poles(block_things, cpoles)
+end

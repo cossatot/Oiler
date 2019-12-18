@@ -242,6 +242,14 @@ function add_poles(poles::EulerPoleSphere...)
 end
 
 
+function +(pole1::EulerPoleCart, pole2::EulerPoleCart)
+    add_poles(pole1, pole2)
+end
+
+function +(pole1::EulerPoleSphere, pole2::EulerPoleSphere)
+    add_poles(pole1, pole2)
+end
+
 function subtract_poles(pole1::EulerPoleCart, pole2::EulerPoleCart)
     xx = pole1.x - pole2.x
     yy = pole1.y - pole2.y
@@ -257,6 +265,15 @@ function subtract_poles(pole1::EulerPoleSphere, pole2::EulerPoleSphere)
     pole_diff = subtract_poles(pole1c, pole2c)
 
     euler_pole_cart_to_sphere(pole_diff)
+end
+
+
+function -(pole1::EulerPoleCart, pole2::EulerPoleCart)
+    subtract_poles(pole1, pole2)
+end
+
+function -(pole1::EulerPoleSphere, pole2::EulerPoleSphere)
+    subtract_poles(pole1, pole2)
 end
 
 """
