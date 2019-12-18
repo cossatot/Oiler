@@ -301,7 +301,7 @@ end
 
 
 function euler_pole_sphere_to_cart(pole::EulerPoleSphere)
-    r = deg2rad(pole.rotrate / 1e6)
+    r = deg2rad(pole.rotrate) / 1e6
 
     x = r * cosd(pole.latd) * cosd(pole.lond)
     y = r * cosd(pole.latd) * sind(pole.lond)
