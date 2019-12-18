@@ -208,6 +208,11 @@ function -(pole::EulerPoleCart)
     EulerPoleCart(x = -pole.x, y = -pole.y, z = -pole.z, fix = pole.mov, mov = pole.fix)
 end
 
+function -(pole::EulerPoleSphere)
+    pc = euler_pole_sphere_to_cart(pole)
+    euler_pole_cart_to_sphere(-pc)
+end
+
 
 function add_poles(poles::EulerPoleCart...)
     xn = sum(pole.x for pole in poles)
