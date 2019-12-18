@@ -345,7 +345,15 @@ function predict_block_vels(londs::Array{Float64},
     end
     return pred_vels
 end
-    
+   
+
+function predict_block_vels(vels::Array{VelocityVectorSphere},
+pole::EulerPoleCart)
+    londs = [v.lond for v in vels]
+    latds = [v.latd for v in vels]
+
+    predict_block_vels(londs, latds, pole)
+end
 
 
 function calc_strike(lond1::Float64, latd1::Float64,
