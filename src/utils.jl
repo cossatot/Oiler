@@ -222,15 +222,51 @@ function build_constraint_matrices(cycles, vel_group_keys)
 end
 
 
+function weight_from_error(error::Float64; zero_err_weight::Float64=1e5)
+    if error == 0.
+        weight = zero_err_weight
+    else
+        weight = 1. / error
+    end
+    weight
+end
+    
+
+function build_weight_vector_from_vel(vel::VelocityVectorSphere)
+    [weight_from_error(e) for e in (vel.en, vel.ee, vel.ed)]
+end
+
+
+function build_weight_vector_from_vels(vels::Array{VelocityVectorSphere})
+    reduce(vcat, [build_weight_vector_from_vel(vel) for vel in vels])
+end
+
+function
+build_weight_vectors(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
+    weight_groups = Dict{Tuple{String,String},Array{Float64,1}}()
+
+    for (key, vels) in vel_groups
+        weight_groups[key] = build_weight_vector_from_vels(vels)
+    end
+    weight_groups
+end
+
+
 function make_block_PvGb_from_vels(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
 
     vel_group_list = keys(vel_groups)
 
     big_PvGb = diagonalize_matrices([build_PvGb_from_vels(vel_groups[gr]) for gr
-    in vel_group_list])
+        in vel_group_list])
+
+    v_keys = collect(Tuple(keys(vel_groups)))
+
+    weights = build_weight_vectors(vel_groups)
+    weight_vec = reduce(vcat, [weights[key] for key in v_keys]) 
     
     return Dict("PvGb" => big_PvGb, 
-                "keys" => collect(Tuple(keys(vel_groups))))
+                "keys" => v_keys,
+                "weights" => weight_vec)
 end
 
 
@@ -259,25 +295,43 @@ function make_block_inv_lhs_constraints(PvGb, cm)
 end
 
 
-function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
+function
+set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
+weighted::Bool=true)
 
     vd = make_block_inversion_matrices_from_vels(vel_groups)
     cycles = find_vel_cycles(vd["keys"])
-
-    cm = build_constraint_matrices(cycles, vd["keys"])
-    p = size(cm)[1]
-
-    lhs = make_block_inv_lhs_constraints(vd["PvGb"], cm)
     
-    constraint_rhs = zeros(p)
-    rhs = [2 * vd["PvGb"]' * vd["Vc"]; constraint_rhs]
+    if weighted == true
+        PvGb = vd["weights"] .* vd["PvGb"]
+        Vc = vd["weights"] .* vd["Vc"]
+    else
+        PvGb = vd["PvGb"]
+        Vc = vd["Vc"]
+    end
+
+
+    if cycles == Dict{Any,Any}()
+        lhs = PvGb
+        rhs = Vc
+
+    else
+        cm = build_constraint_matrices(cycles, vd["keys"])
+        p = size(cm)[1]
+
+        lhs = make_block_inv_lhs_constraints(PvGb, cm)
+    
+        constraint_rhs = zeros(p)
+        rhs = [2 * PvGb' * Vc; constraint_rhs]
+    end
 
     Dict("lhs" => lhs, "rhs" => rhs, "keys" => vd["keys"])
 end
 
 
-function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
-    block_inv_setup = set_up_block_inv_w_constraints(vel_groups)
+function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
+    weighted::Bool=true)
+    block_inv_setup = set_up_block_inv_w_constraints(vel_groups; weighted=weighted)
 
     kkt_soln = block_inv_setup["lhs"] \ block_inv_setup["rhs"]
 
