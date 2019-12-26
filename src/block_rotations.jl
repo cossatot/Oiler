@@ -5,6 +5,8 @@ import Base.-
 
 using Parameters
 
+const EARTH_RAD_KM = 6371.
+const EARTH_RAD_MM = EARTH_RAD_KM * 1e6
 
 """
     VelocityVectorSph(20., )
@@ -69,7 +71,7 @@ function build_Pv_deg(lond::Float64, latd::Float64)
 end
 
 
-function build_Gb_deg(lond::Float64, latd::Float64; R = 6371000000.)
+function build_Gb_deg(lond::Float64, latd::Float64; R = EARTH_RAD_MM)
     x_hat = R * cosd(latd) * cosd(lond)
     y_hat = R * cosd(latd) * sind(lond)
     z_hat = R * sind(latd);
@@ -372,12 +374,3 @@ pole::EulerPoleCart)
     predict_block_vels(londs, latds, pole)
 end
 
-
-function calc_strike(lond1::Float64, latd1::Float64,
-                     lond2::Float64, latd2::Float64)
-        
-    y = sind(lond2 - lond1) * cosd(latd1)
-    x = cosd(latd1) * sind(latd2) - sind(latd1) * cosd(latd2) * cos(lond2 - lond1)
-
-    strike = atand(y, x)
-end
