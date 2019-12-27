@@ -1,3 +1,7 @@
+module Geom
+
+export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az
+
 import Statistics: mean
 
 
@@ -59,4 +63,7 @@ end
 
 function angle_to_az(angle::Float64)
     -(rad2deg(angle) - 90.)
+end
+
+
 end
