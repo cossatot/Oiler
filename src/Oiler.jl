@@ -15,8 +15,14 @@ using .Velocities: VelocityVectorSphere
 export VelocityVectorSphere
 
 include("geom.jl")
-using .Geom: azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az
-export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az
+using .Geom: azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
+    angle_difference
+export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
+    angle_difference
+
+include("faults.jl")
+using .Faults: Fault, fault_to_vel, fault_slip_rate_to_ve_vn
+export Fault, fault_to_vel, fault_slip_rate_to_ve_vn
 
 include("block_rotations.jl")
 using .BlockRotations: build_PvGb_from_vels, build_vel_column_from_vels, predict_block_vels
@@ -29,12 +35,7 @@ export vel_from_row, load_vels_from_csv, group_vels_by_fix_mov
 include("utils.jl")
 using .Utils: make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
     predict_vels_from_poles, solve_for_block_poles_iterative
-
 export make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
     predict_vels_from_poles, solve_for_block_poles_iterative
 
-include("faults.jl")
-
-#using .BlockRotations, .Utils
-
-end # module
+end  # module

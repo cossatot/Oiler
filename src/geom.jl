@@ -1,15 +1,18 @@
 module Geom
 
-export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az
+export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
+    angle_difference
 
 import Statistics: mean
 
+using ..Oiler: EARTH_RAD_KM
 
 function azimuth(lond1::Float64, latd1::Float64,
                  lond2::Float64, latd2::Float64)
-        
-    y = sind(lond1 - lond2) * cosd(latd2)
-    x = cosd(latd1) * sind(latd1) - sind(latd1) * cosd(latd2) * cos(lond1 - lond2)
+
+    dlon = lond2 - lond1
+    y = sind(dlon) * cosd(latd2)
+    x = cosd(latd1) * sind(latd2) - sind(latd1) * cosd(latd2) * cosd(dlon)
 
     azimuth = atand(y, x)
 end
@@ -37,7 +40,7 @@ function average_azimuth(londs::Array{Float64}, latds::Array{Float64})
         az = azimuth(londs[1], latds[1], londs[2], latds[2])
     else
         
-        azs = [azimuth(londs[1], latds[1], londs[i], latds[i]) for i in
+        azs = [azimuth(londs[1], latds[1], londs[2], latds[2]) for i in
             2:length(latds)]
         
         azs = [deg2rad(az) for az in azs]
@@ -65,5 +68,25 @@ function angle_to_az(angle::Float64)
     -(rad2deg(angle) - 90.)
 end
 
+"""
+    angle_difference(trend_1, trend_2)
+Calculates the difference between to angles, azimuths or trends, in degrees.
+"""
+function angle_difference(trend_1::Float64, trend_2::Float64; return_abs::Bool = true)
 
+    difference = trend_2 - trend_1
+
+    while difference < -180.
+        difference += 360.
+    end
+    while difference > 180.
+        difference -= 360.
+    end
+
+    if return_abs == true
+        difference = abs(difference)
+    end
+    difference
 end
+
+end # module

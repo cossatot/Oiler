@@ -510,7 +510,7 @@ predict_vels_from_poles(block_things::Dict{String,AbstractArray},
 
     Vn_pred = V_pred[1:3:end]
     Ve_pred = V_pred[2:3:end]
-    #Vu_pred = V_pred[3:3:end]
+    # Vu_pred = V_pred[3:3:end]
 
     (Ve_pred, Vn_pred)
 end
@@ -524,4 +524,4 @@ function predict_vels_from_poles(block_things::Dict{String,AbstractArray},
 end
 
 
-end
+end # module

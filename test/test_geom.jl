@@ -19,4 +19,4 @@ quien_sabe_coords = [-121.37575 36.93768;
 
 @test Oiler.azimuth(lax_lon, lax_lat, jfk_lon, jfk_lat) == 77.11787999624288
 
-@test Oiler.average_azimuth(quien_sabe_coords[:,1], quien_sabe_coords[:,2]) == 324.1541623629684
+@test Oiler.average_azimuth(quien_sabe_coords[:,1], quien_sabe_coords[:,2]) == 323.8414207049782

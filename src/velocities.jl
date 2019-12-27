@@ -39,7 +39,7 @@ function reverse(vel::VelocityVectorSphere)
         ed = vel.ed,
         fix = vel.mov,
         mov = vel.fix,
-        name = name)
+        name = vel.name)
 end
 
 
@@ -47,4 +47,4 @@ function Base.:-(vel::VelocityVectorSphere)
     reverse(vel)
 end
 
-end
+end # module
