@@ -1,7 +1,12 @@
-using CSV
-using DataFrames
+module IO
 
-include("./block_rotations.jl")
+export vel_from_row, load_vels_from_csv, group_vels_by_fix_mov
+
+using ..Oiler: VelocityVectorSphere
+
+using CSV
+using DataFrames: DataFrameRow
+
 
 function vel_from_row(row::DataFrameRow)
     # maybe use dict here to match keys
@@ -47,4 +52,6 @@ function group_vels_by_fix_mov(vels::Array{VelocityVectorSphere})
         end
     end
     vel_groups
+end
+
 end

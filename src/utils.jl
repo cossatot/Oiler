@@ -1,11 +1,14 @@
-#module Utils
+module Utils
 
-#using ..BlockRotations
+export make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
+    predict_vels_from_poles, solve_for_block_poles_iterative
 
-#include("./block_rotations.jl")
-include("./io.jl")
 
-#using Base.Iterators
+
+using ..Oiler: VelocityVectorSphere, PoleCart, PoleSphere, build_PvGb_from_vels,
+        build_vel_column_from_vels, add_poles, pole_sphere_to_cart
+
+
 using DataFrames
 using SparseArrays
 using LinearAlgebra
@@ -78,7 +81,7 @@ function make_digraph_from_vels(vels::Array{VelocityVectorSphere})
 end
 
 
-function make_digraph_from_poles(poles::Union{Array{EulerPoleCart},Array{EulerPoleSphere}})
+function make_digraph_from_poles(poles::Union{Array{PoleCart},Array{PoleSphere}})
     pole_graph = Dict{String,Array{String}}()
 
     for pole in poles
@@ -222,7 +225,7 @@ function build_constraint_matrices(cycles, vel_group_keys)
 end
 
 
-function weight_from_error(error::Float64; zero_err_weight::Float64=1e5)
+function weight_from_error(error::Float64; zero_err_weight::Float64 = 1e5)
     if error == 0.
         weight = zero_err_weight
     else
@@ -297,7 +300,7 @@ end
 
 function
 set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-weighted::Bool=true)
+weighted::Bool = true)
 
     vd = make_block_inversion_matrices_from_vels(vel_groups)
     cycles = find_vel_cycles(vd["keys"])
@@ -330,14 +333,14 @@ end
 
 
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    weighted::Bool=true)
-    block_inv_setup = set_up_block_inv_w_constraints(vel_groups; weighted=weighted)
+    weighted::Bool = true)
+    block_inv_setup = set_up_block_inv_w_constraints(vel_groups; weighted = weighted)
 
     kkt_soln = block_inv_setup["lhs"] \ block_inv_setup["rhs"]
 
     poles = Dict()
     for (i, (fix, mov)) in enumerate(block_inv_setup["keys"])
-        poles[(fix, mov)] = EulerPoleCart(x = kkt_soln[i * 3 - 2], 
+        poles[(fix, mov)] = PoleCart(x = kkt_soln[i * 3 - 2], 
                                          y = kkt_soln[i * 3 - 1],
                                          z = kkt_soln[i * 3],
                                          fix = fix, mov = mov)
@@ -361,7 +364,7 @@ function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},A
 
     rand_vels = random_sample_vel_groups(vel_groups, n_iters)
 
-    results = Dict("vels" => rand_vels, "poles" => Dict{Int,Array{EulerPoleCart,1}}())
+    results = Dict("vels" => rand_vels, "poles" => Dict{Int,Array{PoleCart,1}}())
 
     for iter in 1:n_iters
         Vc = build_Vc_from_vel_samples(rand_vels, vd["keys"], iter)
@@ -369,7 +372,7 @@ function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},A
 
         kkt_soln = lhs \ rhs
 
-        results["poles"][iter] = [EulerPoleCart(x = kkt_soln[i * 3 - 2],
+        results["poles"][iter] = [PoleCart(x = kkt_soln[i * 3 - 2],
                                                 y = kkt_soln[i * 3 - 1],
                                                 z = kkt_soln[i * 3],
                                                 fix = fix, mov = mov)
@@ -454,10 +457,10 @@ function find_shortest_path(graph::Dict{String,Array{String}},
 end
 
 
-function get_pole_path(poles::Array{EulerPoleCart}, path::Array{String})
+function get_pole_path(poles::Array{PoleCart}, path::Array{String})
 
     steps = length(path) - 1
-    pole_path = Array{EulerPoleCart,1}(undef, steps)
+    pole_path = Array{PoleCart,1}(undef, steps)
 
 
     for i in 1:steps
@@ -475,11 +478,11 @@ function get_pole_path(poles::Array{EulerPoleCart}, path::Array{String})
     pole_path
 end
 
-function get_path_euler_pole(poles::Array{EulerPoleCart,1}, fix::String,
+function get_path_euler_pole(poles::Array{PoleCart,1}, fix::String,
 mov::String)
     
     if fix == mov
-        final_pole = EulerPoleCart(x = 0., y = 0., z = 0., fix = fix, mov = mov)
+        final_pole = PoleCart(x = 0., y = 0., z = 0., fix = fix, mov = mov)
     else
         vel_dg = make_digraph_from_poles(poles)
         vel_ug = make_ugraph_from_digraph(vel_dg)
@@ -496,7 +499,7 @@ end
 
 function
 predict_vels_from_poles(block_things::Dict{String,AbstractArray},
-    poles::Array{EulerPoleCart,1})
+    poles::Array{PoleCart,1})
 
     pole_list = [get_path_euler_pole(poles, fix, mov) for (fix, mov) in
     block_things["keys"]]
@@ -513,9 +516,12 @@ predict_vels_from_poles(block_things::Dict{String,AbstractArray},
 end
 
 function predict_vels_from_poles(block_things::Dict{String,AbstractArray},
-    poles::Array{EulerPoleSphere})
+    poles::Array{PoleSphere})
 
-    cpoles = [euler_pole_sphere_to_cart(pole) for pole in poles]
+    cpoles = [pole_sphere_to_cart(pole) for pole in poles]
 
     predict_vels_from_poles(block_things, cpoles)
+end
+
+
 end

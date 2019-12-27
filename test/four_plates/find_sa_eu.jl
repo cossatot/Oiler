@@ -9,7 +9,7 @@ using Oiler
 
 Random.seed!(69)
 
-const n_iters = 10000;
+const n_iters = 1000;
 
 vels = Oiler.load_vels_from_csv("./data/fault_vels_err.csv");
 vel_groups = Oiler.group_vels_by_fix_mov(vels);

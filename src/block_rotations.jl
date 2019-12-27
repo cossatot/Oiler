@@ -1,54 +1,10 @@
-#module BlockRotations
+module BlockRotations
 
-import Base.+
-import Base.-
+export build_PvGb_from_vels, build_vel_column_from_vels, predict_block_vels
 
-using Parameters
+using ..Oiler: EARTH_RAD_MM, VelocityVectorSphere, PoleSphere, PoleCart,
+        pole_sphere_to_cart, pole_cart_to_sphere
 
-const EARTH_RAD_KM = 6371.
-const EARTH_RAD_MM = EARTH_RAD_KM * 1e6
-
-"""
-    VelocityVectorSph(20., )
-Velocity vector in spherical (lon, lat) coordinates, with velocities in
-mm/yr.
-
-ve, vn, vu are east, north and up velocities, and ee, en, and eu are the 
-1-sigma uncertainties.
-"""
-@with_kw struct VelocityVectorSphere
-    lond::Float64
-    latd::Float64
-    ve::Float64
-    vn::Float64
-    vd::Float64 = 0.
-    ee::Float64 = 0.
-    en::Float64 = 0.
-    ed::Float64 = 0.
-    fix::String = ""
-    mov::String = ""
-    name::String = ""
-end
-#export VelocityVectorSph
-
-function reverse(vel::VelocityVectorSphere)
-    VelocityVectorSphere(lond = vel.lond,
-        latd = vel.latd,
-        ve = -vel.ve,
-        vn = -vel.vn,
-        vd = -vel.vd,
-        ee = vel.ee,
-        en = vel.en,
-        ed = vel.ed,
-        fix = vel.mov,
-        mov = vel.fix,
-        name = name)
-end
-
-
-function -(vel::VelocityVectorSphere)
-    reverse(vel)
-end
 
 function build_Pv_deg(lond::Float64, latd::Float64)
 
@@ -168,158 +124,14 @@ function build_vel_column_from_vels(vels::Array{VelocityVectorSphere})
 end
 
 
-"""
-Euler Pole (rotation vector) in Cartesian coordinates
-
-# Arguments
-- `x::Float64`: *x* coordinate in the Cartesian system
-- `y::Float64`: *y* coordinate in the Cartesian system
-- `z::Float64`: *z* coordinate in the Cartesian system
-- `fix::String`: Name of fixed block. Defaults to "".
-- `mov::String`: Name of moving (movative) block.  Defaults to "".
-"""
-@with_kw struct EulerPoleCart
-    x::Float64
-    y::Float64
-    z::Float64
-    fix::String = ""
-    mov::String = ""
-end
-
-
-"""
-Euler Pole (rotation vector) in spherical coordinates.
-
-# Arguments
-- `lond::Float64`: Longitude coordinate in the spherical system (in degrees)
-- `latd::Float64`: Latitude coordinate in the spherical system (in degrees)
-- `rotrate::Float64`: Rotation rate (in degree / time unit, unspecified)
-- `fix::String`: Name of fixed block. Defaults to "".
-- `mov::String`: Name of moving (movative) block.  Defaults to "".
-"""
-@with_kw struct EulerPoleSphere
-    lond::Float64
-    latd::Float64
-    rotrate::Float64
-    fix::String = ""
-    mov::String = ""
-end
-
-
-function -(pole::EulerPoleCart)
-    EulerPoleCart(x = -pole.x, y = -pole.y, z = -pole.z, fix = pole.mov, mov = pole.fix)
-end
-
-function -(pole::EulerPoleSphere)
-    pc = euler_pole_sphere_to_cart(pole)
-    euler_pole_cart_to_sphere(-pc)
-end
-
-
-function add_poles(poles::EulerPoleCart...)
-    xn = sum(pole.x for pole in poles)
-    yn = sum(pole.y for pole in poles)
-    zn = sum(pole.z for pole in poles)
-
-    EulerPoleCart(x = xn, y = yn, z = zn, fix = poles[1].fix, 
-                  mov = poles[end].mov)
-end
-
-
-function add_poles(poles::Array{EulerPoleCart})
-    xn = sum(pole.x for pole in poles)
-    yn = sum(pole.y for pole in poles)
-    zn = sum(pole.z for pole in poles)
-
-    EulerPoleCart(x = xn, y = yn, z = zn, fix = poles[1].fix, 
-                  mov = poles[end].mov)
-end
-
-
-function add_poles(poles::EulerPoleSphere...)
-    cart_poles = [euler_pole_sphere_to_cart(pole) for pole in poles]
-
-    cart_pole_sum = add_poles(cart_poles...)
-    euler_pole_cart_to_sphere(cart_pole_sum)
-end
-
-
-function +(pole1::EulerPoleCart, pole2::EulerPoleCart)
-    add_poles(pole1, pole2)
-end
-
-function +(pole1::EulerPoleSphere, pole2::EulerPoleSphere)
-    add_poles(pole1, pole2)
-end
-
-function subtract_poles(pole1::EulerPoleCart, pole2::EulerPoleCart)
-    xx = pole1.x - pole2.x
-    yy = pole1.y - pole2.y
-    zz = pole1.z - pole2.z
-
-    EulerPoleCart(x = xx, y = yy, z = zz, fix = pole1.fix, mov = pole2.fix)
-end
-
-function subtract_poles(pole1::EulerPoleSphere, pole2::EulerPoleSphere)
-    pole1c = euler_pole_sphere_to_cart(pole1)
-    pole2c = euler_pole_sphere_to_cart(pole2)
-
-    pole_diff = subtract_poles(pole1c, pole2c)
-
-    euler_pole_cart_to_sphere(pole_diff)
-end
-
-
-function -(pole1::EulerPoleCart, pole2::EulerPoleCart)
-    subtract_poles(pole1, pole2)
-end
-
-function -(pole1::EulerPoleSphere, pole2::EulerPoleSphere)
-    subtract_poles(pole1, pole2)
-end
-
-"""
-    euler_pole_cart_to_sphere(pole)
-
-Converts an `EulerPoleCart` (an Euler vector in Cartesian coordinates)
-into spherical coordinates (lond, latd, deg / Myr).
-"""
-function euler_pole_cart_to_sphere(pole::EulerPoleCart)
-    rotation_rate_cart = sqrt(pole.x^2 + pole.y^2 + pole.z^2)
-    
-    pole_x_norm = pole.x / rotation_rate_cart
-    pole_y_norm = pole.y / rotation_rate_cart
-    pole_z_norm = pole.z / rotation_rate_cart
-
-    pole_lon = atand(pole_y_norm, pole_x_norm)
-    pole_lat = atand(pole_z_norm / sqrt(pole_x_norm^2 + pole_y_norm^2))
-
-    rotation_rate_deg_Myr = rad2deg(rotation_rate_cart) * 1e6
-
-    EulerPoleSphere(lond = pole_lon, latd = pole_lat, 
-                    rotrate = rotation_rate_deg_Myr,
-    fix = pole.fix, mov = pole.mov)
-end
-
-
-function euler_pole_sphere_to_cart(pole::EulerPoleSphere)
-    r = deg2rad(pole.rotrate) / 1e6
-
-    x = r * cosd(pole.latd) * cosd(pole.lond)
-    y = r * cosd(pole.latd) * sind(pole.lond)
-    z = r * sind(pole.latd)
-
-    EulerPoleCart(x = x, y = y, z = z, fix = pole.fix, mov = pole.mov)
-end
-
 
 function predict_block_vels(londs::Array{Float64},
                             latds::Array{Float64},
-                            pole::EulerPoleSphere)
+                            pole::PoleSphere)
 
     PvGb = build_PvGb_from_degs(londs, latds)
 
-    cart_pole = euler_pole_sphere_to_cart(pole)
+    cart_pole = pole_sphere_to_cart(pole)
 
     V_pred = PvGb * [cart_pole.x; cart_pole.y; cart_pole.z]
     Vn_pred = V_pred[1:3:end]
@@ -340,7 +152,7 @@ end
     
 function predict_block_vels(londs::Array{Float64},
                             latds::Array{Float64},
-                            pole::EulerPoleCart)
+                            pole::PoleCart)
 
     PvGb = build_PvGb_from_degs(londs, latds)
 
@@ -367,10 +179,11 @@ end
    
 
 function predict_block_vels(vels::Array{VelocityVectorSphere},
-pole::EulerPoleCart)
+pole::PoleCart)
     londs = [v.lond for v in vels]
     latds = [v.latd for v in vels]
 
     predict_block_vels(londs, latds, pole)
 end
 
+end

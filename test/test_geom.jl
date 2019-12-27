@@ -1,6 +1,6 @@
 using Test
 
-using Oiler
+import Oiler
 
 lax_lon = 118 + 24 / 60.;
 lax_lat = 33 + 57 / 60.;

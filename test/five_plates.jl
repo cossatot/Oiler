@@ -15,21 +15,21 @@ based on them, and then try to invert this data to recover the poles.
 """
 
 
-af_an_s = Oiler.EulerPoleSphere(latd = 3.661, lond = -31.669, rotrate = 0.158, mov = "an", 
+af_an_s = Oiler.PoleSphere(latd = 3.661, lond = -31.669, rotrate = 0.158, mov = "an", 
                                 fix = "af");
-in_af_s = Oiler.EulerPoleSphere(latd = 18.915, lond = 47.060, rotrate = 0.606, mov = "af", 
+in_af_s = Oiler.PoleSphere(latd = 18.915, lond = 47.060, rotrate = 0.606, mov = "af", 
                                 fix = "in");
-in_an_s = Oiler.EulerPoleSphere(latd = 18.328, lond = 32.738, rotrate = 0.657, mov = "an",
+in_an_s = Oiler.PoleSphere(latd = 18.328, lond = 32.738, rotrate = 0.657, mov = "an",
                                 fix = "in");
-in_ar_s = Oiler.EulerPoleSphere(latd = -7.484, lond = -174.932, rotrate = 0.356, mov = "ar",
+in_ar_s = Oiler.PoleSphere(latd = -7.484, lond = -174.932, rotrate = 0.356, mov = "ar",
                                 fix = "in");
-ar_af_s = Oiler.EulerPoleSphere(lond = 31.290, latd = 15.625, rotrate = 0.901, mov = "af", 
+ar_af_s = Oiler.PoleSphere(lond = 31.290, latd = 15.625, rotrate = 0.901, mov = "af", 
                                 fix = "ar");
-eu_ar_s = Oiler.EulerPoleSphere(lond = 64.748, latd = 26.733, rotrate = 0.368, mov = "ar",
+eu_ar_s = Oiler.PoleSphere(lond = 64.748, latd = 26.733, rotrate = 0.368, mov = "ar",
                                 fix = "eu");
-eu_in_s = Oiler.EulerPoleSphere(lond = 33.775, latd = 19.727, rotrate = 0.628, mov = "in", 
+eu_in_s = Oiler.PoleSphere(lond = 33.775, latd = 19.727, rotrate = 0.628, mov = "in", 
                                 fix = "eu");
-#af_eu_s = Oiler.EulerPoleSphere(latd = 25.3, lond = -21.2, rotrate = 0.10, mov = "af", 
+#af_eu_s = Oiler.PoleSphere(latd = 25.3, lond = -21.2, rotrate = 0.10, mov = "af", 
 #                                fix = "eu");
 
 
@@ -117,16 +117,17 @@ vels = reduce(vcat, (af_an_vels,
                      eu_in_vels));
 
 vel_groups = Oiler.group_vels_by_fix_mov(vels);
+
 gg = Oiler.make_block_PvGb_from_vels(vel_groups);
 
 poles = Oiler.solve_block_invs_from_vel_groups(vel_groups);
 
-af_an_pred = Oiler.euler_pole_cart_to_sphere(poles[("af", "an")]);
-in_af_pred = Oiler.euler_pole_cart_to_sphere(poles[("in", "af")]);
-in_an_pred = Oiler.euler_pole_cart_to_sphere(poles[("in", "an")]);
+af_an_pred = Oiler.pole_cart_to_sphere(poles[("af", "an")]);
+in_af_pred = Oiler.pole_cart_to_sphere(poles[("in", "af")]);
+in_an_pred = Oiler.pole_cart_to_sphere(poles[("in", "an")]);
 
 
-ps = [Oiler.euler_pole_cart_to_sphere(p) for (k, p) in poles];
+ps = [Oiler.pole_cart_to_sphere(p) for (k, p) in poles];
 
 
 function compare_poles(p1, p2)
