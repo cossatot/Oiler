@@ -2,7 +2,7 @@ module IO
 
 export vel_from_row, load_vels_from_csv, group_vels_by_fix_mov
 
-using ..Oiler: VelocityVectorSphere
+using ..Oiler: VelocityVectorSphere, reverse
 
 using CSV
 using DataFrames: DataFrameRow

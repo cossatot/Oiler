@@ -179,8 +179,8 @@ function get_midpoint(trace::Array{Float64,2})
 
     if iseven(n_pts)
         mid = n_pts ÷ 2
-        return ((trace[mid, 1] + trace[mid + 1, 2] / 2.),
-                (trace[mid, 2] + trace[mid + 1, 2] / 2.))
+        return ((trace[mid, 1] + trace[mid + 1, 1]) / 2.,
+                (trace[mid, 2] + trace[mid + 1, 2]) / 2.)
     else
         mid = n_pts ÷ 2 + 1
         return (trace[mid, 1], trace[mid, 2])

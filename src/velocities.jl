@@ -1,6 +1,6 @@
 module Velocities
 
-export VelocityVectorSphere
+export VelocityVectorSphere, reverse
 
 using Parameters
 

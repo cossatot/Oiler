@@ -11,8 +11,8 @@ export PoleCart, PoleSphere, add_poles, add_poles, subtract_poles,
     pole_cart_to_sphere, pole_sphere_to_cart
 
 include("velocities.jl")
-using .Velocities: VelocityVectorSphere
-export VelocityVectorSphere
+using .Velocities: VelocityVectorSphere, reverse
+export VelocityVectorSphere, reverse
 
 include("geom.jl")
 using .Geom: azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
@@ -34,8 +34,8 @@ export vel_from_row, load_vels_from_csv, group_vels_by_fix_mov
 
 include("utils.jl")
 using .Utils: make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
-    predict_vels_from_poles, solve_for_block_poles_iterative
+    predict_vels_from_poles, solve_for_block_poles_iterative, find_vel_cycles
 export make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
-    predict_vels_from_poles, solve_for_block_poles_iterative
+    predict_vels_from_poles, solve_for_block_poles_iterative, find_vel_cycles
 
 end  # module
