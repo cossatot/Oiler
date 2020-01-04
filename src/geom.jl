@@ -1,7 +1,7 @@
 module Geom
 
 export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
-    angle_difference
+    angle_difference, rotate_velocity
 
 import Statistics: mean
 
@@ -87,6 +87,13 @@ function angle_difference(trend_1::Float64, trend_2::Float64; return_abs::Bool =
         difference = abs(difference)
     end
     difference
+end
+
+
+function rotate_velocity(vx::Float64, vy::Float64, angle::Float64)
+    Vp = [cos(angle) -sin(angle); sin(angle) cos(angle)] * [vx; vy]
+
+    (Vp[1], Vp[2])
 end
 
 end # module

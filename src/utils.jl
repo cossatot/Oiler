@@ -1,7 +1,8 @@
 module Utils
 
 export make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
-    predict_vels_from_poles, solve_for_block_poles_iterative, find_vel_cycles
+    predict_vels_from_poles, solve_for_block_poles_iterative, find_vel_cycles,
+    make_block_inversion_matrices_from_vels
 
 
 
@@ -322,10 +323,14 @@ weighted::Bool = true, tikh_lambda::Float64=0.)
         cm = build_constraint_matrices(cycles, vd["keys"])
         p = size(cm)[1]
 
-        lhs = make_block_inv_lhs_constraints(PvGb, cm)
+        #lhs = make_block_inv_lhs_constraints(PvGb, cm)
+
+        lhs = [PvGb; 1e12 .* cm];
+
     
         constraint_rhs = zeros(p)
-        rhs = [2 * PvGb' * Vc; constraint_rhs]
+        #rhs = make_block_inv_rhs(PvGb, Vc, constraint_rhs)
+        rhs = [Vc; constraint_rhs]
     end
 
     #rhs = [rhs; zeros(size(rhs,1))]
@@ -337,14 +342,15 @@ end
 
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     weighted::Bool = true, max_dense_size=1000)
+
     block_inv_setup = set_up_block_inv_w_constraints(vel_groups; weighted =
         weighted)
     
     lhs = block_inv_setup["lhs"]
 
-    if size(lhs, 1) < max_dense_size
-        lhs = Matrix(lhs)
-    end
+    #if size(lhs, 1) < max_dense_size
+    #    lhs = Matrix(lhs)
+    #end
 
     kkt_soln = lhs \ block_inv_setup["rhs"]
 

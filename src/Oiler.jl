@@ -16,13 +16,15 @@ export VelocityVectorSphere, reverse
 
 include("geom.jl")
 using .Geom: azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
-    angle_difference
+    angle_difference, rotate_velocity
 export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
-    angle_difference
+    angle_difference, rotate_velocity
 
 include("faults.jl")
-using .Faults: Fault, fault_to_vel, fault_slip_rate_to_ve_vn
-export Fault, fault_to_vel, fault_slip_rate_to_ve_vn
+using .Faults: Fault, fault_to_vel, fault_slip_rate_to_ve_vn, 
+    ve_vn_to_fault_slip_rate
+export Fault, fault_to_vel, fault_slip_rate_to_ve_vn,
+    ve_vn_to_fault_slip_rate
 
 include("block_rotations.jl")
 using .BlockRotations: build_PvGb_from_vels, build_vel_column_from_vels, predict_block_vels
@@ -34,8 +36,10 @@ export vel_from_row, load_vels_from_csv, group_vels_by_fix_mov
 
 include("utils.jl")
 using .Utils: make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
-    predict_vels_from_poles, solve_for_block_poles_iterative, find_vel_cycles
+    predict_vels_from_poles, solve_for_block_poles_iterative, find_vel_cycles,
+    make_block_inversion_matrices_from_vels
 export make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
-    predict_vels_from_poles, solve_for_block_poles_iterative, find_vel_cycles
+    predict_vels_from_poles, solve_for_block_poles_iterative, find_vel_cycles,
+    make_block_inversion_matrices_from_vels
 
 end  # module

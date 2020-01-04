@@ -1,9 +1,10 @@
 module Faults
-export Fault, fault_to_vel, fault_slip_rate_to_ve_vn
+export Fault, fault_to_vel, fault_slip_rate_to_ve_vn, ve_vn_to_fault_slip_rate
 
 using Parameters
 
-using ..Oiler: VelocityVectorSphere, average_azimuth, az_to_angle, angle_difference
+using ..Oiler: VelocityVectorSphere, average_azimuth, az_to_angle,
+angle_difference, rotate_velocity
 
 const direction_map = Dict{String,Float64}("N" => 0.,
                  "NNE" => 22.5,
@@ -187,6 +188,7 @@ function get_midpoint(trace::Array{Float64,2})
     end
 end
 
+
 function check_right_hand_rule(trace::Array{Float64,2}, dip_dir::String; 
     reverse_angle_threshold::Float64 = 90.)
     # Modified from the OQ-MBTK tools, (c) Global Earthquake Model Foundation
@@ -200,7 +202,6 @@ function check_right_hand_rule(trace::Array{Float64,2}, dip_dir::String;
     trend_angle_difference = angle_difference(trace_dip_trend, fault_dip_trend)
 
     # TODO: warn if trend_angle_difference < 15 (or some other low threshold)
-    
     if trend_angle_difference > reverse_angle_threshold
         trace = reverse(trace, dims = 1)
     end
@@ -208,17 +209,22 @@ function check_right_hand_rule(trace::Array{Float64,2}, dip_dir::String;
 end
 
 
+function fault_slip_rate_to_ve_vn(dextral_rate::Float64, extension_rate::Float64, 
+    strike::Float64)
+    angle = az_to_angle(strike)
 
-function fault_slip_rate_to_ve_vn(dextral_rate::Float64,
-    extension_rate::Float64, strike::Float64)
-
-    ang = az_to_angle(strike)
-
-    ve = dextral_rate * cos(ang) - extension_rate * sin(ang)
-    vn = dextral_rate * sin(ang) + extension_rate * cos(ang)
-
-    (ve, vn)
+    rotate_velocity(dextral_rate, extension_rate, angle)
 end
+
+
+function ve_vn_to_fault_slip_rate(ve::Float64, vn::Float64, strike::Float64)
+    angle = az_to_angle(strike)
+
+    rotate_velocity(ve, vn, -angle)
+end
+
+
+
 
 
 end # module
