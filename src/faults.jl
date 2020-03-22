@@ -221,4 +221,101 @@ function fault_slip_rate_to_ve_vn(dextral_rate::Float64,
 end
 
 
+"""
+    build_strike_rot_matrix(strike)
+
+Creates a rotation matrix to rotate velocities from a strike-
+aligned reference frame to a cardinal direction reference frame
+(and vice versa).
+
+Called 'P_alpha' in Meade and Loveless, 2009.
+
+# Arguments:
+- `strike::Float64`: The strike of a fault.
+
+# Returns:
+- `P_strike`: 3x3 Float64 matrix.
+"""
+function build_strike_rot_matrix(strike::Float64)
+    P_strike = [cosd(strike) -sind(strike) 0.;
+                sind(strike)  cosd(strike) 0.;
+                0.            0.           1.]
+end
+
+"""
+    build_Pf_vert(strike)
+
+Builds a matrix that projects differential east and north velocities
+of block motions across a fault to the strike-parallel and strike-
+perpendicular components.  For use with vertical faults.
+
+Called 'P_f' in Meade and Loveless 2009.
+
+# Arguments:
+- `strike::Float64`: The strike of a fault.
+
+# Returns:
+- `P_f`: 3x3 Float64 matrix.
+"""
+function build_Pf_vert(strike::Float64)
+    Pf_vert = [cosd(strike) -sind(strike) 0.;
+               0.            0.           0.;
+               sind(strike)  cosd(strike) 0.]
+end
+
+
+"""
+    build_Pf_dip(strike, dip)
+
+Builds a matrix that projects differential east and north velocities
+of block motions across a fault to the strike-parallel and strike-
+perpendicular components.  For use with non-vertical faults.
+
+Called 'P_f' in Meade and Loveless 2009.
+
+# Arguments:
+- `strike::Float64`: The strike of a fault.
+- `dip::Float64`: The dip of a fault.
+
+# Returns:
+- `P_f`: 3x3 Float64 matrix.
+"""
+function build_Pf_dip(strike::Float64, dip::Float64)
+    cd = cosd(dip)
+
+    Pf_dip = [cosd(strike)       -sind(strike)        0.;
+              sind(strike) / cd   cosd(strike) / cd   0.;
+              0.                  0.                  0.]
+end
+
+
+"""
+    build_velocity_projection_matrix(strike, dip)
+
+Builds a matrix that projects differential east and north velocities
+of block motions across a fault to the strike-parallel and strike-
+perpendicular components.
+
+Called 'P_f' in Meade and Loveless 2009.
+
+# Arguments:
+- `strike::Float64`: The strike of a fault.
+- `dip::Float64`: The dip of a fault.
+
+# Returns:
+- `P_f`: 3x3 Float64 matrix.
+"""
+function build_velocity_projection_matrix(strike::Float64, dip::Float64)
+    if dip == 90.
+        Pf = build_Pf_vert(strike)
+    else
+        Pf = build_Pf_dip(strike, dip)
+    end
+    Pf
+end
+
+
+
+
+
 end # module
