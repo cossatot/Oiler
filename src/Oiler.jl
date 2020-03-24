@@ -35,8 +35,14 @@ using .IO: vel_from_row, load_vels_from_csv, group_vels_by_fix_mov
 export vel_from_row, load_vels_from_csv, group_vels_by_fix_mov
 
 include("utils.jl")
-using .Utils: make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
-    predict_vels_from_poles, solve_for_block_poles_iterative, find_vel_cycles,
+using .Utils: predict_vels_from_poles, find_vel_cycles, diagonalize_matrices, 
+    random_sample_vel_groups, build_Vc_from_vel_samples
+export predict_vels_from_poles, find_vel_cycles, diagonalize_matrices, 
+    random_sample_vel_groups, build_Vc_from_vel_samples
+
+include("solver.jl")
+using .Solver: make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
+    solve_for_block_poles_iterative, 
     make_block_inversion_matrices_from_vels
 export make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
     predict_vels_from_poles, solve_for_block_poles_iterative, find_vel_cycles,
