@@ -14,6 +14,13 @@ using DataFrames
 using SparseArrays
 using LinearAlgebra
 
+"""
+    build_constraint_matrix(cycle, vel_group_keys)
+
+Builds a matrix to add an equality constraint to the velocity solution. The
+equality constraint is that a cycle of three graph-adjacent poles must sum
+to zero, i.e. a_b + b_c + c_a = 0.
+"""
 function build_constraint_matrix(cycle, vel_group_keys)
     constraint_mat = spzeros(3, length(vel_group_keys) * 3)
 
@@ -27,14 +34,26 @@ function build_constraint_matrix(cycle, vel_group_keys)
     constraint_mat
 end
 
+"""
+    build_constraint_matrices(cycle, vel_group_keys)
 
+Builds a matrix to add equality constraints to the velocity solution. The
+equality constraint is that a cycle of three graph-adjacent poles must sum
+to zero, i.e. a_b + b_c + c_a = 0.  This function loops over all of the
+velocity triangles (cycles) that are present in the pole adjacency graph.
+"""
 function build_constraint_matrices(cycles, vel_group_keys)
     reduce(vcat, [build_constraint_matrix(cyc, vel_group_keys) for (i, cyc) in
     cycles])
 end
 
+"""
+    weight_from_error(error, zero_err_weight)
 
-function weight_from_error(error::Float64; zero_err_weight::Float64 = 1e5)
+Returns either the inverse of the error, or `zero_err_weight` if the weight
+is zero. The latter defaults to 1e20.
+"""
+function weight_from_error(error::Float64; zero_err_weight::Float64 = 1e20)
     if error == 0.
         weight = zero_err_weight
     else
@@ -52,6 +71,7 @@ end
 function build_weight_vector_from_vels(vels::Array{VelocityVectorSphere})
     reduce(vcat, [build_weight_vector_from_vel(vel) for vel in vels])
 end
+
 
 function
 build_weight_vectors(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
