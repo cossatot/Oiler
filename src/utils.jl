@@ -204,9 +204,6 @@ function find_vel_cycles(vel_group_keys)
 end
 
 
-
-
-
 function random_sample_vel(vel::VelocityVectorSphere)
     rnd = randn(2)
     ve = vel.ve + rnd[1] * vel.ee
@@ -241,7 +238,7 @@ n_samps::Int)
 end
 
 
-function Vc_trip_from_vals(ve::Float64, vn::Float64)
+function Vc_triple_from_vals(ve::Float64, vn::Float64)
     [ve; vn; 0]
 end
 
@@ -249,7 +246,7 @@ end
 function build_Vc_from_vel_sample(vel_samp::Dict{String,Array{Float64,2}},
     ind::Int)
 
-    reduce(vcat, [Vc_trip_from_vals(ve, vel_samp["vn"][i,ind])
+    reduce(vcat, [Vc_triple_from_vals(ve, vel_samp["vn"][i,ind])
     for (i, ve) in enumerate(vel_samp["ve"][:,ind])])
 
 end
@@ -261,9 +258,32 @@ function build_Vc_from_vel_samples(vel_samps::Dict{Tuple{String,String},Dict{Str
     reduce(vcat, [build_Vc_from_vel_sample(vel_samps[key], ind) for key in vel_keys])
 end
 
-
+"""
+    flat(x)
+Flattens nested arrays of arrays
+"""
 flat(x, y = vcat(x...)) = x == y ? x : flat(y)
 
+
+"""
+    find_shortest_path(graph, start, stop)
+
+Finds the shortest path between vertices `start` and `stop` given the
+edges in the (directed, unweighted) `graph` using a breadth-first-search
+strategy.
+
+# Arguments
+- `graph`: A dictionary with keys for each vertex, and values of arrays of
+  all the vertices linked to the key vertex.
+
+- `start`: Vertex to start from.
+
+- `stop`: Vertex to stop on.
+
+# Returns
+Array of vertices representing the shortest path in order from `start` to 
+`stop`.
+"""
 function find_shortest_path(graph::Dict{String,Array{String}}, 
     start::String, stop::String)
 
@@ -302,6 +322,7 @@ function get_pole_path(poles::Array{PoleCart}, path::Array{String})
     end
     pole_path
 end
+
 
 function get_path_euler_pole(poles::Array{PoleCart,1}, fix::String,
 mov::String)
