@@ -1,8 +1,8 @@
 module Utils
 
 export predict_vels_from_poles, find_vel_cycles, diagonalize_matrices, 
-    random_sample_vel_groups, build_Vc_from_vel_samples
-
+    random_sample_vel_groups, build_Vc_from_vel_samples, get_gnss_vels,
+    get_coords_from_vel_array
 
 using ..Oiler: VelocityVectorSphere, PoleCart, PoleSphere, build_PvGb_from_vels,
         build_vel_column_from_vels, add_poles, pole_sphere_to_cart
@@ -369,5 +369,49 @@ function predict_vels_from_poles(block_things::Dict{String,AbstractArray},
     predict_vels_from_poles(block_things, cpoles)
 end
 
+
+"""
+    get_gnss_vels(vel_groups)
+
+Collects all of the GNSS-derived velocities from the velocity groups, with
+some ancillary metadata.
+
+# Arguments
+
+# Returns
+
+"""
+function get_gnss_vels(vel_groups)
+    gnss_vels = []
+    row_set_num = 0
+    for (i, group) in enumerate(values(vel_groups))
+        col_idx = 3 * (i - 1) + 1
+        for vel in group
+            row_set_num += 1
+            if vel.vel_type == "GNSS"
+                row_idx = 3 * (row_set_num - 1) + 1
+                vel_idx = [row_idx:row_idx + 2, col_idx:col_idx + 2]
+                vd = Dict()
+                vd["vel"] = vel
+                vd["idx"] = vel_idx
+                push!(gnss_vels, vd)
+            end # if
+        end # for
+    end # for
+    gnss_vels
+end
+
+
+"""
+    get_coords_from_vel_array(vels)
+
+Returns (lons, lats) as arrays of floats from an array of `VelocityVectorSphere`
+"""
+function get_coords_from_vel_array(vels::Array{VelocityVectorSphere})
+    lats = [v.latd for v in vels]
+    lons = [v.lond for v in vels]
+
+    (lons, lats)
+end
 
 end # module

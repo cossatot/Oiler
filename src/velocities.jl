@@ -26,6 +26,7 @@ ve, vn, vu are east, north and up velocities, and ee, en, and eu are the
     fix::String = ""
     mov::String = ""
     name::String = ""
+    vel_type::String = ""
 end
 
 function reverse(vel::VelocityVectorSphere)
@@ -39,7 +40,8 @@ function reverse(vel::VelocityVectorSphere)
         ed = vel.ed,
         fix = vel.mov,
         mov = vel.fix,
-        name = vel.name)
+        name = vel.name,
+        vel_type = vel.vel_type)
 end
 
 

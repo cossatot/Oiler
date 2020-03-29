@@ -35,7 +35,20 @@ function load_vels_from_csv(filepath)
     vel_array = [vel_from_row(vels[i,:]) for i in 1:size(vels, 1)]
 end
 
+"""
+    group_vels_by_fix_mov
 
+Groups velocities by the poles which they describe the relative motion.
+
+# Arguments
+- `vels`: An array of `VelocityVectorSphere`s
+
+# Returns
+- `vel_groups`: A dictionary with keys representing the poles as
+  tuples of format (`fix`, `mov`), and values of arrays of 
+  `VelocityVectorSphere` of each of the velocities that shares this pole
+  configuration.
+"""
 function group_vels_by_fix_mov(vels::Array{VelocityVectorSphere})
     # flipping opposite vels for now; maybe reconsider later
 

@@ -1,7 +1,7 @@
 module Geom
 
 export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
-    angle_difference, rotate_velocity
+    angle_difference, rotate_velocity, rotate_xy_vec
 
 import Statistics: mean
 
@@ -17,6 +17,7 @@ function azimuth(lond1::Float64, latd1::Float64,
     azimuth = atand(y, x)
 end
 
+
 function gc_distance(lond1::Float64, latd1::Float64,
                  lond2::Float64, latd2::Float64, R = EARTH_RAD_KM)
 
@@ -24,7 +25,6 @@ function gc_distance(lond1::Float64, latd1::Float64,
     lat1 = deg2rad(latd1)
     lon2 = deg2rad(lond2)
     lat2 = deg2rad(latd2)
-
 
     distance = asin(sqrt(sin((lat1 - lat2) / 2.)^2.
         + cos(lat1) * cos(lat2)
@@ -95,5 +95,21 @@ function rotate_velocity(vx::Float64, vy::Float64, angle::Float64)
 
     (Vp[1], Vp[2])
 end
+
+
+
+"""
+    rotate_xy_vec
+
+Rotates x and y vectors based on a rotation angle in radians.
+"""
+function rotate_xy_vec(x, y, alpha_rot)
+    xp = cos(alpha_rot) .* x - sin(alpha_rot) .* y
+    yp = sin(alpha_rot) .* x + cos(alpha_rot) .* y
+    return xp, yp
+end
+
+
+
 
 end # module

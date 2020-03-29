@@ -57,3 +57,23 @@ qs_3 = Oiler.Fault(trace = quien_sabe_coords, dip = 90., dip_dir = "V",
     name = "Quien Sabe V dip", hw = "hol", fw = "gab", dextral_rate = 35.)
 
 Oiler.fault_to_vel(qs_1)
+
+
+function test_fault_oblique_merc()
+
+    ff = Oiler.Fault(trace = [83. 32.; 83.5 32.8], dip=60., dip_dir="SE")
+
+    lons = [100.; 101.; 122.]
+    lats = [20.; 20.; 80.5]
+
+    x, y = Oiler.Faults.fault_oblique_merc(ff, lons, lats)
+
+    # these values from faultobliquemerc.m by Meade and Loveless
+    x_ = [-0.995670130919819; -0.985654810206086; -0.099467883321707]
+    y_ = [-0.342577075025567; -0.356822693071572;  0.271564430987158]
+
+    @test isapprox(x[1:3], x_ .* Oiler.EARTH_RAD_KM)
+    @test isapprox(y[1:3], y_ .* Oiler.EARTH_RAD_KM)
+end
+
+test_fault_oblique_merc()

@@ -1,10 +1,11 @@
 module Faults
-export Fault, fault_to_vel, fault_slip_rate_to_ve_vn, ve_vn_to_fault_slip_rate
+export Fault, fault_to_vel, fault_slip_rate_to_ve_vn, ve_vn_to_fault_slip_rate,
+    fault_oblique_merc
 
 using Parameters
 
 using ..Oiler: VelocityVectorSphere, average_azimuth, az_to_angle,
-angle_difference, rotate_velocity
+angle_difference, rotate_velocity, EARTH_RAD_KM
 
 const direction_map = Dict{String,Float64}("N" => 0.,
                  "NNE" => 22.5,
@@ -62,20 +63,20 @@ Representation of the geometric and kinematic attributes of a fault.
 - `fw::String = ""`: Name of the footwall block; for vertically-dipping faults,
     ...
 """
-@with_kw struct Fault
+struct Fault
     trace::Array{Float64,2}
     strike::Float64
     dip::Float64
     dip_dir::String
-    extension_rate::Float64 = 0.
-    extension_err::Float64 = 0.
-    dextral_rate::Float64 = 0.
-    dextral_err::Float64 = 0.
-    lsd::Float64 = 25.
-    usd::Float64 = 0.
-    name::String = ""
-    hw::String = ""
-    fw::String = ""
+    extension_rate::Float64
+    extension_err::Float64
+    dextral_rate::Float64
+    dextral_err::Float64
+    lsd::Float64
+    usd::Float64
+    name::String
+    hw::String
+    fw::String
 end
 
 
@@ -171,7 +172,8 @@ function fault_to_vel(fault::Fault)
     vlon, vlat = get_midpoint(fault.trace)
 
     VelocityVectorSphere(lond = vlon, latd = vlat, ve = ve, vn = vn, 
-        fix = fault.hw, mov = fault.fw, name = fault.name, ee = ee, en = en)
+        fix = fault.hw, mov = fault.fw, name = fault.name, ee = ee, en = en,
+        vel_type = "fault")
 end
 
 
@@ -221,6 +223,79 @@ function ve_vn_to_fault_slip_rate(ve::Float64, vn::Float64, strike::Float64)
     angle = az_to_angle(strike)
 
     rotate_velocity(ve, vn, -angle)
+end
+
+
+"""
+    fault_oblique_merc(fault, lons, lats)
+Projects a fault and other model elements from geographic coordinates into
+an oblique Mercator projection defined by the fault trace.
+
+Modified from Meade and Loveless, Blocks, `faultobliquemerc.m`.
+
+See USGS "Map Projections - A Working Manual" p. 69 for mathematical reference.
+
+# Arguments
+
+# Returns
+
+"""
+function fault_oblique_merc(fault::Fault, lons::Array{Float64}, 
+                            lats::Array{Float64}, R=EARTH_RAD_KM)
+    
+    n_stations = length(lons)
+
+    lons = [lons; fault.trace[1,1]; fault.trace[end,1]]
+    lats = [lats; fault.trace[1,2]; fault.trace[end,2]]
+
+    lon1 = ones(n_stations + 2) .* fault.trace[1,1]
+    lat1 = ones(n_stations + 2) .* fault.trace[1,2]
+    lon2 = ones(n_stations + 2) .* fault.trace[end,1]
+    lat2 = ones(n_stations + 2) .* fault.trace[end,2]
+
+    # trig functions
+    clat =  cosd.(lats)
+    slat =  sind.(lats)
+    clat1 = cosd.(lat1)
+    slat1 = sind.(lat1)
+    clat2 = cosd.(lat2)
+    slat2 = sind.(lat2)
+    clon1 = cosd.(lon1)
+    slon1 = sind.(lon1)
+    clon2 = cosd.(lon2)
+    slon2 = sind.(lon2)
+
+    # Pole longitude
+    num = clat1 .* slat2 .* clon1 - slat1 .* clat2 .* clon2
+    den = slat1 .* clat2 .* slon2 - clat1 .* slat2 .* slon1
+    lonp = rad2deg.(atan.(num, den))
+
+    # Pole latitutde
+    latp = atand.(-cosd.(lonp - lon1) ./ tand.(lat1))
+    sp = sign.(latp)
+    # choose northern hemisphere pole
+    lonp[latp .< 0.] .+= 180.
+    latp[latp .< 0.] .*= -1.
+    # find origin longitude
+    lon0 = lonp .+ 90.
+    lon0[lon0 .> 180.] .-= 360.
+
+    clatp = cosd.(latp)
+    slatp = sind.(latp)
+    dlon = lons .- lon0
+    A = slatp .* slat .- clatp .* clat .* sind.(dlon)
+
+    # Projection
+    x = atan.((tand.(lats) .* clatp .+ slatp .* sind.(dlon)) ./ cosd.(dlon))
+    x[latp .< 80.] = x[latp .< 80.] .- (cosd.(dlon[latp .< 80.]) .> 0.) .* pi .+ pi/2.
+    x[latp .>= 80.] = (x[latp .>= 80.] .- (cosd.(dlon[latp .>= 80.]) .< 0.) .* pi .+
+                       pi/2.)
+    y = atanh.(A)
+
+    x = -sp .* x .* R
+    y = -sp .* y .* R
+
+    (x, y)
 end
 
 

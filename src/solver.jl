@@ -86,12 +86,11 @@ end
 
 function make_block_PvGb_from_vels(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
 
-    vel_group_list = keys(vel_groups)
-
-    big_PvGb = diagonalize_matrices([build_PvGb_from_vels(vel_groups[gr]) for gr
-        in vel_group_list])
 
     v_keys = collect(Tuple(keys(vel_groups)))
+
+    big_PvGb = diagonalize_matrices([build_PvGb_from_vels(vel_groups[gr]) for gr
+        in v_keys])
 
     weights = build_weight_vectors(vel_groups)
     weight_vec = reduce(vcat, [weights[key] for key in v_keys]) 
