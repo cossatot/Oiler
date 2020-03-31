@@ -59,7 +59,8 @@ function weight_from_error(error::Float64; zero_err_weight::Float64 = 1e20)
     else
         weight = 1. / error
     end
-    weight
+    # weight
+    error
 end
     
 

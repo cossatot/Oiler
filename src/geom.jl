@@ -110,6 +110,12 @@ function rotate_xy_vec(x, y, alpha_rot)
 end
 
 
+function xyz2enumat(G, az)
+
+# az = 
+
+end
+
 
 
 end # module

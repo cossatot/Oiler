@@ -5,14 +5,36 @@ export okada
 using ..Oiler: rotate_xy_vec
 
 """
-    okada
+    okada(fault::Dict, strike_disp::Float64, dip_disp::Float64, 
+        tensile_disp::Float64, xs::Array{Float64}, ys::Array{Float64}, 
+        Pr::Float64 = 0.25)
 
 Calculates the slip in an elastic halfspace due to a rectangular
 dislocation.
 
 Ported from 'okada_partials.m' by Meade and Loveless.
+
+# Arguments
+- `fault`: A dictionary of fault parameters that has been output by
+    `fault_to_okada`.
+- `strike_disp`: The strike-slip displacement.
+- `dip_dips`: The dip-slip displacment.
+- `tens_disp`: The tensile displacement.
+- `pr`: Poisson ratio
+
+# Returns
+- `uxstot`: slip in `x` direction due to strike slip
+- `uystot`: slip in `y` direction due to strike slip
+- `uzstot`: slip in `z` direction due to strike slip
+- `uxdtot`: slip in `x` direction due to dip slip
+- `uydtot`: slip in `y` direction due to dip slip
+- `uzdtot`: slip in `z` direction due to dip slip
+- `uxttot`: slip in `x` direction due to tensile slip
+- `uyttot`: slip in `y` direction due to tensile slip
+- `uzttot`: slip in `z` direction due to tensile slip
 """
-function okada(fault::Dict, strike_disp, dip_disp, tensile_disp, xs, ys, 
+function okada(fault::Dict, strike_disp::Float64, dip_disp::Float64, 
+    tensile_disp::Float64, xs::Array{Float64}, ys::Array{Float64}, 
     Pr::Float64 = 0.25)
     
     # unpack dict and convert variable names, all inherited from Blocks

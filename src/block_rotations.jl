@@ -72,7 +72,7 @@ end
 
 
 """
-    build_PvGb_vel(vel)
+    build_PvGb_vel(vel::VelocityVectorSphere)
 
 Creates a linear operator to convert a Cartesian Euler vector into
 a spherical velocity vector at a given (lon, lat) in degrees; in other

@@ -241,7 +241,7 @@ See USGS "Map Projections - A Working Manual" p. 69 for mathematical reference.
 
 """
 function fault_oblique_merc(fault::Fault, lons::Array{Float64}, 
-                            lats::Array{Float64}, R=EARTH_RAD_KM)
+                            lats::Array{Float64}, R = EARTH_RAD_KM)
     
     n_stations = length(lons)
 
@@ -266,20 +266,21 @@ function fault_oblique_merc(fault::Fault, lons::Array{Float64},
     slon2 = sind.(lon2)
 
     # Pole longitude
-    num = clat1 .* slat2 .* clon1 - slat1 .* clat2 .* clon2
-    den = slat1 .* clat2 .* slon2 - clat1 .* slat2 .* slon1
+    num = clat1 .* slat2 .* clon1 .- slat1 .* clat2 .* clon2
+    den = slat1 .* clat2 .* slon2 .- clat1 .* slat2 .* slon1
     lonp = rad2deg.(atan.(num, den))
 
     # Pole latitutde
-    latp = atand.(-cosd.(lonp - lon1) ./ tand.(lat1))
+    latp = atand.(-cosd.(lonp .- lon1) ./ tand.(lat1))
     sp = sign.(latp)
+
     # choose northern hemisphere pole
     lonp[latp .< 0.] .+= 180.
     latp[latp .< 0.] .*= -1.
     # find origin longitude
     lon0 = lonp .+ 90.
     lon0[lon0 .> 180.] .-= 360.
-
+    
     clatp = cosd.(latp)
     slatp = sind.(latp)
     dlon = lons .- lon0
@@ -287,9 +288,9 @@ function fault_oblique_merc(fault::Fault, lons::Array{Float64},
 
     # Projection
     x = atan.((tand.(lats) .* clatp .+ slatp .* sind.(dlon)) ./ cosd.(dlon))
-    x[latp .< 80.] = x[latp .< 80.] .- (cosd.(dlon[latp .< 80.]) .> 0.) .* pi .+ pi/2.
+    x[latp .< 80.] = x[latp .< 80.] .- (cosd.(dlon[latp .< 80.]) .> 0.) .* pi .+ pi / 2.
     x[latp .>= 80.] = (x[latp .>= 80.] .- (cosd.(dlon[latp .>= 80.]) .< 0.) .* pi .+
-                       pi/2.)
+                       pi / 2.)
     y = atanh.(A)
 
     x = -sp .* x .* R
@@ -315,9 +316,10 @@ Called 'P_alpha' in Meade and Loveless, 2009.
 - `P_strike`: 3x3 Float64 matrix.
 """
 function build_strike_rot_matrix(strike::Float64)
-    P_strike = [cosd(strike) -sind(strike) 0.;
-                sind(strike)  cosd(strike) 0.;
-                0.            0.           1.]
+    strike_ang = az_to_angle(strike)
+    P_strike = [cos(strike_ang) -sin(strike_ang) 0.;
+                sin(strike_ang)  cos(strike_ang) 0.;
+                0.               0.              1.]
 end
 
 """
@@ -336,9 +338,10 @@ Called 'P_f' in Meade and Loveless 2009.
 - `P_f`: 3x3 Float64 matrix.
 """
 function build_Pf_vert(strike::Float64)
-    Pf_vert = [cosd(strike) -sind(strike) 0.;
+    strike_ang = az_to_angle(strike)
+    Pf_vert = [cos(strike_ang) -sin(strike_ang) 0.;
                0.            0.           0.;
-               sind(strike)  cosd(strike) 0.]
+               sin(strike_ang)  cos(strike_ang) 0.]
 end
 
 
@@ -359,11 +362,12 @@ Called 'P_f' in Meade and Loveless 2009.
 - `P_f`: 3x3 Float64 matrix.
 """
 function build_Pf_dip(strike::Float64, dip::Float64)
+    strike_ang = az_to_angle(strike)
     cd = cosd(dip)
 
-    Pf_dip = [cosd(strike)       -sind(strike)        0.;
-              sind(strike) / cd   cosd(strike) / cd   0.;
-              0.                  0.                  0.]
+    Pf_dip = [cos(strike_ang)       -sin(strike_ang)        0.;
+              sin(strike_ang) * cd   cos(strike_ang) * cd   0.;
+              0.                 0.                         0.]
 end
 
 
@@ -384,11 +388,15 @@ Called 'P_f' in Meade and Loveless 2009.
 - `P_f`: 3x3 Float64 matrix.
 """
 function build_velocity_projection_matrix(strike::Float64, dip::Float64)
-    if dip == 90.
-        Pf = build_Pf_vert(strike)
-    else
-        Pf = build_Pf_dip(strike, dip)
-    end
+    # Currently we only model the horizontal components (ss, ext), so only
+    # use the strike-slip formulation
+    Pf = build_Pf_vert(strike)
+
+    # if dip >= 89. # many SS faults are given 89 deg dips to have hw, fw defined
+    #    Pf = build_Pf_vert(strike)
+    # else
+    #    Pf = build_Pf_dip(strike, dip)
+    # end
     Pf
 end
 

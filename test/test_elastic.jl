@@ -9,14 +9,14 @@ simple_fault_trace = [1. 1.;
 
 simple_fault = Oiler.Fault(trace = simple_fault_trace, dip = 45., 
                            dip_dir = "SE", usd = 1., lsd = 20.,
-                           hw="a", fw="b")
+                           hw = "a", fw = "b")
 
 gnss_1 = Oiler.VelocityVectorSphere(lond = 0., latd = 0., ve = 1., vn = 1., 
-    vel_type = "gnss", fix="a", mov="r")
+    vel_type = "gnss", fix = "a", mov = "r")
 gnss_2 = Oiler.VelocityVectorSphere(lond = 1.25, latd = 1.251, ve = 1., vn = 1.,
-    vel_type = "gnss", fix="a", mov="r")
+    vel_type = "gnss", fix = "a", mov = "r")
 gnss_3 = Oiler.VelocityVectorSphere(lond = 1.25, latd = 1.249, ve = 1., vn = 1.,
-    vel_type = "gnss", fix="a", mov="r")
+    vel_type = "gnss", fix = "a", mov = "r")
 
 gnss_lons, gnss_lats = Oiler.get_coords_from_vel_array([gnss_1; gnss_2; gnss_3])
     
@@ -69,6 +69,7 @@ function test_okada_dip_slip()
     ves, vns, vus, ved, vnd, vud, vet, vnt, vut = Oiler.okada(D, 0., 1., 0.,
         gnss_x, gnss_y)
     
+    # test values from using okada_partials.m by Meade and Loveless
     @test isapprox(ves, [0; 0; 0])
     @test isapprox(vns, [0; 0; 0])
     @test isapprox(vus, [0; 0; 0])
@@ -96,6 +97,7 @@ function test_okada_strike_slip()
     ves, vns, vus, ved, vnd, vud, vet, vnt, vut = Oiler.okada(D, 1., 0., 0.,
         gnss_x, gnss_y)
     
+    # test values from using okada_partials.m by Meade and Loveless
     @test isapprox(ves,    
         [0.000278311207785; -0.019970149820352; 0.003279330179775])
     @test isapprox(vns,    
@@ -123,6 +125,7 @@ function test_okada_tensile()
     ves, vns, vus, ved, vnd, vud, vet, vnt, vut = Oiler.okada(D, 0., 0., 1.,
         gnss_x, gnss_y)
     
+    # test values from using okada_partials.m by Meade and Loveless
     @test isapprox(ves, [0; 0; 0])
     @test isapprox(vns, [0; 0; 0])
     @test isapprox(vus, [0; 0; 0])
@@ -149,6 +152,7 @@ function test_okada_partials()
     ves, vns, vus, ved, vnd, vud, vet, vnt, vut = Oiler.okada(D, 1., 1., 1.,
         gnss_x, gnss_y)
     
+    # test values from using okada_partials.m by Meade and Loveless
     @test isapprox(ves,    
         [0.000278311207785; -0.019970149820352; 0.003279330179775])
     @test isapprox(vns,    
