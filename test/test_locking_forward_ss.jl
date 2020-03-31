@@ -57,10 +57,10 @@ pv = [pole.x; pole.y; pole.z];
 
 pred_vecs = [part * pv for part in partials];
 
-pn, pe = [v[1] for v in pred_vecs], [v[2] for v in pred_vecs]
+pe, pn = [v[1] for v in pred_vecs], [v[2] for v in pred_vecs]
 
 figure()
-quiver(glons, glats, -pe, pn, scale = 100)
+quiver(glons, glats, pe, pn, scale = 100)
 plot(strike_slip_trace[:,1], strike_slip_trace[:,2])
 axis("equal")
 show()

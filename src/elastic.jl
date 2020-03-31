@@ -62,7 +62,7 @@ function okada_wrapper(fault::Dict, strike_disp::Float64, dip_disp::Float64,
     tensile_disp::Float64, xs::Array{Float64}, ys::Array{Float64}, 
     Pr::Float64 = 0.25)
 
-    [ves vns vus; ved vnd vud; vet vnt vut] = okada(fault, strike_disp,
+    (ves, vns, vus, ved, vnd, vud, vet, vnt, vut) = okada(fault, strike_disp,
         dip_disp, tensile_disp, xs, ys, Pr
     )
 

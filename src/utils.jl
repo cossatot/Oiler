@@ -204,60 +204,6 @@ function find_vel_cycles(vel_group_keys)
 end
 
 
-function random_sample_vel(vel::VelocityVectorSphere)
-    rnd = randn(2)
-    ve = vel.ve + rnd[1] * vel.ee
-    vn = vel.vn + rnd[2] * vel.en
-    (ve, vn)
-end
-
-
-function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int)
-    rnd_ve_block = randn((length(vels), n_samps))
-    rnd_vn_block = randn((length(vels), n_samps))
-
-    ve_out = zeros(size(rnd_ve_block))
-    vn_out = zeros(size(rnd_vn_block))
-
-    for (row, vel) in enumerate(vels)
-        ve_out[row,:] = vel.ve .+ rnd_ve_block[row,:] .* vel.ee
-        vn_out[row,:] = vel.vn .+ rnd_ve_block[row,:] .* vel.en
-    end
-    (ve_out, vn_out)
-end
-
-
-function random_sample_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
-n_samps::Int)
-    vel_group_samps = Dict{Tuple{String,String},Dict{String,Array{Float64,2}}}()
-    for (key, group) in vel_groups
-        (ve, vn) = random_sample_vels(group, n_samps)
-        vel_group_samps[key] = Dict("ve" => ve, "vn" => vn)
-    end
-    vel_group_samps
-end
-
-
-function Vc_triple_from_vals(ve::Float64, vn::Float64)
-    [ve; vn; 0]
-end
-
-
-function build_Vc_from_vel_sample(vel_samp::Dict{String,Array{Float64,2}},
-    ind::Int)
-
-    reduce(vcat, [Vc_triple_from_vals(ve, vel_samp["vn"][i,ind])
-    for (i, ve) in enumerate(vel_samp["ve"][:,ind])])
-
-end
-
-
-function build_Vc_from_vel_samples(vel_samps::Dict{Tuple{String,String},Dict{String,Array{Float64,2}}},
-    vel_keys::Array{Tuple{String,String}}, ind::Int)
-
-    reduce(vcat, [build_Vc_from_vel_sample(vel_samps[key], ind) for key in vel_keys])
-end
-
 """
     flat(x)
 Flattens nested arrays of arrays

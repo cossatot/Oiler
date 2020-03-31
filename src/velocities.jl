@@ -19,10 +19,10 @@ ve, vn, vu are east, north and up velocities, and ee, en, and eu are the
     latd::Float64
     ve::Float64
     vn::Float64
-    vd::Float64 = 0.
+    vu::Float64 = 0.
     ee::Float64 = 0.
     en::Float64 = 0.
-    ed::Float64 = 0.
+    eu::Float64 = 0.
     fix::String = ""
     mov::String = ""
     name::String = ""
@@ -34,10 +34,10 @@ function reverse(vel::VelocityVectorSphere)
         latd = vel.latd,
         ve = -vel.ve,
         vn = -vel.vn,
-        vd = -vel.vd,
+        vu = -vel.vu,
         ee = vel.ee,
         en = vel.en,
-        ed = vel.ed,
+        eu = vel.eu,
         fix = vel.mov,
         mov = vel.fix,
         name = vel.name,

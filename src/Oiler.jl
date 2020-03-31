@@ -36,11 +36,9 @@ export vel_from_row, load_vels_from_csv, group_vels_by_fix_mov
 
 include("utils.jl")
 using .Utils: predict_vels_from_poles, find_vel_cycles, diagonalize_matrices, 
-    random_sample_vel_groups, build_Vc_from_vel_samples, get_gnss_vels,
-    get_coords_from_vel_array
+    get_gnss_vels, get_coords_from_vel_array
 export predict_vels_from_poles, find_vel_cycles, diagonalize_matrices, 
-    random_sample_vel_groups, build_Vc_from_vel_samples, get_gnss_vels,
-    get_coords_from_vel_array
+    get_gnss_vels, get_coords_from_vel_array
 
 include("okada.jl")
 using .Okada: okada

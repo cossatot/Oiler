@@ -6,24 +6,43 @@ using ..Oiler: EARTH_RAD_MM, VelocityVectorSphere, PoleSphere, PoleCart,
         pole_sphere_to_cart, pole_cart_to_sphere
 
 
-function build_Pv_deg(lond::Float64, latd::Float64)
+function build_Pv_deg_ned(lond::Float64, latd::Float64)
 
-    pv11 = -sind(latd) * cosd(lond)
-    pv12 = -sind(latd) * sind(lond)
-    pv13 = cosd(latd)
+    pv11 = -sind(latd) * cosd(lond) #nx
+    pv12 = -sind(latd) * sind(lond) #ny
+    pv13 = cosd(latd) #nz
 
-    pv21 = -sind(lond)
-    pv22 = cosd(lond)
-    pv23 = 0.
+    pv21 = -sind(lond) #ex
+    pv22 = cosd(lond)  #ey
+    pv23 = 0. #ez
 
-    pv31 = -cosd(latd) * cosd(lond)
-    pv32 = -cosd(latd) * sind(lond)
-    pv33 = -sind(latd)
+    pv31 = -cosd(latd) * cosd(lond) #dx
+    pv32 = -cosd(latd) * sind(lond) #dy
+    pv33 = -sind(latd) #dz
 
     Pv = [pv11 pv12 pv13;
           pv21 pv22 pv23;
           pv31 pv32 pv33]
     return Pv
+end
+
+
+function build_Pv_deg(lond::Float64, latd::Float64)
+    pex = -sind(lond)
+    pey = cosd(lond)
+    pez = 0
+
+    pnx = -sind(latd) * cosd(lond)
+    pny = -sind(latd) * sind(lond)
+    pnz = cosd(latd)
+
+    pux = cosd(latd) * cosd(lond)
+    puy = cosd(latd) * sind(lond)
+    puz = sind(latd)
+
+    Pv = [pex pey pez;
+          pnx pny pnz;
+          pux puy puz]
 end
 
 
@@ -115,7 +134,7 @@ function build_PvGb_from_degs(londs::Array{Float64},
 end
 
 function build_vel_column_from_vel(vel::VelocityVectorSphere)
-    V = [vel.vn; vel.ve; vel.vd]
+    V = [vel.ve; vel.vn; vel.vu]
 end
 
 
@@ -134,9 +153,9 @@ function predict_block_vels(londs::Array{Float64},
     cart_pole = pole_sphere_to_cart(pole)
 
     V_pred = PvGb * [cart_pole.x; cart_pole.y; cart_pole.z]
-    Vn_pred = V_pred[1:3:end]
-    Ve_pred = V_pred[2:3:end]
-    Vd_pred = V_pred[3:3:end]
+    Ve_pred = V_pred[1:3:end]
+    Vn_pred = V_pred[2:3:end]
+    Vu_pred = V_pred[3:3:end]
 
     n_vels = length(londs)
 
@@ -157,9 +176,9 @@ function predict_block_vels(londs::Array{Float64},
     PvGb = build_PvGb_from_degs(londs, latds)
 
     V_pred = PvGb * [pole.x; pole.y; pole.z]
-    Vn_pred = V_pred[1:3:end]
-    Ve_pred = V_pred[2:3:end]
-    Vd_pred = V_pred[3:3:end]
+    Ve_pred = V_pred[1:3:end]
+    Vn_pred = V_pred[2:3:end]
+    Vu_pred = V_pred[3:3:end]
 
     if length(size(londs)) == 1
         n_vels = size(londs)[1]
