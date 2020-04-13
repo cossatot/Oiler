@@ -366,7 +366,7 @@ function build_Pf_dip(strike::Float64, dip::Float64)
     cd = cosd(dip)
 
     Pf_dip = [cos(strike_ang)       -sin(strike_ang)        0.;
-              sin(strike_ang) * cd   cos(strike_ang) * cd   0.;
+              sin(strike_ang) / cd   cos(strike_ang) / cd   0.;
               0.                 0.                         0.]
 end
 
@@ -390,13 +390,13 @@ Called 'P_f' in Meade and Loveless 2009.
 function build_velocity_projection_matrix(strike::Float64, dip::Float64)
     # Currently we only model the horizontal components (ss, ext), so only
     # use the strike-slip formulation
-    Pf = build_Pf_vert(strike)
+    # Pf = build_Pf_vert(strike)
 
-    # if dip >= 89. # many SS faults are given 89 deg dips to have hw, fw defined
-    #    Pf = build_Pf_vert(strike)
-    # else
-    #    Pf = build_Pf_dip(strike, dip)
-    # end
+    if dip >= 89. # many SS faults are given 89 deg dips to have hw, fw defined
+        Pf = build_Pf_vert(strike)
+    else
+        Pf = build_Pf_dip(strike, dip)
+    end
     Pf
 end
 

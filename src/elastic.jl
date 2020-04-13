@@ -94,9 +94,7 @@ function calc_locking_effects_per_fault(fault::Fault, lons, lats)
         Oiler.fault_to_vel(fault)
     )
 
-    PfPvGbf = Pf * PvGbf
-
-    println(Pf)
+    PfPvGbf = Pf' * PvGbf
 
     [Palpha * part * PfPvGbf for part in elastic_partials]
 end
@@ -109,9 +107,12 @@ end
 
 
 function make_partials_matrix(partials, i::Integer)
-    [partials[1][i] partials[2][i] partials[3][i]
-     partials[4][i] partials[5][i] partials[6][i]
-     partials[7][i] partials[8][i] partials[9][i]]
+    # [partials[1][i] partials[2][i] partials[3][i]
+    # partials[4][i] partials[5][i] partials[6][i]
+    # partials[7][i] partials[8][i] partials[9][i]]
+    [partials[1][i] partials[4][i] partials[7][i]
+     partials[2][i] partials[5][i] partials[8][i]
+     partials[3][i] partials[6][i] partials[9][i]]
 end
 
 

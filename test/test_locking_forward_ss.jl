@@ -38,16 +38,6 @@ v20 = Oiler.VelocityVectorSphere(lond = -80.126, latd = 10.843, ve = 0.,
 
 gnss_vels = [v11, v12, v13, v14, v15, v16, v17, v18, v19, v20];
 
-PvGbs = [Oiler.BlockRotations.build_PvGb_vel(v) for v in gnss_vels];
-
-PvGbf = Oiler.BlockRotations.build_PvGb_vel(
-    Oiler.fault_to_vel(ss)
-);
-
-
-Pf = Oiler.Faults.build_velocity_projection_matrix(ss.strike, ss.dip)
-# Pf = [1. 0. 0; 0. 1. 0.; 0. 0. 1.];
-Pa = Oiler.Faults.build_strike_rot_matrix(ss.strike);
 
 glons, glats = Oiler.get_coords_from_vel_array(gnss_vels)
 
