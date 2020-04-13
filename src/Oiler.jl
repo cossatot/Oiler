@@ -16,9 +16,9 @@ export VelocityVectorSphere, reverse
 
 include("geom.jl")
 using .Geom: azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
-    angle_difference, rotate_velocity, rotate_xy_vec
+    angle_difference, rotate_velocity, rotate_xy_vec, oblique_merc
 export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
-    angle_difference, rotate_velocity, rotate_xy_vec
+    angle_difference, rotate_velocity, rotate_xy_vec, oblique_merc
 
 include("faults.jl")
 using .Faults: Fault, fault_to_vel, fault_slip_rate_to_ve_vn, 

@@ -109,7 +109,7 @@ function okada(fault::Dict, strike_disp::Float64, dip_disp::Float64,
     else
         I5 = -alpha .* (zi .* sindd) ./ Rdbar
         I4 = -alpha .* q ./ Rdbar
-        I3 = alpha ./ 2 .* (eta ./ Rdbar .+ ybar .* q ./ Rdbar.^2 .- log(Reta))
+        I3 = alpha ./ 2 .* (eta ./ Rdbar .+ ybar .* q ./ Rdbar.^2 .- log.(Reta))
         I2 = alpha .* (-log.(Reta)) .- I3
         I1 = -alpha ./ 2. .* (zi .* q) ./ Rdbar.^2 
     end # if

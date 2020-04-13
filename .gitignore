@@ -18,3 +18,5 @@ conda/
 prefs/
 test/four_plates/notebooks/.ipynb_checkpoints/Untitled-checkpoint.ipynb
 test/four_plates/notebooks/Untitled.ipynb
+artifacts/
+compiled/

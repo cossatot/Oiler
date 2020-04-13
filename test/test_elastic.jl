@@ -56,7 +56,7 @@ function test_fault_to_okada()
     @test isapprox(D["tfye"], -1.000000000001459)
 end
 
-test_fault_to_okada()
+#test_fault_to_okada()
 
 
 function test_okada_dip_slip()
@@ -84,7 +84,7 @@ function test_okada_dip_slip()
     @test isapprox(vut, [0; 0; 0])
 end
 
-test_okada_dip_slip()
+#test_okada_dip_slip()
 
 
 function test_okada_strike_slip()
@@ -112,7 +112,7 @@ function test_okada_strike_slip()
     @test isapprox(vut, [0; 0; 0])
 end
 
-test_okada_strike_slip()
+#test_okada_strike_slip()
 
 
 function test_okada_tensile()
@@ -140,7 +140,7 @@ function test_okada_tensile()
         [0.001992761716366; -0.038169618939615; -0.038100199139836])
 end
 
-test_okada_tensile()
+#test_okada_tensile()
 
 function test_okada_partials()
     x, y = Oiler.Faults.fault_oblique_merc(simple_fault, gnss_lons, gnss_lats)
@@ -173,4 +173,42 @@ function test_okada_partials()
         [0.001992761716366; -0.038169618939615; -0.038100199139836])
 end
 
-test_okada_partials()
+#test_okada_partials()
+
+
+function test_okada_ss_grid()
+
+    trace = [-1. 0.00001; 1. -0.00001]
+    fault = Oiler.Fault(trace=trace, dip=90., dip_dir="S", hw="a", fw="b")
+
+    grid = collect(Iterators.product(-8.:0.5:8., -8.25:0.5:8.25))
+    site_lons = vec([g[1] for g in grid])
+    site_lats = vec([g[2] for g in grid])
+    n_sites = length(site_lons)
+
+    x, y = Oiler.Faults.fault_oblique_merc(fault, site_lons, site_lats)
+    gx, gy = x[1:n_sites], y[1:n_sites]
+    sx1, sy1, sx2, sy2 = x[n_sites+1], y[n_sites+1], x[end], y[end]
+
+    D = Oiler.fault_to_okada(fault, sx1, sy1, sx2, sy2)
+
+    ves, vns, vus, ved, vnd, vud, vet, vnt, vut = Oiler.okada(D, 1., 0., 0., gx,
+    gy)
+
+    ve = ves + ved + vet
+    vn = vns + vnd + vnt
+    vu = vud + vud + vut
+
+    figure()
+    plot(trace[:,1], trace[:,2], color="red")
+    quiver(site_lons, site_lats, ves, vns)
+    #plot([sx1 sx2], [sy1 sy2])
+    #scatter(gx, gy)
+    show()
+
+end
+
+test_okada_ss_grid()
+
+
+

@@ -5,7 +5,7 @@ export Fault, fault_to_vel, fault_slip_rate_to_ve_vn, ve_vn_to_fault_slip_rate,
 using Parameters
 
 using ..Oiler: VelocityVectorSphere, average_azimuth, az_to_angle,
-angle_difference, rotate_velocity, EARTH_RAD_KM
+angle_difference, rotate_velocity, EARTH_RAD_KM, oblique_merc
 
 const direction_map = Dict{String,Float64}("N" => 0.,
                  "NNE" => 22.5,
@@ -241,62 +241,25 @@ See USGS "Map Projections - A Working Manual" p. 69 for mathematical reference.
 
 """
 function fault_oblique_merc(fault::Fault, lons::Array{Float64}, 
-                            lats::Array{Float64}, R = EARTH_RAD_KM)
+                            lats::Array{Float64})
     
     n_stations = length(lons)
 
     lons = [lons; fault.trace[1,1]; fault.trace[end,1]]
     lats = [lats; fault.trace[1,2]; fault.trace[end,2]]
 
-    lon1 = ones(n_stations + 2) .* fault.trace[1,1]
-    lat1 = ones(n_stations + 2) .* fault.trace[1,2]
-    lon2 = ones(n_stations + 2) .* fault.trace[end,1]
-    lat2 = ones(n_stations + 2) .* fault.trace[end,2]
+    #lon1 = ones(n_stations + 2) .* fault.trace[1,1]
+    #lat1 = ones(n_stations + 2) .* fault.trace[1,2]
+    #lon2 = ones(n_stations + 2) .* fault.trace[end,1]
+    #lat2 = ones(n_stations + 2) .* fault.trace[end,2]
 
-    # trig functions
-    clat =  cosd.(lats)
-    slat =  sind.(lats)
-    clat1 = cosd.(lat1)
-    slat1 = sind.(lat1)
-    clat2 = cosd.(lat2)
-    slat2 = sind.(lat2)
-    clon1 = cosd.(lon1)
-    slon1 = sind.(lon1)
-    clon2 = cosd.(lon2)
-    slon2 = sind.(lon2)
+    lon1 = fault.trace[1,1]
+    lat1 = fault.trace[1,2]
+    lon2 = fault.trace[end,1]
+    lat2 = fault.trace[end,2]
 
-    # Pole longitude
-    num = clat1 .* slat2 .* clon1 .- slat1 .* clat2 .* clon2
-    den = slat1 .* clat2 .* slon2 .- clat1 .* slat2 .* slon1
-    lonp = rad2deg.(atan.(num, den))
+    oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
 
-    # Pole latitutde
-    latp = atand.(-cosd.(lonp .- lon1) ./ tand.(lat1))
-    sp = sign.(latp)
-
-    # choose northern hemisphere pole
-    lonp[latp .< 0.] .+= 180.
-    latp[latp .< 0.] .*= -1.
-    # find origin longitude
-    lon0 = lonp .+ 90.
-    lon0[lon0 .> 180.] .-= 360.
-    
-    clatp = cosd.(latp)
-    slatp = sind.(latp)
-    dlon = lons .- lon0
-    A = slatp .* slat .- clatp .* clat .* sind.(dlon)
-
-    # Projection
-    x = atan.((tand.(lats) .* clatp .+ slatp .* sind.(dlon)) ./ cosd.(dlon))
-    x[latp .< 80.] = x[latp .< 80.] .- (cosd.(dlon[latp .< 80.]) .> 0.) .* pi .+ pi / 2.
-    x[latp .>= 80.] = (x[latp .>= 80.] .- (cosd.(dlon[latp .>= 80.]) .< 0.) .* pi .+
-                       pi / 2.)
-    y = atanh.(A)
-
-    x = -sp .* x .* R
-    y = -sp .* y .* R
-
-    (x, y)
 end
 
 

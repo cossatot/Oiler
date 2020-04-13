@@ -1,9 +1,10 @@
 module Geom
 
 export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
-    angle_difference, rotate_velocity, rotate_xy_vec
+    angle_difference, rotate_velocity, rotate_xy_vec, oblique_merc
 
 import Statistics: mean
+import Proj4: Projection, transform
 
 using ..Oiler: EARTH_RAD_KM
 
@@ -116,6 +117,88 @@ function xyz2enumat(G, az)
 
 end
 
+
+function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
+    wgs84 = Projection("+proj=longlat +datum=WGS84 +nodefs")
+    init_str = "+proj=omerc +lat_1=$lat1 +lon_1=$lon1 +lat_2=$lat2 +lon_2=$lon2"
+    omerc = Projection(init_str)
+
+    #x, y = transform(wgs84, omerc, lons, lats)
+
+    xy = [transform(wgs84, omerc, [lon, lats[i]]) for (i, lon) in enumerate(lons)]
+    x = [c[1] for c in xy]
+    y = [c[2] for c in xy]
+
+    #x .*= 1000.
+    #y .*= 1000.
+    (x,y)
+end
+
+
+function oblique_merc_bad(lons, lats, lon1, lat1, lon2, lat2, R = EARTH_RAD_KM)
+
+    # trig functions
+    clat =  cosd.(lats)
+    slat =  sind.(lats)
+    clat1 = cosd.(lat1)
+    slat1 = sind.(lat1)
+    clat2 = cosd.(lat2)
+    slat2 = sind.(lat2)
+    clon1 = cosd.(lon1)
+    slon1 = sind.(lon1)
+    clon2 = cosd.(lon2)
+    slon2 = sind.(lon2)
+
+    # Pole longitude
+    num = clat1 .* slat2 .* clon1 .- slat1 .* clat2 .* clon2
+    den = slat1 .* clat2 .* slon2 .- clat1 .* slat2 .* slon1
+    lonp = atand.(num, den)
+
+    # Pole latitutde
+    latp = atand.(-cosd.(lonp .- lon1) ./ tand.(lat1))
+    sp = sign.(latp)
+
+    # choose northern hemisphere pole
+    #lonp[latp .< 0.] .+= 180.
+    #latp[latp .< 0.] .*= -1.
+
+    if latp < 0.
+        lonp += 180.
+        latp *= -1.
+    end
+
+    # find origin longitude
+    lon0 = lonp .+ 90.
+    #lon0[lon0 .> 180.] .-= 360.
+    if lon0 > 180.
+        lon0 -= 360.
+    end
+    
+    clatp = cosd.(latp)
+    slatp = sind.(latp)
+    dlon = lons .- lon0
+    A = slatp .* slat .- clatp .* clat .* sind.(dlon)
+
+    # Projection
+    x = atan.((tand.(lats) .* clatp .+ slatp .* sind.(dlon)) ./ cosd.(dlon))
+    #x[latp .< 80.] = x[latp .< 80.] .- (cosd.(dlon[latp .< 80.]) .> 0.) .* pi .+ pi / 2.
+    #x[latp .>= 80.] = (x[latp .>= 80.] .- (cosd.(dlon[latp .>= 80.]) .< 0.) .* pi .+
+    #                   pi / 2.)
+
+    #if latp < 80
+    #    x .- (cosd.(dlon) .> 0.) .* pi .+ pi / 2.
+    #else
+    #    x = (x .- (cosd.(dlon) .< 0.) .* pi .+ pi / 2.)
+    #end
+
+    y = rad2deg.(atanh.(A))
+    # Y DOES NOT AGREE WITH PROJ4
+
+    x = -sp .* x .* R
+    y = -sp .* y .* R
+
+    (x, y)
+end
 
 
 end # module
