@@ -77,26 +77,22 @@ function calc_locking_effects_per_fault(fault::Fault, lons, lats)
     xg, yg = xp[1:n_gnss], yp[1:n_gnss] # gnss
     sx1, sy1, sx2, sy2 = xp[end - 1], yp[end - 1], xp[end], yp[end] # fault 
 
-    # println([sx1 sy1 sx2 sy2])
-
     # format Okada
     D = fault_to_okada(fault, sx1, sy1, sx2, sy2)
-    # println(D)
 
     # calc Okada partials
     elastic_partials = distribute_partials(okada(D, -1., -1., -1., xg, yg))
 
     # build rotation and transformation matrices
-    Palpha = Oiler.Faults.build_strike_rot_matrix(fault.strike)
-    # Palpha = [1. 0. 0.; 0. 1. 0.; 0. 0. 1]
     Pf = Oiler.Faults.build_velocity_projection_matrix(fault.strike, fault.dip)
+
     PvGbf = Oiler.BlockRotations.build_PvGb_vel(
         Oiler.fault_to_vel(fault)
     )
 
-    PfPvGbf = Pf' * PvGbf
+    PfPvGbf = Pf * PvGbf
 
-    [Palpha * part * PfPvGbf for part in elastic_partials]
+    [part * PfPvGbf for part in elastic_partials]
 end
 
 
@@ -119,14 +115,6 @@ end
 function calc_locking_effects(faults, vel_groups, sparse_tol::Float64 = 1e-5)
     gnss_vels = get_gnss_vels(vel_groups)
     gnss_lons, gnss_lats = get_coords_from_vel_array(gnss_vels)
-
-
-
-
-
-
-
-
 
     # fault_lock_displs = sum([calc_locking_effects_per_fault(fault, gnss_lons, gnss_lats)
     #    for fault in faults])

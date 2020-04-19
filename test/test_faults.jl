@@ -79,7 +79,7 @@ function test_fault_oblique_merc()
     @test isapprox(y[1:3], y_ .* Oiler.EARTH_RAD_KM)
 end
 
-#test_fault_oblique_merc()
+# test_fault_oblique_merc()
 
 
 function test_strike_rot_matrix_xd()
@@ -104,4 +104,14 @@ function test_partials_and_rotation_matrices_1()
     pp * pole
 end
 
-#test_partials_and_rotation_matrices_1()
+# test_partials_and_rotation_matrices_1()
+
+
+function test_build_velocity_projection_matrix_1()
+    Pf = Oiler.build_velocity_projection_matrix(90., 90.)
+
+    @test isapprox(Pf * [1.; 0.; 0.], [1.; 0.; 0.])
+end
+
+test_build_velocity_projection_matrix_1()
+

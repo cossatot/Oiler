@@ -22,9 +22,11 @@ export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
 
 include("faults.jl")
 using .Faults: Fault, fault_to_vel, fault_slip_rate_to_ve_vn, 
-    ve_vn_to_fault_slip_rate, fault_oblique_merc
+    ve_vn_to_fault_slip_rate, fault_oblique_merc, build_strike_rot_matrix,
+    build_velocity_projection_matrix
 export Fault, fault_to_vel, fault_slip_rate_to_ve_vn,
-    ve_vn_to_fault_slip_rate, fault_oblique_merc
+    ve_vn_to_fault_slip_rate, fault_oblique_merc, build_strike_rot_matrix,
+    build_velocity_projection_matrix
 
 include("block_rotations.jl")
 using .BlockRotations: build_PvGb_from_vels, build_vel_column_from_vels, predict_block_vels

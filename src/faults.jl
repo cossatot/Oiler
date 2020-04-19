@@ -1,6 +1,7 @@
 module Faults
 export Fault, fault_to_vel, fault_slip_rate_to_ve_vn, ve_vn_to_fault_slip_rate,
-    fault_oblique_merc
+    fault_oblique_merc, build_strike_rot_matrix, 
+    build_velocity_projection_matrix
 
 using Parameters
 
@@ -248,10 +249,10 @@ function fault_oblique_merc(fault::Fault, lons::Array{Float64},
     lons = [lons; fault.trace[1,1]; fault.trace[end,1]]
     lats = [lats; fault.trace[1,2]; fault.trace[end,2]]
 
-    #lon1 = ones(n_stations + 2) .* fault.trace[1,1]
-    #lat1 = ones(n_stations + 2) .* fault.trace[1,2]
-    #lon2 = ones(n_stations + 2) .* fault.trace[end,1]
-    #lat2 = ones(n_stations + 2) .* fault.trace[end,2]
+    # lon1 = ones(n_stations + 2) .* fault.trace[1,1]
+    # lat1 = ones(n_stations + 2) .* fault.trace[1,2]
+    # lon2 = ones(n_stations + 2) .* fault.trace[end,1]
+    # lat2 = ones(n_stations + 2) .* fault.trace[end,2]
 
     lon1 = fault.trace[1,1]
     lat1 = fault.trace[1,2]
@@ -302,9 +303,9 @@ Called 'P_f' in Meade and Loveless 2009.
 """
 function build_Pf_vert(strike::Float64)
     strike_ang = az_to_angle(strike)
-    Pf_vert = [cos(strike_ang) -sin(strike_ang) 0.;
-               0.            0.           0.;
-               sin(strike_ang)  cos(strike_ang) 0.]
+    Pf_vert = [cos(-strike_ang) -sin(-strike_ang) 0.;
+               0.                0.               0.;
+               sin(-strike_ang)  cos(-strike_ang) 0.]
 end
 
 
@@ -326,10 +327,11 @@ Called 'P_f' in Meade and Loveless 2009.
 """
 function build_Pf_dip(strike::Float64, dip::Float64)
     strike_ang = az_to_angle(strike)
-    cd = cosd(dip)
+    # cd = cosd(dip)
+    cd = 1.  # reasoning: longer-term, all convergence/extension goes down-dip
 
-    Pf_dip = [cos(strike_ang)       -sin(strike_ang)        0.;
-              sin(strike_ang) / cd   cos(strike_ang) / cd   0.;
+    Pf_dip = [cos(-strike_ang)       -sin(-strike_ang)        0.;
+              sin(-strike_ang) / cd   cos(-strike_ang) / cd   0.;
               0.                 0.                         0.]
 end
 
