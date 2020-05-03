@@ -169,6 +169,7 @@ function predict_block_vels(londs::Array{Float64},
     return pred_vels
 end
     
+
 function predict_block_vels(londs::Array{Float64},
                             latds::Array{Float64},
                             pole::PoleCart)
@@ -205,4 +206,10 @@ pole::PoleCart)
     predict_block_vels(londs, latds, pole)
 end
 
+
+function predict_block_vels(vels::Array{VelocityVectorSphere}, 
+    pole::PoleSphere)
+    predict_block_vels(vels, pole_sphere_to_cart(pole))
 end
+
+end #module
