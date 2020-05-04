@@ -36,3 +36,45 @@ function test_oblique_merc_2()
 end
 
 test_oblique_merc_2()
+
+
+function test_point_line_distance_1()
+    point = [1., 1.]
+    line_start = [0., 0.]
+    line_end = [2., 0.]
+    dist = Oiler.Geom.point_line_distance(point, line_start, line_end)
+
+    @test dist == 1.0
+end
+
+test_point_line_distance_1()
+
+function test_point_line_distance_2()
+    point = [0., 0.]
+    line_start = [0., 0.]
+    line_end = [2., 0.]
+    dist = Oiler.Geom.point_line_distance(point, line_start, line_end)
+
+    @test dist == 0.0
+end
+
+test_point_line_distance_2()
+
+function test_simplify_polyline_vert()
+    polyline = [0. 0.; 0. 1.; 0. 2.; 0. 3.; 0. 4.]
+    simp_line = [0. 0.; 0. 4.]
+    test_simp_line = Oiler.Geom.simplify_polyline(polyline, 0.)
+    @test test_simp_line == simp_line
+end
+
+test_simplify_polyline_vert()
+
+function test_simplify_polyline_rosettacode()
+    polyline = [0. 0.; 1. 0.1; 2. -0.1; 3. 5.; 4. 6.; 
+                5. 7.; 6. 8.1; 7. 9.; 8. 9.; 9. 9.]
+    simp_line = [0. 0.; 2. -0.1; 3. 5.; 7. 9.; 9. 9.]
+    test_simp_line = Oiler.Geom.simplify_polyline(polyline, 1.)
+    @test test_simp_line == simp_line
+end
+
+test_simplify_polyline_rosettacode()

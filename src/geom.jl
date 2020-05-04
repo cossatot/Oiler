@@ -7,6 +7,7 @@ import Statistics: mean
 import Proj4: Projection, transform
 
 using ..Oiler: EARTH_RAD_KM
+using LinearAlgebra
 
 function azimuth(lond1::Float64, latd1::Float64,
                  lond2::Float64, latd2::Float64)
@@ -123,8 +124,6 @@ function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
     init_str = "+proj=omerc +lat_1=$lat1 +lon_1=$lon1 +lat_2=$lat2 +lon_2=$lon2"
     omerc = Projection(init_str)
 
-    #x, y = transform(wgs84, omerc, lons, lats)
-
     xy = [transform(wgs84, omerc, [lon, lats[i]]) for (i, lon) in enumerate(lons)]
     x = [c[1] for c in xy]
     y = [c[2] for c in xy]
@@ -135,69 +134,51 @@ function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
 end
 
 
-function oblique_merc_bad(lons, lats, lon1, lat1, lon2, lat2, R = EARTH_RAD_KM)
+"""
+Simplifies a polyline based on the Ramer-Douglas-Peucker algorithm.
 
-    # trig functions
-    clat =  cosd.(lats)
-    slat =  sind.(lats)
-    clat1 = cosd.(lat1)
-    slat1 = sind.(lat1)
-    clat2 = cosd.(lat2)
-    slat2 = sind.(lat2)
-    clon1 = cosd.(lon1)
-    slon1 = sind.(lon1)
-    clon2 = cosd.(lon2)
-    slon2 = sind.(lon2)
+Code based on Fabian Hirschmann's RDP Python code.
+"""
+function simplify_polyline(polyline, min_dist)
+    dmax = 0.0
+    n = size(polyline)[1]
+    index = n * 1
 
-    # Pole longitude
-    num = clat1 .* slat2 .* clon1 .- slat1 .* clat2 .* clon2
-    den = slat1 .* clat2 .* slon2 .- clat1 .* slat2 .* slon1
-    lonp = atand.(num, den)
+    for i in 1:n
+        d = point_line_distance(polyline[i,:], polyline[1,:], polyline[n,:])
 
-    # Pole latitutde
-    latp = atand.(-cosd.(lonp .- lon1) ./ tand.(lat1))
-    sp = sign.(latp)
-
-    # choose northern hemisphere pole
-    #lonp[latp .< 0.] .+= 180.
-    #latp[latp .< 0.] .*= -1.
-
-    if latp < 0.
-        lonp += 180.
-        latp *= -1.
+        if d > dmax
+            index = i
+            dmax = d
+        end
     end
 
-    # find origin longitude
-    lon0 = lonp .+ 90.
-    #lon0[lon0 .> 180.] .-= 360.
-    if lon0 > 180.
-        lon0 -= 360.
+    if dmax > min_dist
+        r1 = simplify_polyline(polyline[1:index,:], min_dist)
+        r2 = simplify_polyline(polyline[index:n,:], min_dist)
+
+        simp_line = [r1[1:end-1,:]; r2]
+    else
+        simp_line = [polyline[1:1,:]; polyline[n:n,:]]
     end
-    
-    clatp = cosd.(latp)
-    slatp = sind.(latp)
-    dlon = lons .- lon0
-    A = slatp .* slat .- clatp .* clat .* sind.(dlon)
+    simp_line
+end
 
-    # Projection
-    x = atan.((tand.(lats) .* clatp .+ slatp .* sind.(dlon)) ./ cosd.(dlon))
-    #x[latp .< 80.] = x[latp .< 80.] .- (cosd.(dlon[latp .< 80.]) .> 0.) .* pi .+ pi / 2.
-    #x[latp .>= 80.] = (x[latp .>= 80.] .- (cosd.(dlon[latp .>= 80.]) .< 0.) .* pi .+
-    #                   pi / 2.)
 
-    #if latp < 80
-    #    x .- (cosd.(dlon) .> 0.) .* pi .+ pi / 2.
-    #else
-    #    x = (x .- (cosd.(dlon) .< 0.) .* pi .+ pi / 2.)
-    #end
+function two_cross(vec1, vec2)
+    vec1[1] * vec2[2] - vec1[2] * vec2[1]
+end
 
-    y = rad2deg.(atanh.(A))
-    # Y DOES NOT AGREE WITH PROJ4
+function point_line_distance(point, line_start, line_end)
+    if (line_start[1] == line_end[1])
+        if (line_start[2] == line_end[2])
+            return norm(point .- line_start)
+        end
+    end
 
-    x = -sp .* x .* R
-    y = -sp .* y .* R
-
-    (x, y)
+    top = abs(norm(two_cross(line_end .- line_start, line_start .- point)))
+    bottom = norm(line_end .- line_start)
+    return top / bottom
 end
 
 
