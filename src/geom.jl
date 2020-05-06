@@ -112,14 +112,12 @@ function rotate_xy_vec(x, y, alpha_rot)
 end
 
 
-function xyz2enumat(G, az)
-
-# az = 
-
-end
-
-
 function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
+    # correction for perfectly horizontal lines
+    if lat1 == lat2
+        lat1 = lat1 + 1e-4
+    end
+
     wgs84 = Projection("+proj=longlat +datum=WGS84 +nodefs")
     init_str = "+proj=omerc +lat_1=$lat1 +lon_1=$lon1 +lat_2=$lat2 +lon_2=$lon2"
     omerc = Projection(init_str)
@@ -127,9 +125,7 @@ function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
     xy = [transform(wgs84, omerc, [lon, lats[i]]) for (i, lon) in enumerate(lons)]
     x = [c[1] for c in xy]
     y = [c[2] for c in xy]
-
-    #x .*= 1000.
-    #y .*= 1000.
+    
     (x,y)
 end
 
