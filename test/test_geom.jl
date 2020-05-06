@@ -2,11 +2,11 @@ using Test
 
 import Oiler
 
-lax_lon = 118 + 24 / 60.;
-lax_lat = 33 + 57 / 60.;
+lax_lon = 118. + 24. / 60.;
+lax_lat = 33. + 57. / 60.;
 
-jfk_lat = 40 + 38 / 60.;
-jfk_lon = 73 + 47 / 60.;
+jfk_lat = 40. + 38. / 60.;
+jfk_lon = 73. + 47. / 60.;
 
 
 quien_sabe_coords = [-121.37575 36.93768;

@@ -21,26 +21,31 @@ dislocations using Okada's equations.
 function fault_to_okada(fault::Fault, sx1::Float64, sy1::Float64, 
     sx2::Float64, sy2::Float64)
 
-    # strike = az_to_angle(fault.strike) 
+    #if fault.usd < 0.5
+    #    usd = 0.5
+    #else
+    #    usd = fault.usd
+    #end
+    usd = fault.usd * 1000.
+    lsd = fault.lsd * 1000.
+
     strike = atan(sy1 - sy2, sx1 - sx2) + pi 
+    #strike = az_to_angle(fault.strike) 
     delta = deg2rad(fault.dip)
     L = sqrt((sx2 - sx1)^2 + (sy2 - sy1)^2)
-    W = (fault.lsd - fault.usd) / sin(delta)
+    W = (lsd - usd) / sin(delta)
 
     # calculate fault segment anchor and other buried point
-    ofx = sx1 + fault.lsd / tan(delta) * sin(strike)
-    ofy = sy1 - fault.lsd / tan(delta) * cos(strike)
-    ofxe = sx2 + fault.lsd / tan(delta) * sin(strike)
-    ofye = sy2 - fault.lsd / tan(delta) * cos(strike)
+    ofx =  sx1 + lsd / tan(delta) * sin(strike)
+    ofy =  sy1 - lsd / tan(delta) * cos(strike)
+    ofxe = sx2 + lsd / tan(delta) * sin(strike)
+    ofye = sy2 - lsd / tan(delta) * cos(strike)
 
     # calculate fault segment anchor and other buried point (top relative)
-    tfx = sx1 + fault.usd / tan(delta) * sin(strike)
-    tfy = sy1 - fault.usd / tan(delta) * cos(strike)
-    tfxe = sx2 + fault.usd / tan(delta) * sin(strike)
-    tfye = sy2 - fault.usd / tan(delta) * cos(strike)
-
-    # just to keep everything lined up nicely below
-    lsd = fault.lsd
+    tfx =  sx1 + usd / tan(delta) * sin(strike)
+    tfy =  sy1 - usd / tan(delta) * cos(strike)
+    tfxe = sx2 + usd / tan(delta) * sin(strike)
+    tfye = sy2 - usd / tan(delta) * cos(strike)
 
     Dict("strike" => strike, "delta" => delta, "L" => L, "W" => W, "lsd" => lsd,
          "ofx" => ofx, "ofy" => ofy, "ofxe" => ofxe, "ofye" => ofye,
@@ -48,26 +53,6 @@ function fault_to_okada(fault::Fault, sx1::Float64, sy1::Float64,
 end
 
 
-"""
-    okada_wrapper(fault::Dict, strike_disp::Float64, dip_disp::Float64, 
-    tensile_disp::Float64, xs::Array{Float64}, ys::Array{Float64}, 
-    Pr::Float64 = 0.25)
-
-Translates the outputs from the Okada's dislocation results into a more
-appropriate form for Oiler. The ENU format is translated into the NED reference
-frame that Oiler uses, the results are put into a matrix, and a weird
-backwards thing is fixed.
-"""
-function okada_wrapper(fault::Dict, strike_disp::Float64, dip_disp::Float64, 
-    tensile_disp::Float64, xs::Array{Float64}, ys::Array{Float64}, 
-    Pr::Float64 = 0.25)
-
-    (ves, vns, vus, ved, vnd, vud, vet, vnt, vut) = okada(fault, strike_disp,
-        dip_disp, tensile_disp, xs, ys, Pr
-    )
-
-
-end
 
 function calc_locking_effects_per_fault(fault::Fault, lons, lats)
 
@@ -81,7 +66,7 @@ function calc_locking_effects_per_fault(fault::Fault, lons, lats)
     D = fault_to_okada(fault, sx1, sy1, sx2, sy2)
 
     # calc Okada partials
-    elastic_partials = distribute_partials(okada(D, -500., -500., -500., 
+    elastic_partials = distribute_partials(okada(D, -1., -1., -1.,   
         xg, yg))
 
     # build rotation and transformation matrices
@@ -111,8 +96,8 @@ function make_partials_matrix(partials, i::Integer)
 
     [partials[1][i] partials[4][i] partials[7][i]
      partials[2][i] partials[5][i] partials[8][i]
-     # partials[3][i] partials[6][i] partials[9][i]
-     0.             0.             0.]
+     partials[3][i] partials[6][i] partials[9][i]]
+     #0.             0.             0.]
 end
 
 
