@@ -39,15 +39,15 @@ ss1 = Oiler.Fault(trace=[-81.5 17.76; -80.650 18.091; -79.798 18.430],
     dip_dir="S", dip=89., hw="ca", fw="na")
 ss2 = Oiler.Fault(trace=[-83.5 17.76; -82.5  17.75; -81.5 17.75],
     dip_dir="S", dip=89., hw="ca", fw="na")
-th1 = Oiler.Fault(trace=[ -79.798 18.430; -78.08 14.72],
-#th1 = Oiler.Fault(trace=[ -79.798 18.430; -78.76 17.54; -78.08 14.72],
+#th1 = Oiler.Fault(trace=[ -79.798 18.430; -78.08 14.72],
+th1 = Oiler.Fault(trace=[ -79.798 18.430; -78.76 17.54; -78.08 14.72],
     dip_dir="W", dip=20., hw="ca", fw="na")
 
 # calc partials for each fault
 
 ss1_part = Oiler.Elastic.calc_locking_effects_per_fault(ss1, vlon, vlat)
 ss2_part = Oiler.Elastic.calc_locking_effects_per_fault(ss2, vlon, vlat)
-th1_part = Oiler.Elastic.calc_locking_effects_per_fault(th1, vlon, vlat)
+th1_part = Oiler.Elastic.calc_locking_effects_segmented_fault(th1, vlon, vlat)
 
 # add together
 parts = ss1_part + ss2_part + th1_part
@@ -58,7 +58,7 @@ ve = pe + le
 vn = pn + ln
 
 figure()
-quiver(vlon, vlat, ve, vn)
+quiver(vlon, vlat, le, ln)
 plot(ss1.trace[:,1], ss1.trace[:,2])
 plot(ss2.trace[:,1], ss2.trace[:,2])
 plot(th1.trace[:,1], th1.trace[:,2])

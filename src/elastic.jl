@@ -21,11 +21,6 @@ dislocations using Okada's equations.
 function fault_to_okada(fault::Fault, sx1::Float64, sy1::Float64, 
     sx2::Float64, sy2::Float64)
 
-    #if fault.usd < 0.5
-    #    usd = 0.5
-    #else
-    #    usd = fault.usd
-    #end
     usd = fault.usd * 1000.
     lsd = fault.lsd * 1000.
 
@@ -82,6 +77,23 @@ function calc_locking_effects_per_fault(fault::Fault, lons, lats)
 end
 
 
+function calc_locking_effects_segmented_fault(fault::Fault, lons, lats)
+
+    # may have some problems w/ dip dir for highly curved faults
+    parts = []
+    for i in 1:size(fault.trace,1) - 1
+        trace = fault.trace[i:i+1,:]
+        part = calc_locking_effects_per_fault(Oiler.Fault(trace=trace, 
+                dip=fault.dip, 
+                dip_dir=fault.dip_dir,
+                lsd=fault.lsd, usd=fault.usd), 
+            lons, lats)
+        push!(parts, part)
+    end
+    sum(parts)
+end
+
+
 function distribute_partials(partials::NTuple{9,Array{Float64}})
     n_gnss = length(partials[1])
     [make_partials_matrix(partials, i) for i in 1:n_gnss]
@@ -89,15 +101,12 @@ end
 
 
 function make_partials_matrix(partials, i::Integer)
-
     # es ed et
     # ns nd nt
-    # us ud ut # considering u = 0., as it's not in the data
-
+    # us ud ut 
     [partials[1][i] partials[4][i] partials[7][i]
      partials[2][i] partials[5][i] partials[8][i]
      partials[3][i] partials[6][i] partials[9][i]]
-     #0.             0.             0.]
 end
 
 
