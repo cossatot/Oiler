@@ -15,8 +15,8 @@ ve, vn, vu are east, north and up velocities, and ee, en, and eu are the
 1-sigma uncertainties.
 """
 @with_kw struct VelocityVectorSphere
-    lond::Float64
-    latd::Float64
+    lon::Float64
+    lat::Float64
     ve::Float64
     vn::Float64
     vu::Float64 = 0.
@@ -30,8 +30,8 @@ ve, vn, vu are east, north and up velocities, and ee, en, and eu are the
 end
 
 function reverse(vel::VelocityVectorSphere)
-    VelocityVectorSphere(lond = vel.lond,
-        latd = vel.latd,
+    VelocityVectorSphere(lond = vel.lon,
+        latd = vel.lat,
         ve = -vel.ve,
         vn = -vel.vn,
         vu = -vel.vu,

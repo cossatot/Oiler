@@ -1,8 +1,8 @@
 module Utils
 
 export predict_vels_from_poles, find_vel_cycles, diagonalize_matrices, 
-    random_sample_vel_groups, build_Vc_from_vel_samples, get_gnss_vels,
-    get_coords_from_vel_array
+    get_gnss_vels, get_coords_from_vel_array
+
 
 using ..Oiler: VelocityVectorSphere, PoleCart, PoleSphere, build_PvGb_from_vels,
         build_vel_column_from_vels, add_poles, pole_sphere_to_cart
@@ -110,6 +110,7 @@ function make_digraph_from_tuples(tups)
     end
     graph
 end
+
 
 function make_ugraph_from_digraph(digraph::Dict)
     ug = Dict{String,Array{String}}()
@@ -316,6 +317,57 @@ function predict_vels_from_poles(block_things::Dict{String,AbstractArray},
 end
 
 
+function group_faults(faults, vel_group_keys)
+    fault_groups = Dict(k=>[] for k in vel_group_keys)
+
+    for fault in faults
+        for k in vel_group_keys
+            if fault.fw in k && fault.hw in k
+                push!(fault_groups[k], fault)
+            end
+        end
+    end
+
+    fault_groups = Dict(k=>v for (k,v) in fault_groups if v != [])
+end
+
+
+"""
+    get_fault_vels(vel_groups)
+
+Collects all of the faults from the velocity groups, with
+some ancillary metadata.
+
+# Arguments
+
+# Returns
+
+"""
+function get_fault_vels(vel_groups)
+    faults = []
+    row_set_num = 0
+    vg_keys = sort(collect(Tuple(keys(vel_groups))))
+    
+    for (i, key) in enumerate(vg_keys)
+        group = vel_groups[key]
+        col_idx = 3 * (i - 1) + 1
+        for vel in group
+            row_set_num += 1
+            if vel.vel_type == "fault"
+                row_idx = 3 * (row_set_num - 1) + 1
+                vel_idx = [row_idx:row_idx + 2, col_idx:col_idx + 2]
+                vd = Dict()
+                vd["fault"] = vel
+                vd["idx"] = vel_idx
+                push!(faults, vd)
+            end # if
+        end # for
+    end # for
+    faults
+end
+
+
+
 """
     get_gnss_vels(vel_groups)
 
@@ -330,7 +382,10 @@ some ancillary metadata.
 function get_gnss_vels(vel_groups)
     gnss_vels = []
     row_set_num = 0
-    for (i, group) in enumerate(values(vel_groups))
+    vg_keys = sort(collect(Tuple(keys(vel_groups))))
+
+    for (i, key) in enumerate(vg_keys)
+        group = vel_groups[key]
         col_idx = 3 * (i - 1) + 1
         for vel in group
             row_set_num += 1
@@ -354,8 +409,8 @@ end
 Returns (lons, lats) as arrays of floats from an array of `VelocityVectorSphere`
 """
 function get_coords_from_vel_array(vels::Array{VelocityVectorSphere})
-    lats = [v.latd for v in vels]
-    lons = [v.lond for v in vels]
+    lats = [v.lat for v in vels]
+    lons = [v.lon for v in vels]
 
     (lons, lats)
 end

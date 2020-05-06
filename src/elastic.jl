@@ -57,6 +57,9 @@ function calc_locking_effects_per_fault(fault::Fault, lons, lats)
     xg, yg = xp[1:n_gnss], yp[1:n_gnss] # gnss
     sx1, sy1, sx2, sy2 = xp[end - 1], yp[end - 1], xp[end], yp[end] # fault 
 
+    # TODO: add distance-based filtering HERE to maintain some sparsity in
+    # the results to preserve RAM
+
     # format Okada
     D = fault_to_okada(fault, sx1, sy1, sx2, sy2)
 
@@ -78,7 +81,6 @@ end
 
 
 function calc_locking_effects_segmented_fault(fault::Fault, lons, lats)
-
     # may have some problems w/ dip dir for highly curved faults
     parts = []
     for i in 1:size(fault.trace,1) - 1
@@ -110,20 +112,38 @@ function make_partials_matrix(partials, i::Integer)
 end
 
 
-function calc_locking_effects(faults, vel_groups, sparse_tol::Float64 = 1e-5)
+function calc_locking_effects(faults, vel_groups)
     gnss_vels = get_gnss_vels(vel_groups)
-    gnss_lons, gnss_lats = get_coords_from_vel_array(gnss_vels)
+    gnss_lons = [vel["vel"].lon for vel in gnss_vels]
+    gnss_lats = [vel["vel"].lat for vel in gnss_vels]
+    gnss_idxs = [vel["vel"].idx for vel in gnss_vels]
 
-    # fault_lock_displs = sum([calc_locking_effects_per_fault(fault, gnss_lons, gnss_lats)
-    #    for fault in faults])
-
-    # for each row/station
-    #     calc Pf, project
-    #     sparsify
+    vg_keys = sort(collect(Tuple(keys(vel_groups))))
     
-end
+    fault_groups = Oiler.Utils.group_faults(faults, vg_keys)
 
-function add_effects_to_PvGb()
+    locking_partial_groups = Dict()
+
+    # calculate locking effects from each fault at each site
+    # locking effects for faults in each vel_group sum
+    for vg in vg_keys
+        locking_partial_groups[vg] = sum([
+            calc_locking_effects_segmented_fault(fault, gnss_lons, gnss_lats)
+            for fault in fault_groups[vg]
+        ])
+    end
+
+    # make a new dictionary with keys as the indices of the sub-array in
+    # the model matrix
+    locking_partials = Dict()
+    for (i, vg) in enumerate(vg_keys)
+        col_id = 3 * (i - 1) + 1
+        col_idx = col_id:col_id+2
+        for (i, row_idx) in enumerate(gnss_idxs)
+            locking_partials[(row_idx, col_idx)] = locking_partial_groups[vg][i]
+        end
+    end
+    locking_partial_groups
 end
 
 end # module

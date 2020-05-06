@@ -29,15 +29,15 @@ end
 Euler Pole (rotation vector) in spherical coordinates.
 
 # Arguments
-- `lond::Float64`: Longitude coordinate in the spherical system (in degrees)
-- `latd::Float64`: Latitude coordinate in the spherical system (in degrees)
+- `lon::Float64`: Longitude coordinate in the spherical system (in degrees)
+- `lat::Float64`: Latitude coordinate in the spherical system (in degrees)
 - `rotrate::Float64`: Rotation rate (in degree / time unit, unspecified)
 - `fix::String`: Name of fixed block. Defaults to "".
 - `mov::String`: Name of moving (movative) block.  Defaults to "".
 """
 @with_kw struct PoleSphere
-    lond::Float64
-    latd::Float64
+    lon::Float64
+    lat::Float64
     rotrate::Float64
     fix::String = ""
     mov::String = ""
@@ -143,9 +143,9 @@ end
 function pole_sphere_to_cart(pole::PoleSphere)
     r = deg2rad(pole.rotrate) / 1e6
 
-    x = r * cosd(pole.latd) * cosd(pole.lond)
-    y = r * cosd(pole.latd) * sind(pole.lond)
-    z = r * sind(pole.latd)
+    x = r * cosd(pole.lat) * cosd(pole.lon)
+    y = r * cosd(pole.lat) * sind(pole.lon)
+    z = r * sind(pole.lat)
 
     PoleCart(x = x, y = y, z = z, fix = pole.fix, mov = pole.mov)
 end

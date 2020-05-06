@@ -4,10 +4,10 @@ export make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
     solve_for_block_poles_iterative,
     make_block_inversion_matrices_from_vels
     
-    
+using ..Oiler
 using ..Oiler: VelocityVectorSphere, PoleCart, PoleSphere, build_PvGb_from_vels,
     build_vel_column_from_vels, add_poles, pole_sphere_to_cart, find_vel_cycles,
-    diagonalize_matrices
+    diagonalize_matrices, Fault
 
 using DataFrames
 using SparseArrays
@@ -90,9 +90,7 @@ end
 
 
 function make_block_PvGb_from_vels(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
-
-
-    v_keys = collect(Tuple(keys(vel_groups)))
+    v_keys = sort(collect(Tuple(keys(vel_groups))))
 
     big_PvGb = diagonalize_matrices([build_PvGb_from_vels(vel_groups[gr]) for gr
         in v_keys])
@@ -131,21 +129,41 @@ function make_block_inv_lhs_constraints(PvGb, cm)
 end
 
 
+function add_fault_locking_to_PvGb(faults::Array{Any,1}, 
+    vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+    PvGb::SparseMatrixCSC{Float64,Int64})
+
+    locking_partials = Oiler.Elastic.calc_locking_effects(faults, vel_groups)
+
+    for (part_idx, partials) in locking_partials
+        PvGb[part_idx] = PvGb[part_idx] + partials
+    end
+    PvGb
+end
+
+
+
+
+
 function
 set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-weighted::Bool = true, tikh_lambda::Float64 = 0.)
+    faults::Array{Any,1} = [], weighted::Bool = true)
 
     vd = make_block_inversion_matrices_from_vels(vel_groups)
     cycles = find_vel_cycles(vd["keys"])
-    
-    if weighted == true
-        PvGb = vd["weights"] .* vd["PvGb"]
-        Vc = vd["weights"] .* vd["Vc"]
+
+    if length(faults) > 0
+        PvGb = add_fault_locking_to_PvGb(faults, vel_groups, vd["PvGb"])
     else
         PvGb = vd["PvGb"]
-        Vc = vd["Vc"]
     end
 
+    if weighted == true
+        PvGb = vd["weights"] .* PvGb
+        Vc = vd["weights"] .* vd["Vc"]
+    else
+        Vc = vd["Vc"]
+    end
 
     if cycles == Dict{Any,Any}()
         lhs = PvGb
@@ -156,9 +174,7 @@ weighted::Bool = true, tikh_lambda::Float64 = 0.)
         p = size(cm)[1]
 
         # lhs = make_block_inv_lhs_constraints(PvGb, cm)
-
         lhs = [PvGb; 1e12 .* cm];
-
     
         constraint_rhs = zeros(p)
         # rhs = make_block_inv_rhs(PvGb, Vc, constraint_rhs)
