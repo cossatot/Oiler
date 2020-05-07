@@ -4,8 +4,14 @@ include("../src/solver.jl")
 
 using Oiler
 
+
+function test_build_constraint_matrix()
+    keys = [("a", "b"), ("b", "c"), ("c", "a"), ("r", "a"), ("r", "c")]
+end
+
+
 function test_build_weight_vector_from_vels_default_zero_weight()
-    vv = Oiler.VelocityVectorSphere(lond = 0., latd = 0., ve = 1., vn = 1.,  en = 2.,
+    vv = Oiler.VelocityVectorSphere(lon = 0., lat = 0., ve = 1., vn = 1.,  en = 2.,
     ee = 3.)
     
     @test Oiler.Solver.build_weight_vector_from_vels([vv]) == [2.; 3.; 0.]
@@ -15,7 +21,7 @@ test_build_weight_vector_from_vels_default_zero_weight()
 
 
 function test_build_weight_vector_from_vels_equal_zero_weights()
-    vv = Oiler.VelocityVectorSphere(lond = 0., latd = 0., ve = 1., vn = 1., ee = 0.,
+    vv = Oiler.VelocityVectorSphere(lon = 0., lat = 0., ve = 1., vn = 1., ee = 0.,
     en = 0.)
     
     ww = Oiler.Solver.build_weight_vector_from_vels([vv])

@@ -5,6 +5,122 @@ using Oiler: VelocityVectorSphere
 
 using Oiler.Utils: get_gnss_vels
 
+
+function test_diagonalize_matrices()
+end
+
+function test_make_digraph_from_vels_many_args()
+end
+
+function test_make_digraph_from_vels_array()
+end
+
+function test_make_digraph_from_poles()
+end
+
+function test_make_digraph_from_tuples()
+    keys = [("a", "b"), ("b", "c"), ("c", "a"), ("r", "a"), ("r", "c")]
+    dg = Dict("c"=>["a"], "b"=>["c"], "r"=>["a", "c"], "a"=>["b"])
+    @test Oiler.Utils.make_digraph_from_tuples(keys) == dg
+end
+
+test_make_digraph_from_tuples()
+
+function test_make_ugraph_from_digraph()
+    dg = Dict("c"=>["a"], "b"=>["c"], "r"=>["a", "c"], "a"=>["b"])
+    ug = Dict(
+        "c"=>["a", "b", "r"],
+        "b"=>["c", "a"],
+        "r"=>["a", "c"],
+        "a"=>["c", "r", "b"]
+        )
+    @test Oiler.Utils.make_ugraph_from_digraph(dg) == ug
+end
+
+test_make_ugraph_from_digraph()
+
+function test_find_tricycles()
+    ug = Dict(
+        "c"=>["a", "b", "r"],
+        "b"=>["c", "a"],
+        "r"=>["a", "c"],
+        "a"=>["c", "r", "b"]
+        )
+    tris = [["c", "a", "r"], ["c", "a", "b"]]
+
+    @test Oiler.Utils.find_tricycles(ug) == tris
+end
+
+test_find_tricycles()
+
+
+function test_get_cycle_inds_fw()
+    keys = [("a", "b"), ("b", "c"), ("c", "a"), ("r", "a"), ("r", "c")]
+    cycle_tup = ("c", "a")
+    cycle_ind = Dict("ind"=>3, "val"=>1.0)
+    @test Oiler.Utils.get_cycle_inds(keys, cycle_tup) == cycle_ind
+end
+
+test_get_cycle_inds_fw()
+
+
+function test_get_cycle_inds_rev()
+    keys = [("a", "b"), ("b", "c"), ("c", "a"), ("r", "a"), ("r", "c")]
+    cycle_tup = ("a", "c")
+    cycle_ind = Dict("ind"=>3, "val"=>-1.0)
+    @test Oiler.Utils.get_cycle_inds(keys, cycle_tup) == cycle_ind
+end
+
+test_get_cycle_inds_rev()
+
+
+function test_find_vel_cycles()
+    keys = [("a", "b"), ("b", "c"), ("c", "a"), ("r", "a"), ("r", "c")]
+    vel_cycles = Dict(
+        1 => Dict(
+            ("c", "a") => Dict{String,Real}("ind"=>3,"val"=>1.0),
+            ("r", "c") => Dict{String,Real}("ind"=>5,"val"=>1.0),
+            ("a", "r") => Dict{String,Real}("ind"=>4,"val"=>-1.0)
+        ),
+        2 => Dict(
+            ("b", "c") => Dict{String,Real}("ind"=>2,"val"=>1.0),
+            ("c", "a") => Dict{String,Real}("ind"=>3,"val"=>1.0),
+            ("a", "b") => Dict{String,Real}("ind"=>1,"val"=>1.0)
+        )
+    )
+    
+    @test Oiler.Utils.find_vel_cycles(keys) == vel_cycles
+end
+
+test_find_vel_cycles()
+
+
+function test_flat()
+end
+
+
+function test_find_shortest_path()
+end
+
+
+function test_get_pole_path()
+end
+
+function test_get_path_euler_pole()
+end
+
+
+function test_predict_vels_from_poles_cart()
+end
+
+
+function test_predict_vels_from_poles_sphere()
+end
+
+function test_get_coords_from_vel_array()
+end
+
+
 vel_groups = Dict(("a", "b") => [
     VelocityVectorSphere(lon = 0.0,
                          lat = 0.05,

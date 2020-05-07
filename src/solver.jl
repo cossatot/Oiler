@@ -46,20 +46,18 @@ function build_constraint_matrices(cycles, vel_group_keys)
     cycles])
 end
 
+
 """
     weight_from_error(error, zero_err_weight)
 
 Returns either the inverse of the error, or `zero_err_weight` if the weight
 is zero. The latter defaults to 1e20.
 """
-function weight_from_error(error::Float64; zero_err_weight::Float64 = 1e-20)
+function weight_from_error(error::Float64; zero_err_weight::Float64 = 1e-10)
     if error == 0.
-        weight = zero_err_weight
-    else
-        #weight = 1. / error . This seems to make some fits worse (?)
-        weight = error
+        error = zero_err_weight
     end
-    weight 
+    weight = 1. / error^2
 end
     
 
@@ -142,9 +140,6 @@ function add_fault_locking_to_PvGb(faults::Array{Any,1},
 end
 
 
-
-
-
 function
 set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array{Any,1} = [], weighted::Bool = true)
@@ -159,8 +154,9 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
     end
 
     if weighted == true
-        PvGb = vd["weights"] .* PvGb
-        Vc = vd["weights"] .* vd["Vc"]
+        N = PvGb' * sparse(diagm(vd["weights"]))
+        Vc = N * vd["Vc"]
+        PvGb = N * PvGb
     else
         Vc = vd["Vc"]
     end
@@ -196,9 +192,9 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     
     lhs = block_inv_setup["lhs"]
 
-    # if size(lhs, 1) < max_dense_size
-    #    lhs = Matrix(lhs)
-    # end
+    if size(lhs, 1) < max_dense_size
+       lhs = Matrix(lhs)
+    end
 
     kkt_soln = lhs \ block_inv_setup["rhs"]
 

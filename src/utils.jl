@@ -254,7 +254,6 @@ function get_pole_path(poles::Array{PoleCart}, path::Array{String})
     steps = length(path) - 1
     pole_path = Array{PoleCart,1}(undef, steps)
 
-
     for i in 1:steps
         place = path[i]
         next = path[i + 1]
@@ -290,8 +289,7 @@ mov::String)
 end
 
 
-function
-predict_vels_from_poles(block_things::Dict{String,AbstractArray},
+function predict_vels_from_poles(block_things::Dict{String,AbstractArray},
     poles::Array{PoleCart,1})
 
     pole_list = [get_path_euler_pole(poles, fix, mov) for (fix, mov) in

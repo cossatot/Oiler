@@ -6,19 +6,19 @@ using ..Oiler: EARTH_RAD_MM, VelocityVectorSphere, PoleSphere, PoleCart,
         pole_sphere_to_cart, pole_cart_to_sphere
 
 
-function build_Pv_deg_ned(lond::Float64, latd::Float64)
+function build_Pv_deg_ned(lon::Float64, lat::Float64)
 
-    pv11 = -sind(latd) * cosd(lond) #nx
-    pv12 = -sind(latd) * sind(lond) #ny
-    pv13 = cosd(latd) #nz
+    pv11 = -sind(lat) * cosd(lon) #nx
+    pv12 = -sind(lat) * sind(lon) #ny
+    pv13 = cosd(lat) #nz
 
-    pv21 = -sind(lond) #ex
-    pv22 = cosd(lond)  #ey
+    pv21 = -sind(lon) #ex
+    pv22 = cosd(lon)  #ey
     pv23 = 0. #ez
 
-    pv31 = -cosd(latd) * cosd(lond) #dx
-    pv32 = -cosd(latd) * sind(lond) #dy
-    pv33 = -sind(latd) #dz
+    pv31 = -cosd(lat) * cosd(lon) #dx
+    pv32 = -cosd(lat) * sind(lon) #dy
+    pv33 = -sind(lat) #dz
 
     Pv = [pv11 pv12 pv13;
           pv21 pv22 pv23;
@@ -27,18 +27,18 @@ function build_Pv_deg_ned(lond::Float64, latd::Float64)
 end
 
 
-function build_Pv_deg(lond::Float64, latd::Float64)
-    pex = -sind(lond)
-    pey = cosd(lond)
+function build_Pv_deg(lon::Float64, lat::Float64)
+    pex = -sind(lon)
+    pey = cosd(lon)
     pez = 0
 
-    pnx = -sind(latd) * cosd(lond)
-    pny = -sind(latd) * sind(lond)
-    pnz = cosd(latd)
+    pnx = -sind(lat) * cosd(lon)
+    pny = -sind(lat) * sind(lon)
+    pnz = cosd(lat)
 
-    pux = cosd(latd) * cosd(lond)
-    puy = cosd(latd) * sind(lond)
-    puz = sind(latd)
+    pux = cosd(lat) * cosd(lon)
+    puy = cosd(lat) * sind(lon)
+    puz = sind(lat)
 
     Pv = [pex pey pez;
           pnx pny pnz;
@@ -46,10 +46,10 @@ function build_Pv_deg(lond::Float64, latd::Float64)
 end
 
 
-function build_Gb_deg(lond::Float64, latd::Float64; R = EARTH_RAD_MM)
-    x_hat = R * cosd(latd) * cosd(lond)
-    y_hat = R * cosd(latd) * sind(lond)
-    z_hat = R * sind(latd);
+function build_Gb_deg(lon::Float64, lat::Float64; R = EARTH_RAD_MM)
+    x_hat = R * cosd(lat) * cosd(lon)
+    y_hat = R * cosd(lat) * sind(lon)
+    z_hat = R * sind(lat);
 
     Gb = [ 0.     z_hat  -y_hat;
           -z_hat  0.      x_hat;
@@ -58,7 +58,7 @@ end
 
 
 """
-    build_PvGb_deg(lond, latd)
+    build_PvGb_deg(lon, lat)
 
 Creates a linear operator to convert a Cartesian Euler vector into
 a spherical velocity vector at a given (lon, lat) in degrees; in other
@@ -67,8 +67,8 @@ words, this predicts the velocity of a point on the earth's surface
 pole.
 
 # Arguments
-- `lond::Float64`: The longitude of the point, in degrees
-- `latd::Float64`: The latitude of the point, in degrees
+- `lon::Float64`: The longitude of the point, in degrees
+- `lat::Float64`: The latitude of the point, in degrees
 
 # Returns
 - `PvGb`: 3x3 Float64 matrix
@@ -82,9 +82,9 @@ julia> pg = build_PvGb_deg(0., 0.)
  0.0   0.0      0.0
 ```
 """
-function build_PvGb_deg(lond::Float64, latd::Float64)
-    Pv = build_Pv_deg(lond, latd)
-    Gb = build_Gb_deg(lond, latd)
+function build_PvGb_deg(lon::Float64, lat::Float64)
+    Pv = build_Pv_deg(lon, lat)
+    Gb = build_Gb_deg(lon, lat)
 
     PvGb = Pv * Gb
 end
@@ -100,7 +100,7 @@ words, this predicts the velocity of a point on the earth's surface
 pole.
 
 # Arguments
-- `vel::VelocityVectorSphere`: A velocity vector with `lond` and `latd` attributes
+- `vel::VelocityVectorSphere`: A velocity vector with `lon` and `lat` attributes
 
 # Returns
 - `PvGb`: 3x3 Float64 matrix
@@ -115,7 +115,7 @@ julia> pg = build_PvGb_deg(0., 0.)
 ```
 """
 function build_PvGb_vel(vel::VelocityVectorSphere)
-    build_PvGb_deg(vel.lond, vel.latd)
+    build_PvGb_deg(vel.lon, vel.lat)
 end
 
 
@@ -127,10 +127,10 @@ function build_PvGb_from_vels(vels::Array{VelocityVectorSphere})
 end
 
 
-function build_PvGb_from_degs(londs::Array{Float64},
-                              latds::Array{Float64})
-    reduce(vcat, [build_PvGb_deg(lond, latds[i])
-                  for (i, lond) in enumerate(londs)])
+function build_PvGb_from_degs(lons::Array{Float64},
+                              lats::Array{Float64})
+    reduce(vcat, [build_PvGb_deg(lon, lats[i])
+                  for (i, lon) in enumerate(lons)])
 end
 
 function build_vel_column_from_vel(vel::VelocityVectorSphere)
@@ -144,11 +144,11 @@ end
 
 
 
-function predict_block_vels(londs::Array{Float64},
-                            latds::Array{Float64},
+function predict_block_vels(lons::Array{Float64},
+                            lats::Array{Float64},
                             pole::PoleSphere)
 
-    PvGb = build_PvGb_from_degs(londs, latds)
+    PvGb = build_PvGb_from_degs(lons, lats)
 
     cart_pole = pole_sphere_to_cart(pole)
 
@@ -157,12 +157,12 @@ function predict_block_vels(londs::Array{Float64},
     Vn_pred = V_pred[2:3:end]
     Vu_pred = V_pred[3:3:end]
 
-    n_vels = length(londs)
+    n_vels = length(lons)
 
     pred_vels = Array{VelocityVectorSphere}(undef, n_vels)
 
     for n in 1:n_vels
-        pred_vels[n] = VelocityVectorSphere(lond = londs[n], latd = latds[n],
+        pred_vels[n] = VelocityVectorSphere(lon = lons[n], lat = lats[n],
                                             ve = Ve_pred[n], vn = Vn_pred[n],
                                             fix = pole.fix, mov = pole.mov)
     end
@@ -170,27 +170,27 @@ function predict_block_vels(londs::Array{Float64},
 end
     
 
-function predict_block_vels(londs::Array{Float64},
-                            latds::Array{Float64},
+function predict_block_vels(lons::Array{Float64},
+                            lats::Array{Float64},
                             pole::PoleCart)
 
-    PvGb = build_PvGb_from_degs(londs, latds)
+    PvGb = build_PvGb_from_degs(lons, lats)
 
     V_pred = PvGb * [pole.x; pole.y; pole.z]
     Ve_pred = V_pred[1:3:end]
     Vn_pred = V_pred[2:3:end]
     Vu_pred = V_pred[3:3:end]
 
-    if length(size(londs)) == 1
-        n_vels = size(londs)[1]
+    if length(size(lons)) == 1
+        n_vels = size(lons)[1]
     else
-        n_vels = size(londs)[2]
+        n_vels = size(lons)[2]
     end
 
     pred_vels = Array{VelocityVectorSphere}(undef, n_vels)
 
     for n in 1:n_vels
-        pred_vels[n] = VelocityVectorSphere(lond = londs[n], latd = latds[n],
+        pred_vels[n] = VelocityVectorSphere(lon = lons[n], lat = lats[n],
                                             ve = Ve_pred[n], vn = Vn_pred[n],
                                             fix = pole.fix, mov = pole.mov)
     end
@@ -200,10 +200,10 @@ end
 
 function predict_block_vels(vels::Array{VelocityVectorSphere},
 pole::PoleCart)
-    londs = [v.lond for v in vels]
-    latds = [v.latd for v in vels]
+    lons = [v.lon for v in vels]
+    lats = [v.lat for v in vels]
 
-    predict_block_vels(londs, latds, pole)
+    predict_block_vels(lons, lats, pole)
 end
 
 
