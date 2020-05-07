@@ -15,10 +15,10 @@ pv = [pole.x; pole.y; pole.z];
 
 # load vel points
 vels = CSV.read("./test_data/fake_na_ca/ca_na_fake_pts.csv")
-vlon = [vels[i,:].X for i in 1:size(vels,1)]
-vlat = [vels[i,:].Y for i in 1:size(vels,1)]
+vlon = [vels[i,:].X for i in 1:size(vels, 1)]
+vlat = [vels[i,:].Y for i in 1:size(vels, 1)]
 
-ca_idx = [i for i in 1:size(vels,1) if vels[i,4] == "ca"]
+ca_idx = [i for i in 1:size(vels, 1) if vels[i,4] == "ca"]
 
 # calc plate vel at each point
 pe = zeros(size(vlon))
@@ -35,13 +35,13 @@ end
 
 
 # load faults
-ss1 = Oiler.Fault(trace=[-81.5 17.76; -80.650 18.091; -79.798 18.430],
-    dip_dir="S", dip=89., hw="ca", fw="na")
-ss2 = Oiler.Fault(trace=[-83.5 17.76; -82.5  17.75; -81.5 17.75],
-    dip_dir="S", dip=89., hw="ca", fw="na")
-#th1 = Oiler.Fault(trace=[ -79.798 18.430; -78.08 14.72],
-th1 = Oiler.Fault(trace=[ -79.798 18.430; -78.76 17.54; -78.08 14.72],
-    dip_dir="W", dip=20., hw="ca", fw="na")
+ss1 = Oiler.Fault(trace = [-81.5 17.76; -80.650 18.091; -79.798 18.430],
+    dip_dir = "S", dip = 89., hw = "ca", fw = "na")
+ss2 = Oiler.Fault(trace = [-83.5 17.76; -82.5  17.75; -81.5 17.75],
+    dip_dir = "S", dip = 89., hw = "ca", fw = "na")
+# th1 = Oiler.Fault(trace=[ -79.798 18.430; -78.08 14.72],
+th1 = Oiler.Fault(trace = [ -79.798 18.430; -78.76 17.54; -78.08 14.72],
+    dip_dir = "W", dip = 20., hw = "ca", fw = "na")
 
 # calc partials for each fault
 
@@ -58,7 +58,7 @@ ve = pe + le
 vn = pn + ln
 
 figure()
-quiver(vlon, vlat, le, ln)
+quiver(vlon, vlat, ve, vn)
 plot(ss1.trace[:,1], ss1.trace[:,2])
 plot(ss2.trace[:,1], ss2.trace[:,2])
 plot(th1.trace[:,1], th1.trace[:,2])

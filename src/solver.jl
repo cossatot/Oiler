@@ -57,7 +57,7 @@ function weight_from_error(error::Float64; zero_err_weight::Float64 = 1e-10)
     if error == 0.
         error = zero_err_weight
     end
-    weight = 1. / error^2
+    weight = error^-2
 end
     
 
@@ -127,22 +127,30 @@ function make_block_inv_lhs_constraints(PvGb, cm)
 end
 
 
-function add_fault_locking_to_PvGb(faults::Array{Any,1}, 
+function add_fault_locking_to_PvGb(faults::Array{Fault}, 
     vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
     PvGb::SparseMatrixCSC{Float64,Int64})
 
     locking_partials = Oiler.Elastic.calc_locking_effects(faults, vel_groups)
 
     for (part_idx, partials) in locking_partials
-        PvGb[part_idx] = PvGb[part_idx] + partials
+        PvGb[part_idx[1], part_idx[2]] = PvGb[part_idx[1], part_idx[2]] + partials
     end
     PvGb
 end
 
 
+function weight_inv_matrices(PvGb_in, Vc_in, weights)
+    N = PvGb_in' * sparse(diagm(weights))
+    Vc = N * Vc_in
+    PvGb = N * PvGb_in
+    (PvGb, Vc)
+end
+
+
 function
 set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array{Any,1} = [], weighted::Bool = true)
+    faults::Array = [], weighted::Bool = true)
 
     vd = make_block_inversion_matrices_from_vels(vel_groups)
     cycles = find_vel_cycles(vd["keys"])
@@ -185,16 +193,16 @@ end
 
 
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    weighted::Bool = true, max_dense_size = 1000)
+    faults::Array = [], weighted::Bool = true, max_dense_size = 1000)
 
-    block_inv_setup = set_up_block_inv_w_constraints(vel_groups; weighted =
-        weighted)
+    block_inv_setup = set_up_block_inv_w_constraints(vel_groups; 
+        faults = faults, weighted = weighted)
     
     lhs = block_inv_setup["lhs"]
 
-    if size(lhs, 1) < max_dense_size
-       lhs = Matrix(lhs)
-    end
+    # if size(lhs, 1) < max_dense_size
+    #    lhs = Matrix(lhs)
+    # end
 
     kkt_soln = lhs \ block_inv_setup["rhs"]
 

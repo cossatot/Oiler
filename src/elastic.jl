@@ -25,7 +25,7 @@ function fault_to_okada(fault::Fault, sx1::Float64, sy1::Float64,
     lsd = fault.lsd * 1000.
 
     strike = atan(sy1 - sy2, sx1 - sx2) + pi 
-    #strike = az_to_angle(fault.strike) 
+    # strike = az_to_angle(fault.strike) 
     delta = deg2rad(fault.dip)
     L = sqrt((sx2 - sx1)^2 + (sy2 - sy1)^2)
     W = (lsd - usd) / sin(delta)
@@ -83,12 +83,12 @@ end
 function calc_locking_effects_segmented_fault(fault::Fault, lons, lats)
     # may have some problems w/ dip dir for highly curved faults
     parts = []
-    for i in 1:size(fault.trace,1) - 1
-        trace = fault.trace[i:i+1,:]
-        part = calc_locking_effects_per_fault(Oiler.Fault(trace=trace, 
-                dip=fault.dip, 
-                dip_dir=fault.dip_dir,
-                lsd=fault.lsd, usd=fault.usd), 
+    for i in 1:size(fault.trace, 1) - 1
+        trace = fault.trace[i:i + 1,:]
+        part = calc_locking_effects_per_fault(Oiler.Fault(trace = trace, 
+                dip = fault.dip, 
+                dip_dir = fault.dip_dir,
+                lsd = fault.lsd, usd = fault.usd), 
             lons, lats)
         push!(parts, part)
     end
@@ -108,7 +108,8 @@ function make_partials_matrix(partials, i::Integer)
     # us ud ut 
     [partials[1][i] partials[4][i] partials[7][i]
      partials[2][i] partials[5][i] partials[8][i]
-     partials[3][i] partials[6][i] partials[9][i]]
+     # partials[3][i] partials[6][i] partials[9][i]]
+     0. 0. 0]
 end
 
 
@@ -116,34 +117,37 @@ function calc_locking_effects(faults, vel_groups)
     gnss_vels = get_gnss_vels(vel_groups)
     gnss_lons = [vel["vel"].lon for vel in gnss_vels]
     gnss_lats = [vel["vel"].lat for vel in gnss_vels]
-    gnss_idxs = [vel["vel"].idx for vel in gnss_vels]
+    gnss_idxs = [vel["idx"] for vel in gnss_vels]
 
     vg_keys = sort(collect(Tuple(keys(vel_groups))))
-    
     fault_groups = Oiler.Utils.group_faults(faults, vg_keys)
-
     locking_partial_groups = Dict()
 
     # calculate locking effects from each fault at each site
     # locking effects for faults in each vel_group sum
     for vg in vg_keys
-        locking_partial_groups[vg] = sum([
-            calc_locking_effects_segmented_fault(fault, gnss_lons, gnss_lats)
-            for fault in fault_groups[vg]
-        ])
+        if haskey(fault_groups, vg)
+            locking_partial_groups[vg] = sum([
+                calc_locking_effects_segmented_fault(fault, gnss_lons, gnss_lats)
+                for fault in fault_groups[vg]
+            ])
+        else
+        end
     end
 
     # make a new dictionary with keys as the indices of the sub-array in
     # the model matrix
     locking_partials = Dict()
     for (i, vg) in enumerate(vg_keys)
-        col_id = 3 * (i - 1) + 1
-        col_idx = col_id:col_id+2
-        for (i, row_idx) in enumerate(gnss_idxs)
-            locking_partials[(row_idx, col_idx)] = locking_partial_groups[vg][i]
+        if haskey(locking_partial_groups, vg)
+            col_id = 3 * (i - 1) + 1
+            col_idx = col_id:col_id + 2
+            for (j, row_idx) in enumerate(gnss_idxs)
+                locking_partials[(row_idx[1], col_idx)] = locking_partial_groups[vg][j]
+            end
         end
     end
-    locking_partial_groups
+    locking_partials
 end
 
 end # module

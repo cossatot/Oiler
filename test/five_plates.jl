@@ -1,5 +1,8 @@
-using Oiler
+using Test
+
 using PyPlot
+
+using Oiler
 
 """
 This script uses several Euler poles 
@@ -130,19 +133,6 @@ in_an_pred = Oiler.pole_cart_to_sphere(poles[("in", "an")]);
 ps = [Oiler.pole_cart_to_sphere(p) for (k, p) in poles];
 
 
-function compare_poles(p1, p2)
-    if abs(p1.lon - p2.lon) > 0.2
-        print("aaah lons ", p1.fix, " ", p1.mov, "\n")
-    end
-    if abs(p1.lat - p2.lat) > 0.2
-        print("aaah lats ", p1.fix, " ", p1.mov, "\n")
-    end
-    if abs(p1.rotrate - p2.rotrate) > 0.2
-        print("aaah rate ", p1.fix, " ", p1.mov, "\n")
-    end
-end
-
-
 ve_pred, vn_pred = Oiler.predict_vels_from_poles(gg, [p for (k, p) in poles]);
 
 ve_obs, vn_obs = Oiler.predict_vels_from_poles(gg, [af_an_s, in_af_s, in_an_s, 
@@ -157,3 +147,14 @@ figure()
 quiver(vel_lons, vel_lats, ve_pred, vn_pred, scale = 300., color = "red")
 quiver(vel_lons, vel_lats, ve_obs, vn_obs, scale = 300., color = "blue")
 show()
+
+
+function compare_poles(p1, p2)
+    @test round(p1.lon; digits = 1) == round(p2.lon; digits = 1)
+    @test round(p1.lat; digits = 1) == round(p2.lat; digits = 1)
+    @test round(p1.rotrate; digits = 2) == round(p2.rotrate; digits = 2)
+end
+
+compare_poles(af_an_s, af_an_pred);
+compare_poles(in_af_s, in_af_pred);
+compare_poles(in_an_s, in_an_pred);

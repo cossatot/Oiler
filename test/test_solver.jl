@@ -46,6 +46,7 @@ end
 
 test_build_weight_vector_from_vels_equal_zero_weights()
 
+
 function test_make_block_PvGb_from_vels()
 
     vels = [
@@ -67,3 +68,5 @@ function test_solve_block_invs_from_vel_groups_1_vel()
 end
 
 # test_solve_block_invs_from_vel_groups_1_vel()
+
+
