@@ -3,13 +3,13 @@ using PyPlot
 
 using Oiler
 
-pole_sph = Oiler.PoleSphere(lond=-10, latd=10., rotrate=1. / (19. * sqrt(2)));
+pole_sph = Oiler.PoleSphere(lon = -10, lat = 10., rotrate = 1. / (19. * sqrt(2)));
 pole_cart = Oiler.pole_sphere_to_cart(pole_sph);
 pole_vec = [pole_cart.x; pole_cart.y; pole_cart.z];
 
 
 thrust_trace = [-10. 10.; 10. -10.];
-thrust = Oiler.Fault(trace=thrust_trace, dip_dir="SW", dip=20., lsd=20.);
+thrust = Oiler.Fault(trace = thrust_trace, dip_dir = "SW", dip = 20., lsd = 20.);
 
 vlons = collect(-1.:0.01:1.);
 vlats = collect(-1.:0.01:1.);
@@ -28,7 +28,7 @@ p_hor = sqrt.(pe.^2 .+ pn.^2);
 dist = sqrt.((-1. .- vlons ).^2 + (-1 .- vlats).^2);
 
 figure()
-#plot(dist, p_hor)
+# plot(dist, p_hor)
 plot(vlons, pe, "b")
 plot(vlons, pn, "r")
 plot(vlons, pv, "g")
@@ -36,8 +36,8 @@ plot(vlons, pv, "g")
 figure()
 plot([-10.; 10.], [10.; -10], "k")
 plot(vlons, vlats, "r.")
-#quiver(vlons, vlats, pe, pn)
+# quiver(vlons, vlats, pe, pn)
 show()
 
-#f_pvgb * pole_vec
+# f_pvgb * pole_vec
 

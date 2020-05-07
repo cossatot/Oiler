@@ -23,7 +23,7 @@ function vel_from_row(row::DataFrameRow)
         en = 0.
     end
     
-    VelocityVectorSphere(lond = row.lon, latd = row.lat, ee = ee, en = en,
+    VelocityVectorSphere(lon = row.lon, lat = row.lat, ee = ee, en = en,
                          ve = row.ve, vn = row.vn, fix = row.fix, mov = row.mov)
 end
 

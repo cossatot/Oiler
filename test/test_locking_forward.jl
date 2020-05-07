@@ -12,25 +12,25 @@ thrust_trace = [-81.905471 12.945880; -81.554797 12.114126];
 thrust = Oiler.Fault(trace = thrust_trace, dip_dir = "SW", dip = 20., hw = "na",
                       fw = "ca")
 
-v01 = Oiler.VelocityVectorSphere(lond = -83.008, latd = 12.019, ve = 0., 
+v01 = Oiler.VelocityVectorSphere(lon = -83.008, lat = 12.019, ve = 0., 
     vn = 0., fix = "na", mov = "ca", name = "01", vel_type = "gnss");
-v02 = Oiler.VelocityVectorSphere(lond = -82.157, latd = 12.360, ve = 0., 
+v02 = Oiler.VelocityVectorSphere(lon = -82.157, lat = 12.360, ve = 0., 
     vn = 0., fix = "na", mov = "ca", name = "02", vel_type = "gnss");
-v03 = Oiler.VelocityVectorSphere(lond = -81.901, latd = 12.462, ve = 0., 
+v03 = Oiler.VelocityVectorSphere(lon = -81.901, lat = 12.462, ve = 0., 
     vn = 0., fix = "na", mov = "ca", name = "03", vel_type = "gnss");
-v04 = Oiler.VelocityVectorSphere(lond = -81.815, latd = 12.496, ve = 0., 
+v04 = Oiler.VelocityVectorSphere(lon = -81.815, lat = 12.496, ve = 0., 
     vn = 0., fix = "na", mov = "ca", name = "04", vel_type = "gnss");
-v05 = Oiler.VelocityVectorSphere(lond = -81.739, latd = 12.527, ve = 0., 
+v05 = Oiler.VelocityVectorSphere(lon = -81.739, lat = 12.527, ve = 0., 
     vn = 0., fix = "na", mov = "ca", name = "05", vel_type = "gnss");
-v06 = Oiler.VelocityVectorSphere(lond = -81.721, latd = 12.533, ve = 0., 
+v06 = Oiler.VelocityVectorSphere(lon = -81.721, lat = 12.533, ve = 0., 
     vn = 0., fix = "na", mov = "ca", name = "06", vel_type = "gnss");
-v07 = Oiler.VelocityVectorSphere(lond = -81.645, latd = 12.564, ve = 0., 
+v07 = Oiler.VelocityVectorSphere(lon = -81.645, lat = 12.564, ve = 0., 
     vn = 0., fix = "na", mov = "ca", name = "07", vel_type = "gnss");
-v08 = Oiler.VelocityVectorSphere(lond = -81.559, latd = 12.598, ve = 0., 
+v08 = Oiler.VelocityVectorSphere(lon = -81.559, lat = 12.598, ve = 0., 
     vn = 0., fix = "na", mov = "ca", name = "08", vel_type = "gnss");
-v09 = Oiler.VelocityVectorSphere(lond = -81.304, latd = 12.701, ve = 0., 
+v09 = Oiler.VelocityVectorSphere(lon = -81.304, lat = 12.701, ve = 0., 
     vn = 0., fix = "na", mov = "ca", name = "09", vel_type = "gnss");
-v10 = Oiler.VelocityVectorSphere(lond = -80.450, latd = 13.041, ve = 0., 
+v10 = Oiler.VelocityVectorSphere(lon = -80.450, lat = 13.041, ve = 0., 
     vn = 0., fix = "na", mov = "ca", name = "10", vel_type = "gnss");
 
 gnss_vels = [v01, v02, v03, v04, v05, v06, v07, v08, v09, v10];

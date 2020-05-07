@@ -15,21 +15,21 @@ based on them, and then try to invert this data to recover the poles.
 """
 
 
-af_an_s = Oiler.PoleSphere(latd = 3.661, lond = -31.669, rotrate = 0.158, mov = "an", 
+af_an_s = Oiler.PoleSphere(lat = 3.661, lon = -31.669, rotrate = 0.158, mov = "an", 
                                 fix = "af");
-in_af_s = Oiler.PoleSphere(latd = 18.915, lond = 47.060, rotrate = 0.606, mov = "af", 
+in_af_s = Oiler.PoleSphere(lat = 18.915, lon = 47.060, rotrate = 0.606, mov = "af", 
                                 fix = "in");
-in_an_s = Oiler.PoleSphere(latd = 18.328, lond = 32.738, rotrate = 0.657, mov = "an",
+in_an_s = Oiler.PoleSphere(lat = 18.328, lon = 32.738, rotrate = 0.657, mov = "an",
                                 fix = "in");
-in_ar_s = Oiler.PoleSphere(latd = -7.484, lond = -174.932, rotrate = 0.356, mov = "ar",
+in_ar_s = Oiler.PoleSphere(lat = -7.484, lon = -174.932, rotrate = 0.356, mov = "ar",
                                 fix = "in");
-ar_af_s = Oiler.PoleSphere(lond = 31.290, latd = 15.625, rotrate = 0.901, mov = "af", 
+ar_af_s = Oiler.PoleSphere(lon = 31.290, lat = 15.625, rotrate = 0.901, mov = "af", 
                                 fix = "ar");
-eu_ar_s = Oiler.PoleSphere(lond = 64.748, latd = 26.733, rotrate = 0.368, mov = "ar",
+eu_ar_s = Oiler.PoleSphere(lon = 64.748, lat = 26.733, rotrate = 0.368, mov = "ar",
                                 fix = "eu");
-eu_in_s = Oiler.PoleSphere(lond = 33.775, latd = 19.727, rotrate = 0.628, mov = "in", 
+eu_in_s = Oiler.PoleSphere(lon = 33.775, lat = 19.727, rotrate = 0.628, mov = "in", 
                                 fix = "eu");
-#af_eu_s = Oiler.PoleSphere(latd = 25.3, lond = -21.2, rotrate = 0.10, mov = "af", 
+# af_eu_s = Oiler.PoleSphere(lat = 25.3, lon = -21.2, rotrate = 0.10, mov = "af", 
 #                                fix = "eu");
 
 
@@ -131,10 +131,10 @@ ps = [Oiler.pole_cart_to_sphere(p) for (k, p) in poles];
 
 
 function compare_poles(p1, p2)
-    if abs(p1.lond - p2.lond) > 0.2
+    if abs(p1.lon - p2.lon) > 0.2
         print("aaah lons ", p1.fix, " ", p1.mov, "\n")
     end
-    if abs(p1.latd - p2.latd) > 0.2
+    if abs(p1.lat - p2.lat) > 0.2
         print("aaah lats ", p1.fix, " ", p1.mov, "\n")
     end
     if abs(p1.rotrate - p2.rotrate) > 0.2
@@ -149,8 +149,8 @@ ve_obs, vn_obs = Oiler.predict_vels_from_poles(gg, [af_an_s, in_af_s, in_an_s,
                                                     in_ar_s, ar_af_s, eu_ar_s, 
                                                     eu_in_s]);
 
-vel_lons = reduce(vcat, [[v.lond for v in vel_groups[key]] for key in gg["keys"]])
-vel_lats = reduce(vcat, [[v.latd for v in vel_groups[key]] for key in
+vel_lons = reduce(vcat, [[v.lon for v in vel_groups[key]] for key in gg["keys"]])
+vel_lats = reduce(vcat, [[v.lat for v in vel_groups[key]] for key in
 gg["keys"]])
 
 figure()

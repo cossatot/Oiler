@@ -120,7 +120,7 @@ end
     euler_pole_cart_to_sphere(pole)
 
 Converts an `PoleCart` (an Euler vector in Cartesian coordinates)
-into spherical coordinates (lond, latd, deg / Myr).
+into spherical coordinates (lon, lat, deg / Myr).
 """
 function pole_cart_to_sphere(pole::PoleCart)
     rotation_rate_cart = sqrt(pole.x^2 + pole.y^2 + pole.z^2)
@@ -134,7 +134,7 @@ function pole_cart_to_sphere(pole::PoleCart)
 
     rotation_rate_deg_Myr = rad2deg(rotation_rate_cart) * 1e6
 
-    PoleSphere(lond = pole_lon, latd = pole_lat, 
+    PoleSphere(lon = pole_lon, lat = pole_lat, 
                     rotrate = rotation_rate_deg_Myr,
     fix = pole.fix, mov = pole.mov)
 end

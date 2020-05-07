@@ -4,7 +4,7 @@ using Oiler
 
 function check_closure(pole1::Oiler.EulerPoleSphere,
     pole2::Oiler.EulerPoleSphere, pole3::Oiler.EulerPoleSphere;
-    tol::Float64=1e-10)
+    tol::Float64 = 1e-10)
     
 
     p12 = pole2 - pole1
@@ -25,8 +25,8 @@ end
 pole_df = CSV.read("./test_data/poles.PA.txt")
 
 function row_to_pole(row)
-    Oiler.EulerPoleSphere(latd=row.lat, lond=row.lon, rotrate=row.rotrate,
-    fix="PA", mov=row.plate)
+    Oiler.EulerPoleSphere(lat = row.lat, lon = row.lon, rotrate = row.rotrate,
+    fix = "PA", mov = row.plate)
 end
 
 poles = [row_to_pole(row) for row in eachrow(pole_df)]
@@ -37,8 +37,8 @@ np = length(poles)
 
 
 for p1 in 1:np
-    for p2 in p1+1:np
-        for p3 in p2+1:np
+    for p2 in p1 + 1:np
+        for p3 in p2 + 1:np
             tri = Set([p1, p2, p3])
             if !(tri in pole_triples)
                 push!(pole_triples, tri)

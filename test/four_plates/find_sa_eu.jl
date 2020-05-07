@@ -51,8 +51,8 @@ end
 best = argmin(scores)
 
 
-gps_lons = reduce(vcat, [[v.lond for v in gps_groups[key]] for key in gp["keys"]])
-gps_lats = reduce(vcat, [[v.latd for v in gps_groups[key]] for key in gp["keys"]])
+gps_lons = reduce(vcat, [[v.lon for v in gps_groups[key]] for key in gp["keys"]])
+gps_lats = reduce(vcat, [[v.lat for v in gps_groups[key]] for key in gp["keys"]])
 
  
 figure()
@@ -60,6 +60,6 @@ quiver(gps_lons[1:10:end], gps_lats[1:10:end], ve_obs[1:10:end],
        vn_obs[1:10:end], scale = 100, color = "red")
 quiver(gps_lons[1:10:end], gps_lats[1:10:end], ve_pred[1:10:end,best],
        vn_pred[1:10:end,best], scale = 100, color = "blue")
-#quiver(gps_lons[1:10:end], gps_lats[1:10:end], vve[1:10:end],
+# quiver(gps_lons[1:10:end], gps_lats[1:10:end], vve[1:10:end],
 #       vvn[1:10:end], scale = 100, color = "blue")
 show()

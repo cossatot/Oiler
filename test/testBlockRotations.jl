@@ -5,7 +5,7 @@ using Test
 function test_predict_block_vel_1()
     PvGb = Oiler.BlockRotations.build_PvGb_deg(-13.98, -52.17)
     
-    pole = Oiler.PoleSphere(latd = 9.3, lond = -41.7, rotrate = 0.15, 
+    pole = Oiler.PoleSphere(lat = 9.3, lon = -41.7, rotrate = 0.15, 
         mov = "an", fix = "af");
     pole_cart = Oiler.pole_sphere_to_cart(pole)
 
@@ -23,8 +23,8 @@ function test_direct_solve_1_vec()
     p = PvGb \ V
     pole = Oiler.pole_cart_to_sphere(Oiler.PoleCart(x = p[1], y = p[2], z = p[3]))
 
-    @test isapprox(pole.lond, -41.7)
-    @test isapprox(pole.latd, 9.3)
+    @test isapprox(pole.lon, -41.7)
+    @test isapprox(pole.lat, 9.3)
     @test isapprox(pole.rotrate, 0.15)
 end
 

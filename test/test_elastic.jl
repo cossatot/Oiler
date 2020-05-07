@@ -11,11 +11,11 @@ simple_fault = Oiler.Fault(trace = simple_fault_trace, dip = 45.,
                            dip_dir = "SE", usd = 1., lsd = 20.,
                            hw = "a", fw = "b")
 
-gnss_1 = Oiler.VelocityVectorSphere(lond = 0., latd = 0., ve = 1., vn = 1., 
+gnss_1 = Oiler.VelocityVectorSphere(lon = 0., lat = 0., ve = 1., vn = 1., 
     vel_type = "gnss", fix = "a", mov = "r")
-gnss_2 = Oiler.VelocityVectorSphere(lond = 1.25, latd = 1.251, ve = 1., vn = 1.,
+gnss_2 = Oiler.VelocityVectorSphere(lon = 1.25, lat = 1.251, ve = 1., vn = 1.,
     vel_type = "gnss", fix = "a", mov = "r")
-gnss_3 = Oiler.VelocityVectorSphere(lond = 1.25, latd = 1.249, ve = 1., vn = 1.,
+gnss_3 = Oiler.VelocityVectorSphere(lon = 1.25, lat = 1.249, ve = 1., vn = 1.,
     vel_type = "gnss", fix = "a", mov = "r")
 
 gnss_lons, gnss_lats = Oiler.get_coords_from_vel_array([gnss_1; gnss_2; gnss_3])

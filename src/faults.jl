@@ -172,7 +172,7 @@ function fault_to_vel(fault::Fault)
 
     vlon, vlat = get_midpoint(fault.trace)
 
-    VelocityVectorSphere(lond = vlon, latd = vlat, ve = ve, vn = vn, 
+    VelocityVectorSphere(lon = vlon, lat = vlat, ve = ve, vn = vn, 
         fix = fault.hw, mov = fault.fw, name = fault.name, ee = ee, en = en,
         vel_type = "fault")
 end
@@ -306,7 +306,7 @@ function build_Pf_vert(strike::Float64)
     Pf_vert = [cos(-strike_ang) -sin(-strike_ang) 0.;
                0.                0.               0.;
                0.                0.               0.]
-               #sin(-strike_ang)  cos(-strike_ang) 0.]
+               # sin(-strike_ang)  cos(-strike_ang) 0.]
 end
 
 
@@ -328,7 +328,7 @@ Called 'P_f' in Meade and Loveless 2009.
 """
 function build_Pf_dip(strike::Float64, dip::Float64)
     strike_ang = az_to_angle(strike)
-    #cd = cosd(dip)
+    # cd = cosd(dip)
     cd = 1.  # reasoning: longer-term, all convergence/extension goes down-dip
 
     Pf_dip = [cos(-strike_ang)       -sin(-strike_ang)        0.;
