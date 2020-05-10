@@ -1,8 +1,14 @@
 module Elastic
 
+import Base.Threads.@spawn
+import Base.Threads.@threads
+
 using ..Oiler
 using ..Oiler: Fault, VelocityVectorSphere, fault_oblique_merc, get_gnss_vels,
     get_coords_from_vel_array, az_to_angle, okada
+
+
+using Logging
 
 export fault_to_okada
 
@@ -82,13 +88,17 @@ end
 
 function calc_locking_effects_segmented_fault(fault::Fault, lons, lats)
     # may have some problems w/ dip dir for highly curved faults
+    trace = fault.trace
+    simp_trace = Oiler.Geom.simplify_polyline(trace, 0.05)
+    #simp_trace = trace
+
     parts = []
-    for i in 1:size(fault.trace, 1) - 1
-        trace = fault.trace[i:i + 1,:]
-        part = calc_locking_effects_per_fault(Oiler.Fault(trace = trace, 
-                dip = fault.dip, 
-                dip_dir = fault.dip_dir,
-                lsd = fault.lsd, usd = fault.usd), 
+    for i in 1:size(simp_trace,1) - 1
+        seg_trace = simp_trace[i:i+1,:]
+        part = calc_locking_effects_per_fault(Oiler.Fault(trace=seg_trace, 
+                dip=fault.dip, 
+                dip_dir=fault.dip_dir,
+                lsd=fault.lsd, usd=fault.usd), 
             lons, lats)
         push!(parts, part)
     end
@@ -114,6 +124,9 @@ end
 
 
 function calc_locking_effects(faults, vel_groups)
+
+    #@info "calculating locking partials"
+
     gnss_vels = get_gnss_vels(vel_groups)
     gnss_lons = [vel["vel"].lon for vel in gnss_vels]
     gnss_lats = [vel["vel"].lat for vel in gnss_vels]
@@ -125,7 +138,7 @@ function calc_locking_effects(faults, vel_groups)
 
     # calculate locking effects from each fault at each site
     # locking effects for faults in each vel_group sum
-    for vg in vg_keys
+    @threads for vg in vg_keys
         if haskey(fault_groups, vg)
             locking_partial_groups[vg] = sum([
                 calc_locking_effects_segmented_fault(fault, gnss_lons, gnss_lats)
@@ -147,6 +160,7 @@ function calc_locking_effects(faults, vel_groups)
             end
         end
     end
+   # @info "done calculating locking partials"
     locking_partials
 end
 

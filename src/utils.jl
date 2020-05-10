@@ -7,7 +7,7 @@ export predict_vels_from_poles, find_vel_cycles, diagonalize_matrices,
 using ..Oiler: VelocityVectorSphere, PoleCart, PoleSphere, build_PvGb_from_vels,
         build_vel_column_from_vels, add_poles, pole_sphere_to_cart
 
-
+using Logging
 using DataFrames
 using SparseArrays
 using LinearAlgebra

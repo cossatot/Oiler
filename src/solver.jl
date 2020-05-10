@@ -9,6 +9,7 @@ using ..Oiler: VelocityVectorSphere, PoleCart, PoleSphere, build_PvGb_from_vels,
     build_vel_column_from_vels, add_poles, pole_sphere_to_cart, find_vel_cycles,
     diagonalize_matrices, Fault
 
+using Logging
 using DataFrames
 using SparseArrays
 using LinearAlgebra
@@ -130,12 +131,18 @@ end
 function add_fault_locking_to_PvGb(faults::Array{Fault}, 
     vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
     PvGb::SparseMatrixCSC{Float64,Int64})
+    PvGb = Matrix(PvGb)
 
+    @info "   calculating locking effects"
     locking_partials = Oiler.Elastic.calc_locking_effects(faults, vel_groups)
+    @info "   done calculating locking effects"
 
+    @info "   adding to PvGb"
     for (part_idx, partials) in locking_partials
         PvGb[part_idx[1], part_idx[2]] = PvGb[part_idx[1], part_idx[2]] + partials
     end
+    @info "   done adding to PvGb"
+    PvGb = sparse(PvGb)
     PvGb
 end
 
@@ -152,11 +159,17 @@ function
 set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array = [], weighted::Bool = true)
 
+    @info " making block inversion matrices"
     vd = make_block_inversion_matrices_from_vels(vel_groups)
+    @info " done making block inversion matrices"
+    @info " finding vel cycles"
     cycles = find_vel_cycles(vd["keys"])
+    @info " done finding vel cycles"
 
     if length(faults) > 0
+    @info " doing locking"
         PvGb = add_fault_locking_to_PvGb(faults, vel_groups, vd["PvGb"])
+    @info " done doing locking"
     else
         PvGb = vd["PvGb"]
     end
@@ -195,8 +208,10 @@ end
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array = [], weighted::Bool = true, max_dense_size = 1000)
 
+    @info "setting up matrices"
     block_inv_setup = set_up_block_inv_w_constraints(vel_groups; 
         faults = faults, weighted = weighted)
+    @info "done with setup"
     
     lhs = block_inv_setup["lhs"]
 
@@ -204,7 +219,9 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     #    lhs = Matrix(lhs)
     # end
 
+    @info "solving"
     kkt_soln = lhs \ block_inv_setup["rhs"]
+    @info "done solving"
 
     poles = Dict()
     for (i, (fix, mov)) in enumerate(block_inv_setup["keys"])
