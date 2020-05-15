@@ -52,7 +52,7 @@ end
     weight_from_error(error, zero_err_weight)
 
 Returns either the inverse of the error, or `zero_err_weight` if the weight
-is zero. The latter defaults to 1e20.
+is zero. The latter defaults to 1e-10.
 """
 function weight_from_error(error::Float64; zero_err_weight::Float64 = 1e-10)
     if error == 0.
@@ -134,14 +134,12 @@ function add_fault_locking_to_PvGb(faults::Array{Fault},
     PvGb = Matrix(PvGb)
 
     @info "   calculating locking effects"
-    locking_partials = Oiler.Elastic.calc_locking_effects(faults, vel_groups)
-    @info "   done calculating locking effects"
+    @time locking_partials = Oiler.Elastic.calc_locking_effects(faults, vel_groups)
 
     @info "   adding to PvGb"
-    for (part_idx, partials) in locking_partials
+    @time for (part_idx, partials) in locking_partials
         PvGb[part_idx[1], part_idx[2]] = PvGb[part_idx[1], part_idx[2]] + partials
     end
-    @info "   done adding to PvGb"
     PvGb = sparse(PvGb)
     PvGb
 end
@@ -190,38 +188,27 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
         cm = build_constraint_matrices(cycles, vd["keys"])
         p = size(cm)[1]
 
-        # lhs = make_block_inv_lhs_constraints(PvGb, cm)
-        lhs = [PvGb; 1e12 .* cm];
+        lhs = [PvGb; 1e12 .* cm];  # heavily weight constraint matrix cm
     
         constraint_rhs = zeros(p)
-        # rhs = make_block_inv_rhs(PvGb, Vc, constraint_rhs)
         rhs = [Vc; constraint_rhs]
     end
-
-    # rhs = [rhs; zeros(size(rhs,1))]
-    # lhs = [lhs ; tikh_lambda * I]
 
     Dict("lhs" => lhs, "rhs" => rhs, "keys" => vd["keys"])
 end
 
 
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array = [], weighted::Bool = true, max_dense_size = 1000)
+    faults::Array = [], weighted::Bool = true)
 
     @info "setting up matrices"
-    block_inv_setup = set_up_block_inv_w_constraints(vel_groups; 
+    @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups; 
         faults = faults, weighted = weighted)
-    @info "done with setup"
     
     lhs = block_inv_setup["lhs"]
 
-    # if size(lhs, 1) < max_dense_size
-    #    lhs = Matrix(lhs)
-    # end
-
     @info "solving"
-    kkt_soln = lhs \ block_inv_setup["rhs"]
-    @info "done solving"
+    @time kkt_soln = lhs \ block_inv_setup["rhs"]
 
     poles = Dict()
     for (i, (fix, mov)) in enumerate(block_inv_setup["keys"])

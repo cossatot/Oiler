@@ -89,7 +89,7 @@ end
 function calc_locking_effects_segmented_fault(fault::Fault, lons, lats)
     # may have some problems w/ dip dir for highly curved faults
     trace = fault.trace
-    simp_trace = Oiler.Geom.simplify_polyline(trace, 0.05)
+    simp_trace = Oiler.Geom.simplify_polyline(trace, 0.2)
     #simp_trace = trace
 
     parts = []
@@ -138,7 +138,7 @@ function calc_locking_effects(faults, vel_groups)
 
     # calculate locking effects from each fault at each site
     # locking effects for faults in each vel_group sum
-    @threads for vg in vg_keys
+    for vg in vg_keys
         if haskey(fault_groups, vg)
             locking_partial_groups[vg] = sum([
                 calc_locking_effects_segmented_fault(fault, gnss_lons, gnss_lats)

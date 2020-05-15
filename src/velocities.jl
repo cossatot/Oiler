@@ -29,7 +29,7 @@ ve, vn, vu are east, north and up velocities, and ee, en, and eu are the
     vel_type::String = ""
 end
 
-function reverse(vel::VelocityVectorSphere)
+function Base.reverse(vel::VelocityVectorSphere)
     VelocityVectorSphere(lon = vel.lon,
         lat = vel.lat,
         ve = -vel.ve,

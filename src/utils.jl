@@ -3,7 +3,7 @@ module Utils
 export predict_vels_from_poles, find_vel_cycles, diagonalize_matrices, 
     get_gnss_vels, get_coords_from_vel_array
 
-
+using ..Oiler
 using ..Oiler: VelocityVectorSphere, PoleCart, PoleSphere, build_PvGb_from_vels,
         build_vel_column_from_vels, add_poles, pole_sphere_to_cart
 
@@ -313,6 +313,47 @@ function predict_vels_from_poles(block_things::Dict{String,AbstractArray},
 
     predict_vels_from_poles(block_things, cpoles)
 end
+
+
+function get_vel_vec_at_pole(vel::VelocityVectorSphere, pole::PoleCart)
+    PvGb = Oiler.BlockRotations.build_PvGb_vel(vel)
+    vel_vec = PvGb * [pole.x; pole.y; pole.z]
+end
+
+
+function get_vel_vec_at_pole(vel::VelocityVectorSphere, pole::PoleSphere)
+    get_vel_vec_at_pole(vel, Oiler.BlockRotations.pole_sphere_to_cart(pole))
+end
+
+
+function get_fault_slip_rate_from_pole(fault, pole)
+    fv = Oiler.Faults.fault_to_vel(fault)
+    vel_vec = get_vel_vec_at_pole(fv, pole)
+    R = Oiler.Faults.build_strike_rot_matrix(fault.strike)
+    v_rl, v_ex, v_up = R * vel_vec
+    v_rl, v_ex
+end
+
+
+function get_fault_slip_rates_from_poles(faults, poles)
+    rates = []
+    for fault in faults
+        fault_key = (fault.fw, fault.hw)
+        if haskey(poles, fault_key)
+            pole = poles[fault_key]
+            push!(rates, get_fault_slip_rate_from_pole(fault, pole))
+        elseif haskey(poles, reverse(fault_key))
+            pole = poles[reverse(fault_key)]
+            push!(rates, get_fault_slip_rate_from_pole(fault, pole))
+        else
+            @warn "No pole found for $pole"
+            push!(rates, (NaN, NaN))
+        end
+    end
+    rates
+end
+
+
 
 
 function group_faults(faults, vel_group_keys)
