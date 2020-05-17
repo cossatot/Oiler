@@ -39,6 +39,28 @@ function diagonalize_matrices(matrices)
 end
 
 
+function sparse_to_dict(sparray::SparseMatrixCSC)
+    #(rows, cols, vals) = findnz(sparray)
+    nz_inds = Tuple(findall(!iszero, sparray))
+    rows = [nzi[1] for nzi in nz_inds]
+    cols = [nzi[2] for nzi in nz_inds]
+    Dict( (r, cols[i]) => sparray[r, cols[i]] for (i, r) in enumerate(rows))
+end
+
+
+function dict_to_sparse(sparse_dict::Dict)
+    rowz = [] #Array{Int}(length(sparse_dict))
+    colz = [] #Array{Int}(length(sparse_dict))
+    valz = [] #Array{}(length(sparse_dict))
+    for ((r, c), v) in sparse_dict
+        push!(rowz, r)
+        push!(colz, c)
+        push!(valz, v)
+    end
+    sparse(rowz, colz, valz)
+end
+
+
 function make_digraph_from_vels(vels::VelocityVectorSphere...)
     vel_array = collect(vels)
     make_digraph_from_vels(vel_array)

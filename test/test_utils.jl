@@ -1,13 +1,42 @@
 using Test
 
+using SparseArrays
+
 using Oiler
 using Oiler: VelocityVectorSphere
 
-using Oiler.Utils: get_gnss_vels
+using Oiler.Utils: get_gnss_vels, sparse_to_dict, dict_to_sparse
 
 
 function test_diagonalize_matrices()
 end
+
+
+function test_sparse_to_dict()
+    I = [1, 4, 3, 5]; J = [4, 7, 18, 9]; V = [1., 2., -5., 3.];
+    S = sparse(I, J, V)
+    sd = sparse_to_dict(S)
+
+    sd_test = Dict((4, 7)  => 2.0,
+                   (5, 9)  => 3.0,
+                   (1, 4)  => 1.0,
+                   (3, 18) => -5.0)
+
+    @test sd == sd_test
+end
+
+
+function test_dict_to_sparse()
+    I = [1, 4, 3, 5]; J = [4, 7, 18, 9]; V = [1., 2., -5., 3.];
+    S_test = sparse(I, J, V)
+    sd_test = Dict((4, 7)  => 2.0,
+                   (5, 9)  => 3.0,
+                   (1, 4)  => 1.0,
+                   (3, 18) => -5.0)
+    S = dict_to_sparse(S)
+    @test S == S_test
+end
+
 
 function test_make_digraph_from_vels_many_args()
 end

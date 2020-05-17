@@ -131,12 +131,30 @@ end
 function add_fault_locking_to_PvGb(faults::Array{Fault}, 
     vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
     PvGb::SparseMatrixCSC{Float64,Int64})
-    PvGb = Matrix(PvGb)
 
     @info "   calculating locking effects"
     @time locking_partials = Oiler.Elastic.calc_locking_effects(faults, vel_groups)
+    
+    #@info "   adding to PvGb"
+    #println(size(PvGb))
+    #PvGb_dict = Oiler.Utils.sparse_to_dict(PvGb)
+    #PvGb = [] # save some ram
 
+    #@time for ((row_idx, col_idx), partials) in locking_partials
+    #    for (i, rr) in enumerate(row_idx)
+    #        for (j, cc) in enumerate(col_idx)
+    #            if haskey(PvGb_dict, (rr, cc))
+    #                PvGb_dict[(rr, cc)] += partials[i,j]
+    #            else
+    #                PvGb_dict[(rr, cc)] = partials[i,j]
+    #            end
+    #        end
+    #    end
+    #end
+    #PvGb = Oiler.Utils.dict_to_sparse(PvGb_dict)
+    #println(size(PvGb))
     @info "   adding to PvGb"
+    PvGb = Matrix(PvGb)
     @time for (part_idx, partials) in locking_partials
         PvGb[part_idx[1], part_idx[2]] = PvGb[part_idx[1], part_idx[2]] + partials
     end
@@ -155,7 +173,8 @@ end
 
 function
 set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array = [], weighted::Bool = true)
+    faults::Array = [], weighted::Bool = true, regularize::Bool = false,
+    l2_lambda::Float64 = 100.0)
 
     @info " making block inversion matrices"
     vd = make_block_inversion_matrices_from_vels(vel_groups)
@@ -192,6 +211,15 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
     
         constraint_rhs = zeros(p)
         rhs = [Vc; constraint_rhs]
+    end
+
+    if regularize == true
+        n_vars = size(lhs, 2)
+        reg_matrix = Matrix{Float64}(I, n_vars, n_vars) .* l2_lambda
+        rhs_reg = zeros(n_vars)
+
+        lhs = [lhs; reg_matrix]
+        rhs = [rhs; rhs_reg]
     end
 
     Dict("lhs" => lhs, "rhs" => rhs, "keys" => vd["keys"])
