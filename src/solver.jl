@@ -215,7 +215,9 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
 
     if regularize == true
         n_vars = size(lhs, 2)
-        reg_matrix = Matrix{Float64}(I, n_vars, n_vars) .* l2_lambda
+        #reg_matrix = Matrix{Float64}(I, n_vars, n_vars) .* l2_lambda
+        reg_matrix = sparse(1:n_vars, 1:n_vars, ones(n_vars)) .* l2_lambda
+
         rhs_reg = zeros(n_vars)
 
         lhs = [lhs; reg_matrix]
