@@ -47,11 +47,7 @@ block in the model). GNSS data are also subject to earthquake-cycle velocity
 perturbations (i.e., the effects of interseismic fault locking) that geologic
 fault velocities are not.
 
-The natural incorporation of both fault slip rates and GNSS velocities is common
-to (typically global) plate motion models such as MORVEL (DeMets et al., 2010),
-but not to regional-scale elastic block models such as Blocks (Meade and
-Loveless, 2009) and DEFNODE/TDEFNODE (McCaffrey 2002, 200x). In the case of
-`Oiler`, the use of both velocity data types allows relative velocities between
+The use of both velocity data types allows relative velocities between
 blocks to be estimated regardless of whether any or all blocks contain GNSS
 stations, which allows the modeler to incorporate many more faults and honor
 fault network geometry, particularly in remote and poorly-studied areas where
