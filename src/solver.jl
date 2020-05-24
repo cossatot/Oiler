@@ -279,8 +279,6 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 
     @info "solving"
     @time kkt_soln = lhs \ block_inv_setup["rhs"]
-    println(length(kkt_soln))
-    println(length(block_inv_setup["keys"]))
 
     nk = length(kkt_soln)
     np = length(block_inv_setup["keys"])
@@ -290,10 +288,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     else
         soln_idx = 1:np*3
     end
-    println(soln_idx)
-
     soln = kkt_soln[soln_idx]
-    println(length(soln))
 
     poles = Dict()
     for (i, (fix, mov)) in enumerate(block_inv_setup["keys"])
