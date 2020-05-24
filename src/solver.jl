@@ -152,13 +152,14 @@ function add_fault_locking_to_PvGb(faults::Array{Fault},
     #    end
     #end
     #PvGb = Oiler.Utils.dict_to_sparse(PvGb_dict)
-    #println(size(PvGb))
+    println(size(PvGb))
     @info "   adding to PvGb"
     PvGb = Matrix(PvGb)
     @time for (part_idx, partials) in locking_partials
         PvGb[part_idx[1], part_idx[2]] = PvGb[part_idx[1], part_idx[2]] + partials
     end
     PvGb = sparse(PvGb)
+    println(size(PvGb))
     PvGb
 end
 
@@ -171,6 +172,38 @@ function weight_inv_matrices(PvGb_in, Vc_in, weights)
 end
 
 
+function add_equality_constraints_kkt(PvGb, Vc, cm)
+    p = size(cm, 1)
+    lhs = [2 * PvGb' * PvGb  cm'; 
+           cm                zeros(p,p)]
+    rhs = [2 * PvGb' * Vc; zeros(p)]
+    lhs, rhs
+end
+
+
+function add_equality_constraints_bi_objective(PvGb, Vc, cm)
+    p = size(cm, 1)
+    lhs = [PvGb; cm .* 1e12]
+    rhs = [Vc; zeros(p)]
+    (PvGb, Vc)
+end
+
+
+function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights)
+    W = sparse(diagm(weights))
+    p, q = size(cm)
+    n = length(Vc)
+
+    rhs = [zeros(p, p) zeros(p, n) cm;
+           zeros(n, p) W           PvGb;
+           cm'         PvGb'       zeros(q,q)]
+
+    lhs = [zeros(p); Vc; zeros(q)]
+
+    rhs, lhs
+end
+
+
 function
 set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array = [], weighted::Bool = true, regularize::Bool = false,
@@ -178,9 +211,12 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
 
     @info " making block inversion matrices"
     vd = make_block_inversion_matrices_from_vels(vel_groups)
+    PvGb_size = size(vd["PvGb"])
+    @info "Raw PvGb size: $PvGb_size"
+
     @info " done making block inversion matrices"
     @info " finding vel cycles"
-    cycles = find_vel_cycles(vd["keys"])
+    @time cycles = find_vel_cycles(vd["keys"])
     @info " done finding vel cycles"
 
     if length(faults) > 0
@@ -191,31 +227,20 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
         PvGb = vd["PvGb"]
     end
 
-    if weighted == true
-        N = PvGb' * sparse(diagm(vd["weights"]))
-        Vc = N * vd["Vc"]
-        PvGb = N * PvGb
-    else
-        Vc = vd["Vc"]
-    end
+    Vc = vd["Vc"]
+    weights = vd["weights"]
 
     if cycles == Dict{Any,Any}()
         lhs = PvGb
         rhs = Vc
-
     else
         cm = build_constraint_matrices(cycles, vd["keys"])
-        p = size(cm)[1]
-
-        lhs = [PvGb; 1e12 .* cm];  # heavily weight constraint matrix cm
-    
-        constraint_rhs = zeros(p)
-        rhs = [Vc; constraint_rhs]
+        cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
     end
 
     if regularize == true
+        println("regularizing: l2_lambda = $l2_lambda")
         n_vars = size(lhs, 2)
-        #reg_matrix = Matrix{Float64}(I, n_vars, n_vars) .* l2_lambda
         reg_matrix = sparse(1:n_vars, 1:n_vars, ones(n_vars)) .* l2_lambda
 
         rhs_reg = zeros(n_vars)
@@ -223,29 +248,59 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
         lhs = [lhs; reg_matrix]
         rhs = [rhs; rhs_reg]
     end
+    
+    if weighted == true
+        lhs, rhs = make_weighted_constrained_lls_matrices(PvGb, Vc, cm, 
+            weights)
+    else
+        lhs, rhs = add_equality_constraints_bi_objective(PvGb, Vc, cm)
+        #lhs, rhs = add_equality_constraints_kkt(PvGb, Vc, cm)
+    end
 
-    Dict("lhs" => lhs, "rhs" => rhs, "keys" => vd["keys"])
+    Dict("lhs" => lhs, "rhs" => rhs, "keys" => vd["keys"], 
+         "n_constraints" => size(cm,1))
 end
 
 
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array = [], weighted::Bool = true)
+    faults::Array = [], weighted::Bool = true, regularize::Bool = false,
+    l2_lambda::Float64 = 100.0)
 
     @info "setting up matrices"
     @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups; 
-        faults = faults, weighted = weighted)
+        faults = faults, weighted = weighted, 
+        regularize = regularize, l2_lambda = l2_lambda)
     
     lhs = block_inv_setup["lhs"]
+    lhs_size = size(lhs)
+    rhs_size = size(block_inv_setup["rhs"])
+    @info "LHS block size $lhs_size"
+    @info "RHS size $rhs_size"
 
     @info "solving"
     @time kkt_soln = lhs \ block_inv_setup["rhs"]
+    println(length(kkt_soln))
+    println(length(block_inv_setup["keys"]))
+
+    nk = length(kkt_soln)
+    np = length(block_inv_setup["keys"])
+
+    if weighted == true
+        soln_idx = (nk - np * 3)+1:nk
+    else
+        soln_idx = 1:np*3
+    end
+    println(soln_idx)
+
+    soln = kkt_soln[soln_idx]
+    println(length(soln))
 
     poles = Dict()
     for (i, (fix, mov)) in enumerate(block_inv_setup["keys"])
-        poles[(fix, mov)] = PoleCart(x = kkt_soln[i * 3 - 2], 
-                                         y = kkt_soln[i * 3 - 1],
-                                         z = kkt_soln[i * 3],
-                                         fix = fix, mov = mov)
+        poles[(fix, mov)] = PoleCart(x = soln[i * 3 - 2], 
+                                     y = soln[i * 3 - 1],
+                                     z = soln[i * 3],
+                                     fix = fix, mov = mov)
     end
     poles
 end

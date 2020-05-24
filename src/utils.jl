@@ -61,6 +61,54 @@ function dict_to_sparse(sparse_dict::Dict)
 end
 
 
+"""
+    lin_indep_cols(X, tol)
+
+    Finds and returns linearly independent columns of X.
+
+    # Arguments:
+    - X: Matrix with potentially linearly dependent columns.
+    - tol: Rank estimation tolerance.
+
+    Based on code by Matt J: 
+    https://www.mathworks.com/matlabcentral/answers/
+    108835-how-to-get-only-linearly-independent-rows-
+    in-a-matrix-or-to-remove-linear-dependency-b-w-rows-in-a-m
+
+
+"""
+function lin_indep_cols(X; tol=1e-10)
+
+
+    #if ~(nnz(X .* 1)) # check for all zeros
+    if ~(true)
+        idx = [];
+    else
+        Xm = Matrix(X)
+
+        F = qr(Xm, Val(true))
+        Q = F.Q
+        R = F.R
+        P = F.p
+
+        if !(1 in size(R))
+            diagr = abs.(diag(R))
+        else
+            diagr = R[1]
+        end
+
+        r = findlast(diagr .>= tol * diagr[1])
+        idx = sort(P[1:r])
+        end
+    idx
+end
+
+
+function lin_indep_rows(X; tol=1e-10)
+    lin_indep_cols(X'; tol=tol)
+end
+
+
 function make_digraph_from_vels(vels::VelocityVectorSphere...)
     vel_array = collect(vels)
     make_digraph_from_vels(vel_array)
@@ -90,7 +138,9 @@ function make_digraph_from_vels(vels::Array{VelocityVectorSphere})
     vel_graph = Dict{String,Array{String}}()
 
     for vel in vels
-        if haskey(vel_graph, vel.fix)
+        if vel.fix == vel.mov
+            @warn "$vel has same fix and mov, leaving it out."
+        elseif haskey(vel_graph, vel.fix)
             if !(vel.mov in vel_graph[vel.fix])
                 push!(vel_graph[vel.fix], vel.mov)
             end

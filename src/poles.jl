@@ -117,7 +117,7 @@ function Base.:-(pole1::PoleSphere, pole2::PoleSphere)
 end
 
 """
-    euler_pole_cart_to_sphere(pole)
+    pole_cart_to_sphere(pole)
 
 Converts an `PoleCart` (an Euler vector in Cartesian coordinates)
 into spherical coordinates (lon, lat, deg / Myr).

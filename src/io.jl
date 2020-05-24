@@ -2,10 +2,12 @@ module IO
 
 export vel_from_row, load_vels_from_csv, group_vels_by_fix_mov
 
-using ..Oiler: VelocityVectorSphere, reverse
+using ..Oiler: VelocityVectorSphere, PoleSphere, PoleCart, pole_cart_to_sphere
+
+using Logging
 
 using CSV
-using DataFrames: DataFrameRow
+using DataFrames: DataFrame, DataFrameRow
 
 
 function vel_from_row(row::DataFrameRow)
@@ -56,7 +58,9 @@ function group_vels_by_fix_mov(vels::Array{VelocityVectorSphere})
 
     for vel in vels
         fm = (vel.fix, vel.mov)
-        if haskey(vel_groups, fm)
+        if vel.fix == vel.mov
+            @warn "$vel has same fix, mov, leaving it out."
+        elseif haskey(vel_groups, fm)
             push!(vel_groups[fm], vel)
         elseif haskey(vel_groups, Base.reverse(fm))
             push!(vel_groups[Base.reverse(fm)], reverse(vel))
@@ -66,5 +70,54 @@ function group_vels_by_fix_mov(vels::Array{VelocityVectorSphere})
     end
     vel_groups
 end
+
+
+function pole_to_dict(pole::PoleCart)
+    Dict("x" => pole.x, "y" => pole.y, "z" => pole.z, "fix" => pole.fix, 
+         "mov" => pole.mov)
+end
+
+
+function pole_to_dict(pole::PoleSphere)
+    Dict("lon" => pole.lon, "lat" => pole.lat, "rotrate" => pole.rotrate, 
+        "fix" => pole.fix, "mov" => pole.mov)
+end
+
+
+#function pole_dict_to_df(poles::Dict)
+#
+
+#end
+
+function poles_to_df(poles::Array{PoleSphere,1})
+    df = DataFrame()
+    df.lon = [p.lon for p in poles]
+    df.lat = [p.lat for p in poles]
+    df.rotrate = [p.rotrate for p in poles]
+    df.fix = [p.fix for p in poles]
+    df.mov = [p.mov for p in poles]
+
+    df
+end
+
+
+function poles_to_df(poles::Array{PoleCart,1};
+                     convert_to_sphere::Bool = false)
+
+    if convert_to_sphere
+        pole_sphere = map(pole_cart_to_sphere, poles)
+        df = poles_to_df(pole_sphere)
+    else
+        df = DataFrame()
+        df.x = [p.x for p in poles]
+        df.y = [p.y for p in poles]
+        df.z = [p.z for p in poles]
+        df.fix = [p.fix for p in poles]
+        df.mov = [p.mov for p in poles]
+    end
+    df
+end
+
+
 
 end

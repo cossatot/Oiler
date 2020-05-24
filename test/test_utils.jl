@@ -44,6 +44,25 @@ end
 function test_make_digraph_from_vels_array()
 end
 
+function test_make_digraph_from_vels_array_dup_fix_mov()
+    na_1 = Oiler.VelocityVectorSphere( lon= -121.8, lat= 46.8, ve=16.6,
+        vn= 0.25, vu= 0.0, ee= 1.0, en= 1.0, eu= 0.0,
+        fix= "pa", mov= "na", name="na_1")
+
+    jf_1 = Oiler.VelocityVectorSphere( lon= -127.4, lat= 45.3, ve=47.2,
+        vn= -17.7, vu= 0.0, ee= 1.0, en= 1.0, eu= 0.0,
+        fix= "pa", mov= "jf", name="jf_1")
+
+    pa_pa = Oiler.VelocityVectorSphere( lon= -126.0, lat= 41.3, ve=43.4,
+        vn= -19.3, vu= 0.0, ee= 1.0, en= 1.0, eu= 0.0,
+        fix= "pa", mov= "pa", name="pa_pa")
+
+    dg = Oiler.Utils.make_digraph_from_vels([na_1, jf_1, pa_pa])
+    
+  # @test_logs Oiler.Utils.make_digraph_from_vels([na_1, jf_1, pa_pa])
+  @test dg["pa"] == ["na", "jf"]
+end
+
 function test_make_digraph_from_poles()
 end
 
