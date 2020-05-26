@@ -7,7 +7,10 @@ using ..Oiler: VelocityVectorSphere, PoleSphere, PoleCart, pole_cart_to_sphere
 using Logging
 
 using CSV
+using ArchGDAL
 using DataFrames: DataFrame, DataFrameRow
+
+const AG = ArchGDAL
 
 
 function vel_from_row(row::DataFrameRow)
@@ -116,6 +119,48 @@ function poles_to_df(poles::Array{PoleCart,1};
         df.mov = [p.mov for p in poles]
     end
     df
+end
+
+
+
+function gis_vec_file_to_df(filename::AbstractString; layername="")
+    dataset = AG.read(filename)
+    if layername == ""
+        layer = AG.getlayer(dataset, 0)
+    else
+        layer = AG.getlayer(dataset, layername)
+    end
+
+    nfeat = AG.nfeature(layer)
+    nfield = AG.nfield(layer)
+
+    # prepare Dict with empty vectors of the right type for each field
+    d = Dict{String, Vector}()
+    featuredefn = AG.layerdefn(layer)
+    for field_no in 0:nfield-1
+        field = AG.getfielddefn(featuredefn, field_no)
+        name = AG.getname(field)
+        typ = AG._FIELDTYPE[AG.gettype(field)]
+        d[name] = typ[]
+    end
+    d["geometry"] = AG.IGeometry[]
+
+    # loop over the features to fill the vectors in the Dict
+    for fid in 0:nfeat-1
+        AG.getfeature(layer, fid) do feature
+            for (k, v) in pairs(d)
+                if k == "geometry"
+                    val = AG.getgeom(feature, 0)
+                else
+                    val = AG.getfield(feature, k)
+                end
+                push!(v, val)
+            end
+        end
+    end
+
+    # construct a DataFrame from the Dict
+    df = DataFrame(d)
 end
 
 
