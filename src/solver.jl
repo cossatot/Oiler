@@ -135,12 +135,16 @@ function add_fault_locking_to_PvGb(faults::Array{Fault},
     @info "   calculating locking effects"
     @time locking_partials = Oiler.Elastic.calc_locking_effects(faults, vel_groups)
     
-    #@info "   adding to PvGb"
-    #println(size(PvGb))
-    #PvGb_dict = Oiler.Utils.sparse_to_dict(PvGb)
-    #PvGb = [] # save some ram
+    # The commented out code is a way of adding constraints to a sparse
+    # matrix.  It does not seem to work, though I don't know why--
+    # Sometimes the number of rows is less after the addition of more data.
 
-    #@time for ((row_idx, col_idx), partials) in locking_partials
+    # @info "   adding to PvGb"
+    # println(size(PvGb))
+    # PvGb_dict = Oiler.Utils.sparse_to_dict(PvGb)
+    # PvGb = [] # save some ram
+
+    # @time for ((row_idx, col_idx), partials) in locking_partials
     #    for (i, rr) in enumerate(row_idx)
     #        for (j, cc) in enumerate(col_idx)
     #            if haskey(PvGb_dict, (rr, cc))
@@ -150,16 +154,14 @@ function add_fault_locking_to_PvGb(faults::Array{Fault},
     #            end
     #        end
     #    end
-    #end
-    #PvGb = Oiler.Utils.dict_to_sparse(PvGb_dict)
-    println(size(PvGb))
+    # end
+    # PvGb = Oiler.Utils.dict_to_sparse(PvGb_dict)
     @info "   adding to PvGb"
     PvGb = Matrix(PvGb)
     @time for (part_idx, partials) in locking_partials
         PvGb[part_idx[1], part_idx[2]] = PvGb[part_idx[1], part_idx[2]] + partials
     end
     PvGb = sparse(PvGb)
-    println(size(PvGb))
     PvGb
 end
 
@@ -175,8 +177,8 @@ end
 function add_equality_constraints_kkt(PvGb, Vc, cm)
     p = size(cm, 1)
     lhs = [2 * PvGb' * PvGb  cm'; 
-           cm                zeros(p,p)]
-    rhs = [2 * PvGb' * Vc; zeros(p)]
+           cm                zeros(p, p)]
+    rhs = [2 * PvGb' * Vc;   zeros(p)]
     lhs, rhs
 end
 
@@ -196,7 +198,7 @@ function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights)
 
     rhs = [zeros(p, p) zeros(p, n) cm;
            zeros(n, p) W           PvGb;
-           cm'         PvGb'       zeros(q,q)]
+           cm'         PvGb'       zeros(q, q)]
 
     lhs = [zeros(p); Vc; zeros(q)]
 
@@ -220,9 +222,9 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
     @info " done finding vel cycles"
 
     if length(faults) > 0
-    @info " doing locking"
+        @info " doing locking"
         PvGb = add_fault_locking_to_PvGb(faults, vel_groups, vd["PvGb"])
-    @info " done doing locking"
+        @info " done doing locking"
     else
         PvGb = vd["PvGb"]
     end
@@ -233,6 +235,7 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
     if cycles == Dict{Any,Any}()
         lhs = PvGb
         rhs = Vc
+        cm = []
     else
         cm = build_constraint_matrices(cycles, vd["keys"])
         cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
@@ -254,11 +257,11 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
             weights)
     else
         lhs, rhs = add_equality_constraints_bi_objective(PvGb, Vc, cm)
-        #lhs, rhs = add_equality_constraints_kkt(PvGb, Vc, cm)
+        # lhs, rhs = add_equality_constraints_kkt(PvGb, Vc, cm)
     end
 
     Dict("lhs" => lhs, "rhs" => rhs, "keys" => vd["keys"], 
-         "n_constraints" => size(cm,1))
+         "n_constraints" => size(cm, 1))
 end
 
 
@@ -284,9 +287,9 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     np = length(block_inv_setup["keys"])
 
     if weighted == true
-        soln_idx = (nk - np * 3)+1:nk
+        soln_idx = (nk - np * 3) + 1:nk
     else
-        soln_idx = 1:np*3
+        soln_idx = 1:np * 3
     end
     soln = kkt_soln[soln_idx]
 
