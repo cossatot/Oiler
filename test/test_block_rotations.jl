@@ -15,7 +15,6 @@ function test_predict_block_vel_1()
         [13.16176174592891; 7.656387837884508; -2.299548549083007e-16])
 end
 
-test_predict_block_vel_1()
 
 function test_direct_solve_1_vec()
     PvGb = Oiler.BlockRotations.build_PvGb_deg(-13.98, -52.17)
@@ -28,9 +27,12 @@ function test_direct_solve_1_vec()
     @test isapprox(pole.rotrate, 0.15)
 end
 
-test_direct_solve_1_vec()
 
 
 function test_make_block_PvGb_from_vels_1_vel()
 end
 
+@testset "test block_rotations.jl" begin
+    test_predict_block_vel_1()
+    test_direct_solve_1_vec()
+end

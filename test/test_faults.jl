@@ -48,7 +48,6 @@ function test_fault_slip_rate_to_ve_vn()
     end
 end
 
-test_fault_slip_rate_to_ve_vn()
 
 # @test Oiler.get_midpoint(quien_sabe_coords) == (-121.29735, 36.85596)
 
@@ -92,7 +91,6 @@ function test_strike_rot_matrix_xd()
     @test isapprox(v, [-0.7071067811865475; 0.7071067811865475; 0.])
 end
 
-test_strike_rot_matrix_xd()
 
 function test_partials_and_rotation_matrices_1()
     fault = Oiler.Fault(trace = [-5. 0.; 5. 0.], dip_dir = "S", dip = 30.)
@@ -113,5 +111,10 @@ function test_build_velocity_projection_matrix_1()
     @test isapprox(Pf * [1.; 0.; 0.], [1.; 0.; 0.])
 end
 
-test_build_velocity_projection_matrix_1()
 
+@testset begin
+
+    test_fault_slip_rate_to_ve_vn()
+    test_strike_rot_matrix_xd()
+    test_build_velocity_projection_matrix_1()
+end

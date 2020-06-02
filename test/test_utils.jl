@@ -33,7 +33,7 @@ function test_dict_to_sparse()
                    (5, 9)  => 3.0,
                    (1, 4)  => 1.0,
                    (3, 18) => -5.0)
-    S = dict_to_sparse(S)
+    S = dict_to_sparse(sd_test)
     @test S == S_test
 end
 
@@ -72,7 +72,6 @@ function test_make_digraph_from_tuples()
     @test Oiler.Utils.make_digraph_from_tuples(keys) == dg
 end
 
-test_make_digraph_from_tuples()
 
 function test_make_ugraph_from_digraph()
     dg = Dict("c"=>["a"], "b"=>["c"], "r"=>["a", "c"], "a"=>["b"])
@@ -85,7 +84,6 @@ function test_make_ugraph_from_digraph()
     @test Oiler.Utils.make_ugraph_from_digraph(dg) == ug
 end
 
-test_make_ugraph_from_digraph()
 
 function test_find_tricycles()
     ug = Dict(
@@ -99,7 +97,6 @@ function test_find_tricycles()
     @test Oiler.Utils.find_tricycles(ug) == tris
 end
 
-test_find_tricycles()
 
 
 function test_get_cycle_inds_fw()
@@ -109,7 +106,6 @@ function test_get_cycle_inds_fw()
     @test Oiler.Utils.get_cycle_inds(keys, cycle_tup) == cycle_ind
 end
 
-test_get_cycle_inds_fw()
 
 
 function test_get_cycle_inds_rev()
@@ -119,7 +115,6 @@ function test_get_cycle_inds_rev()
     @test Oiler.Utils.get_cycle_inds(keys, cycle_tup) == cycle_ind
 end
 
-test_get_cycle_inds_rev()
 
 
 function test_find_vel_cycles()
@@ -140,7 +135,6 @@ function test_find_vel_cycles()
     @test Oiler.Utils.find_vel_cycles(keys) == vel_cycles
 end
 
-test_find_vel_cycles()
 
 
 function test_flat()
@@ -271,7 +265,6 @@ function test_get_gnss_vels()
     @test gnss_vels == gnss_vel_answer
 end
 
-test_get_gnss_vels()
 
 function test_get_fault_vels()
     get_fault_vels_answer = [
@@ -323,7 +316,6 @@ function test_get_fault_vels()
     @test fault_vels == get_fault_vels_answer
 end
 
-test_get_fault_vels()
 
 
 function test_group_faults()
@@ -338,4 +330,20 @@ function test_group_faults()
     @test fault_groups == group_faults_answer
 end
 
+
+
+@testset "test utils.jl" begin
+
+test_sparse_to_dict()
+test_dict_to_sparse()
+test_make_digraph_from_vels_array_dup_fix_mov()
+test_make_digraph_from_tuples()
+test_make_ugraph_from_digraph()
+test_find_tricycles()
+test_get_cycle_inds_fw()
+test_get_cycle_inds_rev()
+test_find_vel_cycles()
+test_get_gnss_vels()
+test_get_fault_vels()
 test_group_faults()
+end

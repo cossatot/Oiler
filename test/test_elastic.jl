@@ -3,6 +3,8 @@ using PyPlot
 
 using Oiler
 
+rtol = 0.01
+
 # set up
 simple_fault_trace = [1. 1.;
                       1.5 1.5];
@@ -29,18 +31,17 @@ function test_fault_to_okada()
     sx1, sy1, sx2, sy2 = x[4], y[4], x[5], y[5]
 
     # testing setup and oblique mercator projection, not fault_to_okada
-    # values from ProjectSegCoords.m from Meade and Loveless
     @test isapprox([sx1 sy1; sx2 sy2], 
-        [-9.850338894354840e+03 -1.138348096341169e-12; 
-         -9.771721687583831e+03 -1.458853871039167e-12])
+        [111244.43298350969 110580.03346651352; 
+         166877.51617048218 165880.8519944189])
 
     @test isapprox(gnss_x, 
-        1e4 .* [-1.000758826921680; -0.981095071914695; -0.981110799198045])
+        [-63.83592381656264, 139063.5799087486, 139063.63252006823])
     
     @test isapprox(gnss_y, 
-        [0.044903674262838; 0.075810489054318; -0.081423421703794])
+        [9.856198685358322e-10, 138339.6675458058, 138118.51794367697])
 
-    # now test fault_to_okada vs. fault_params_to_okada_form.m by M+L
+    # now test fault_to_okada
     D = Oiler.fault_to_okada(simple_fault, sx1, sy1, sx2, sy2)
 
     @test isapprox(D["strike"], 6.283185307179583)
@@ -56,7 +57,6 @@ function test_fault_to_okada()
     @test isapprox(D["tfye"], -1.000000000001459)
 end
 
-# test_fault_to_okada()
 
 
 function test_okada_dip_slip()
@@ -70,21 +70,21 @@ function test_okada_dip_slip()
         gnss_x, gnss_y)
     
     # test values from using okada_partials.m by Meade and Loveless
-    @test isapprox(ves, [0; 0; 0])
-    @test isapprox(vns, [0; 0; 0])
-    @test isapprox(vus, [0; 0; 0])
+    @test isapprox(ves, [0; 0; 0]; rtol=rtol)
+    @test isapprox(vns, [0; 0; 0]; rtol=rtol)
+    @test isapprox(vus, [0; 0; 0]; rtol=rtol)
     @test isapprox(ved,    
-        1.0e-03 .* [-0.243919705202018; 0.035030039954510;-0.034934183707360])
+        1.0e-03 .* [-0.243919705202018; 0.035030039954510;-0.034934183707360]; 
+        rtol=rtol)
     @test isapprox(vnd,    
-        [-0.000199992219480; -0.009262479825412; 0.024227041358989])
+        [-0.000199992219480; -0.009262479825412; 0.024227041358989]; rtol=rtol)
     @test isapprox(vud,    
-        [-0.001992787293162; 0.023204884580011; 0.057062430886315])
-    @test isapprox(vet, [0; 0; 0])
-    @test isapprox(vnt, [0; 0; 0])
-    @test isapprox(vut, [0; 0; 0])
+        [-0.001992787293162; 0.023204884580011; 0.057062430886315]; rtol=rtol)
+    @test isapprox(vet, [0; 0; 0]; rtol=rtol)
+    @test isapprox(vnt, [0; 0; 0]; rtol=rtol)
+    @test isapprox(vut, [0; 0; 0]; rtol=rtol)
 end
 
-# test_okada_dip_slip()
 
 
 function test_okada_strike_slip()
@@ -99,11 +99,11 @@ function test_okada_strike_slip()
     
     # test values from using okada_partials.m by Meade and Loveless
     @test isapprox(ves,    
-        [0.000278311207785; -0.019970149820352; 0.003279330179775])
+        [0.000278311207785; -0.019970149820352; 0.003279330179775]; rtol=rtol)
     @test isapprox(vns,    
-        [0.002821784569174; -0.000074894257506; 0.000072978696014])
+        [0.002821784569174; -0.000074894257506; 0.000072978696014]; rtol=rtol)
     @test isapprox(vus,    
-        1.0e-3 .* [-0.316155394920109; 0.038678751237683; -0.037786443714757])
+        1.0e-3 .* [-0.316155394920109; 0.038678751237683; -0.037786443714757]; rtol=rtol)
     @test isapprox(ved, [0; 0; 0])
     @test isapprox(vnd, [0; 0; 0])
     @test isapprox(vud, [0; 0; 0])
@@ -112,7 +112,6 @@ function test_okada_strike_slip()
     @test isapprox(vut, [0; 0; 0])
 end
 
-# test_okada_strike_slip()
 
 
 function test_okada_tensile()
@@ -133,14 +132,14 @@ function test_okada_tensile()
     @test isapprox(vnd, [0; 0; 0])
     @test isapprox(vud, [0; 0; 0])
     @test isapprox(vet,    
-        1.0e-03 .* [0.244273925530614; -0.035436156199882; 0.034506189911012])
+        1.0e-03 .* [0.244273925530614; -0.035436156199882; 0.034506189911012]; 
+        rtol=rtol)
     @test isapprox(vnt,    
-        [0.000199966556297; -0.006285547974839; -0.006095019820654])
+        [0.000199966556297; -0.006285547974839; -0.006095019820654]; rtol=rtol)
     @test isapprox(vut,    
-        [0.001992761716366; -0.038169618939615; -0.038100199139836])
+        [0.001992761716366; -0.038169618939615; -0.038100199139836]; rtol=rtol)
 end
 
-# test_okada_tensile()
 
 function test_okada_partials()
     x, y = Oiler.Faults.fault_oblique_merc(simple_fault, gnss_lons, gnss_lats)
@@ -154,26 +153,25 @@ function test_okada_partials()
     
     # test values from using okada_partials.m by Meade and Loveless
     @test isapprox(ves,    
-        [0.000278311207785; -0.019970149820352; 0.003279330179775])
+        [0.000278311207785; -0.019970149820352; 0.003279330179775]; rtol=rtol)
     @test isapprox(vns,    
-        [0.002821784569174; -0.000074894257506; 0.000072978696014])
+        [0.002821784569174; -0.000074894257506; 0.000072978696014]; rtol=rtol)
     @test isapprox(vus,    
-        1.0e-3 .* [-0.316155394920109; 0.038678751237683; -0.037786443714757])
+        1.0e-3 .* [-0.316155394920109; 0.038678751237683; -0.037786443714757]; rtol=rtol)
     @test isapprox(ved,    
-        1.0e-03 .* [-0.243919705202018; 0.035030039954510;-0.034934183707360])
+        1.0e-03 .* [-0.243919705202018; 0.035030039954510;-0.034934183707360]; rtol=rtol)
     @test isapprox(vnd,    
-        [-0.000199992219480; -0.009262479825412; 0.024227041358989])
+        [-0.000199992219480; -0.009262479825412; 0.024227041358989]; rtol=rtol)
     @test isapprox(vud,    
-        [-0.001992787293162; 0.023204884580011; 0.057062430886315])
+        [-0.001992787293162; 0.023204884580011; 0.057062430886315]; rtol=rtol)
     @test isapprox(vet,    
-        1.0e-03 .* [0.244273925530614; -0.035436156199882; 0.034506189911012])
+        1.0e-03 .* [0.244273925530614; -0.035436156199882; 0.034506189911012]; rtol=rtol)
     @test isapprox(vnt,    
-        [0.000199966556297; -0.006285547974839; -0.006095019820654])
+        [0.000199966556297; -0.006285547974839; -0.006095019820654]; rtol=rtol)
     @test isapprox(vut,    
-        [0.001992761716366; -0.038169618939615; -0.038100199139836])
+        [0.001992761716366; -0.038169618939615; -0.038100199139836]; rtol=rtol)
 end
 
-# test_okada_partials()
 
 
 function test_okada_ss_grid()
@@ -243,5 +241,14 @@ function test_okada_ss_grid_30ish_strike()
     show()
 
 end
+#test_okada_ss_grid_30ish_strike()
 
-test_okada_ss_grid_30ish_strike()
+
+@testset "test elastic.jl" begin
+
+    test_fault_to_okada()
+    test_okada_dip_slip()
+    test_okada_strike_slip()
+    test_okada_tensile()
+    test_okada_partials()
+end

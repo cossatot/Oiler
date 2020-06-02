@@ -33,7 +33,7 @@ function test_average_azimuth()
                          -121.2073 36.75499];
     
     @test Oiler.average_azimuth(quien_sabe_coords[:,1], quien_sabe_coords[:,2]) ==
-        323.8414207049782
+    143.76672242262174
 end
 
 
@@ -69,6 +69,7 @@ end
 function test_polyline_length()
     trace = [0. 0.; 0. 0.5; 0. 1.]
     @test Oiler.Geom.polyline_length(trace) == 111.19492664455873
+end
 
 
 function test_point_line_distance_1()
@@ -109,7 +110,7 @@ end
 
 
 
-@testset begin
+@testset "test geom.jl" begin
     test_gc_dist()
     test_azimuth_1()
     test_average_azimuth()
