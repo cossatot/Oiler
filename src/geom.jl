@@ -131,6 +131,95 @@ end
 
 
 """
+    terminal_coords_from_bearing_dist
+
+Finds the coordinates for a point that is some distance
+away from another point at a specified (initial) bearing.
+
+Formula from https://www.movable-type.co.uk/scripts/latlong.html
+"""
+function terminal_coords_from_bearing_dist(lon1, lat1, bearing, dist)
+    ang_dist = dist /  EARTH_RAD_KM
+
+    lat2 = asind(sind(lat1) * cos(ang_dist) + cosd(lat1) * sin(ang_dist) * cosd(bearing))
+    lon2 = lon1 + atand( sind(bearing) * sin(ang_dist) * cosd(lat1),
+                         cos(ang_dist) - sind(lat1) * sind(lat2))
+    lon2, lat2
+end
+
+
+"""
+    polyline_length(polyline)
+
+Calculates the length of a polyline of (longitude, latitude) coordinates
+as the sum of great-circle distances between the points.  Length is returned
+in kilometers.
+"""
+function polyline_length(polyline::Array{Float64,2})
+    n_segs = size(polyline, 1) - 1
+    seg_lengths = Array{Float64}(undef, n_segs)
+    
+    for i in 1:n_segs
+        seg_lengths[i] = gc_distance(polyline[i,1], polyline[i,2],
+            polyline[i+1,1], polyline[i+1,2])
+    end
+
+    sum(seg_lengths)
+end
+
+
+"""
+    sample_polyline(polyline, dists)
+
+Returns the coordinates of points along a polyline at specified distances
+from the start point. The line should be in longitude, latitude (WGS84) format
+and the distances should be in km.  All distance calculations are the great
+circle distance.
+
+# Arguments
+- `polyline::Array{Float64,2}``: An array of coordinates in (lon, lat) form.
+- `dists`: Some collection or iterable of distances from the start point. These
+    should be positive floats.
+
+# Returns
+Coordinates for each positive distance that is less than the total length
+of the polyline. Note that no coordinates will be returned for distances
+that are negative or greater than the total length of the line, so the
+number of returned coordinates may be less than the number of distances passed
+as the argument.
+"""
+function sample_polyline(polyline::Array{Float64,2}, dists)
+    n_segs = size(polyline, 1) - 1
+    seg_lengths = Array{Float64}(undef, n_segs)
+    new_pts = Array{Float64,2}[]
+
+    for i in 1:n_segs
+        seg_lengths[i] = gc_distance(polyline[i,1], polyline[i,2],
+            polyline[i+1,1], polyline[i+1,2])
+    end
+
+    cum_lengths = vcat(0., cumsum(seg_lengths))
+
+    for dist in dists[dists .> 0]
+        last_smaller_idx = size(cum_lengths[cum_lengths .< dist], 1) 
+        if last_smaller_idx <= n_segs
+            start_lon, start_lat = polyline[last_smaller_idx, :]
+            end_lon, end_lat = polyline[last_smaller_idx+1, :]
+            seg_az = azimuth(start_lon, start_lat, end_lon, end_lat)
+            remain_dist = dist - cum_lengths[last_smaller_idx]
+            
+            new_lon, new_lat = terminal_coords_from_bearing_dist(start_lon,
+                start_lat, seg_az, remain_dist)
+
+            push!(new_pts, [new_lon new_lat])
+         # elseif ??
+        end
+    end
+    vcat(new_pts)
+end
+
+
+"""
 Simplifies a polyline based on the Ramer-Douglas-Peucker algorithm.
 
 Code based on Fabian Hirschmann's RDP Python code.
