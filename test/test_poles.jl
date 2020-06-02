@@ -16,4 +16,6 @@ function test_euler_pole_conversion_1()
     @test isapprox(pole_sc.rotrate, pole_s.rotrate)
 end
 
-test_euler_pole_conversion_1()
+@testset "test_euler_pole_conversion_1" begin
+    test_euler_pole_conversion_1()
+end
