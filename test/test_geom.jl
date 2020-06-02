@@ -109,6 +109,28 @@ function test_simplify_polyline_rosettacode()
 end
 
 
+function test_break_polyline_equal_1()
+    tr = [0. 0.; 3. 3.; 9. 9.; 10. 10.]
+    @test Oiler.Geom.break_polyline_equal(tr, 1) == [tr]
+end
+
+function test_break_polyline_equal_2()
+    tr = [0. 0.; 3. 3.; 9. 9.; 10. 10.]
+    @test Oiler.Geom.break_polyline_equal(tr, 2) == 
+    [[0.0 0.0; 3.0 3.0; 4.980085962376654 5.000771545105226],
+    [4.980085962376654 5.000771545105226; 9.0 9.0; 10.0 10.0]]
+
+end
+
+function test_break_polyline_equal_3()
+    tr = [0. 0.; 3. 3.; 9. 9.; 10. 10.]
+    @test Oiler.Geom.break_polyline_equal(tr, 4) ==
+    [[0.0 0.0; 2.493526173498305 2.4945825672649673],
+    [2.493526173498305 2.4945825672649673; 3.0 3.0; 4.980085962376654 5.000771545105226],
+    [4.980085962376654 5.000771545105226; 7.481540598820497 7.50169718205662],
+    [7.481540598820497 7.50169718205662; 9.0 9.0; 10.0 10.0]]
+end
+
 
 @testset "test geom.jl" begin
     test_gc_dist()
@@ -123,5 +145,9 @@ end
     test_point_line_distance_2()
     test_simplify_polyline_vert()
     test_simplify_polyline_rosettacode()
+    test_break_polyline_equal_1()
+    test_break_polyline_equal_2()
+    test_break_polyline_equal_3()
+
 end
 

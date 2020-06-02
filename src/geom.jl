@@ -148,6 +148,18 @@ function terminal_coords_from_bearing_dist(lon1, lat1, bearing, dist)
 end
 
 
+function polyline_seg_lengths(polyline::Array{Float64,2})
+    n_segs = size(polyline, 1) - 1
+    seg_lengths = Array{Float64}(undef, n_segs)
+    
+    for i in 1:n_segs
+        seg_lengths[i] = gc_distance(polyline[i,1], polyline[i,2],
+            polyline[i+1,1], polyline[i+1,2])
+    end
+    seg_lengths
+end
+
+
 """
     polyline_length(polyline)
 
@@ -156,14 +168,7 @@ as the sum of great-circle distances between the points.  Length is returned
 in kilometers.
 """
 function polyline_length(polyline::Array{Float64,2})
-    n_segs = size(polyline, 1) - 1
-    seg_lengths = Array{Float64}(undef, n_segs)
-    
-    for i in 1:n_segs
-        seg_lengths[i] = gc_distance(polyline[i,1], polyline[i,2],
-            polyline[i+1,1], polyline[i+1,2])
-    end
-
+    seg_lengths = polyline_seg_lengths(polyline)
     sum(seg_lengths)
 end
 
@@ -189,17 +194,12 @@ number of returned coordinates may be less than the number of distances passed
 as the argument.
 """
 function sample_polyline(polyline::Array{Float64,2}, dists)
-    n_segs = size(polyline, 1) - 1
-    seg_lengths = Array{Float64}(undef, n_segs)
-    new_pts = Array{Float64,2}[]
-
-    for i in 1:n_segs
-        seg_lengths[i] = gc_distance(polyline[i,1], polyline[i,2],
-            polyline[i+1,1], polyline[i+1,2])
-    end
-
+    seg_lengths = polyline_seg_lengths(polyline)
+    n_segs = length(seg_lengths)
     cum_lengths = vcat(0., cumsum(seg_lengths))
 
+    new_pts = Array{Float64,2}[]
+    
     for dist in dists[dists .> 0]
         last_smaller_idx = size(cum_lengths[cum_lengths .< dist], 1) 
         if last_smaller_idx <= n_segs
@@ -264,6 +264,48 @@ function point_line_distance(point, line_start, line_end)
     top = abs(norm(two_cross(line_end .- line_start, line_start .- point)))
     bottom = norm(line_end .- line_start)
     return top / bottom
+end
+
+
+
+function break_polyline_equal(polyline, n_segs)
+    segment_lengths = polyline_seg_lengths(polyline)
+    vertex_cum_dists = vcat(0., cumsum(segment_lengths))
+    poly_length = vertex_cum_dists[end]
+
+    new_polylines = []
+    if n_segs > 1
+        seg_length = poly_length / n_segs
+        cum_lengths = seg_length .* collect(1:n_segs)
+        break_dists = cum_lengths[1:end-1]
+
+        break_coords = sample_polyline(polyline, break_dists)
+        break_idxs = [length(vertex_cum_dists[vertex_cum_dists .< break_dist])
+            for break_dist in break_dists]
+
+        for n_seg in 1:n_segs
+            if n_seg == 1
+                start_idx = 1
+                stop_idx = break_idxs[1]
+                seg_trace = vcat(polyline[start_idx:stop_idx, :], 
+                                 break_coords[1])
+            elseif (n_seg > 1) & (n_seg < n_segs)
+                start_idx = break_idxs[n_seg-1] + 1
+                stop_idx = break_idxs[n_seg]
+                seg_trace = vcat(break_coords[n_seg-1], 
+                                 polyline[start_idx:stop_idx, :],
+                                 break_coords[n_seg])
+            else
+                start_idx = break_idxs[n_seg-1] + 1
+                seg_trace = vcat(break_coords[n_seg-1],
+                                 polyline[start_idx:end,:])
+            end #if
+            push!(new_polylines, seg_trace)
+        end #for n_seg
+    else
+        push!(new_polylines, polyline)
+    end
+    new_polylines
 end
 
 

@@ -1,10 +1,11 @@
 module Faults
 export Fault, fault_to_vel, fault_slip_rate_to_ve_vn, ve_vn_to_fault_slip_rate,
     fault_oblique_merc, build_strike_rot_matrix, 
-    build_velocity_projection_matrix
+    build_velocity_projection_matrix, fault_to_vels
 
 using Parameters
 
+using Oiler
 using ..Oiler: VelocityVectorSphere, average_azimuth, az_to_angle,
 angle_difference, rotate_velocity, EARTH_RAD_KM, oblique_merc
 
@@ -156,11 +157,7 @@ The velocity is expressed as the horizontal velocity of the moving footwall wall
 relative to the fixed hanging wall (for vertical faults, this is the moving
 right-hand-side block relative to the fixed left-hand-side block when looking
 from the last trace coordinate to the first trace coordinate). The geographic
-location of the `VelocityVectorSphere` is either the middle trace coordinate (if
-there is an odd number of vertices) or the middle of the central section (if
-there is an even number of vertices); this may or may not correspond to the
-exact midpoint of the fault trace, depending on the distribution of vertices
-along the fault's length.
+location of the `VelocityVectorSphere` is the middle of the fault trace.
 """
 function fault_to_vel(fault::Fault)
     ve, vn = fault_slip_rate_to_ve_vn(fault.dextral_rate, fault.extension_rate,
@@ -179,6 +176,12 @@ end
 
 
 function get_midpoint(trace::Array{Float64,2})
+    fault_length = Oiler.Geom.polyline_length(trace)
+    mid_pt = Oiler.Geom.sample_polyline(trace, [fault_length / 2.])[1]
+end
+
+
+function get_midpoint_old(trace::Array{Float64,2})
     n_pts = size(trace)[1]
 
     if iseven(n_pts)
@@ -224,6 +227,40 @@ function ve_vn_to_fault_slip_rate(ve::Float64, vn::Float64, strike::Float64)
     angle = az_to_angle(strike)
 
     rotate_velocity(ve, vn, -angle)
+end
+
+
+"""
+    fault_to_vels
+
+Makes multiple velocities from a fault. This is to weight the velocity inversion
+by the length of faults, and to provide some damping againts excessive
+local rotations induced by too few rotations.
+"""
+function fault_to_vels(fault::Fault; simp_dist::Float64=1.)
+    simp_trace = Oiler.Geom.simplify_polyline(fault.trace, simp_dist)
+    fault_length = Oiler.Geom.polyline_length(simp_trace)
+
+    if fault_length < 20.
+        n_segs = 1
+    elseif (20. <= fault_length) & (fault_length < 60.)
+        n_segs = 2
+    elseif (60. <= fault_length) & (fault_length < 150.)
+        n_segs = 3
+    else
+        n_segs = Int(floor(150. / 50.))
+    end
+
+    new_traces = Oiler.Geom.break_polyline_equal(simp_trace, n_segs)
+
+    vels = [fault_to_vel(
+               Fault(; trace=tr, dip=fault.dip, dip_dir=fault.dip_dir,
+               extension_rate=fault.extension_rate,
+               extension_err=fault.extension_err,
+               dextral_rate=fault.dextral_rate, dextral_err=fault.dextral_err,
+               lsd=fault.lsd, usd=fault.usd, name=fault.name, hw=fault.hw,
+               fw=fault.fw)) 
+            for tr in new_traces] 
 end
 
 

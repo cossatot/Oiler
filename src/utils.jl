@@ -418,7 +418,7 @@ function get_fault_slip_rates_from_poles(faults, poles)
             pole = poles[reverse(fault_key)]
             push!(rates, get_fault_slip_rate_from_pole(fault, pole))
         else
-            @warn "No pole found for $pole"
+            @warn "No pole found for $fault_key"
             push!(rates, (NaN, NaN))
         end
     end
