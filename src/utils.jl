@@ -40,18 +40,18 @@ end
 
 
 function sparse_to_dict(sparray::SparseMatrixCSC)
-    #(rows, cols, vals) = findnz(sparray)
+    # (rows, cols, vals) = findnz(sparray)
     nz_inds = Tuple(findall(!iszero, sparray))
     rows = [nzi[1] for nzi in nz_inds]
     cols = [nzi[2] for nzi in nz_inds]
-    Dict( (r, cols[i]) => sparray[r, cols[i]] for (i, r) in enumerate(rows))
+    Dict((r, cols[i]) => sparray[r, cols[i]] for (i, r) in enumerate(rows))
 end
 
 
 function dict_to_sparse(sparse_dict::Dict)
-    rowz = [] #Array{Int}(length(sparse_dict))
-    colz = [] #Array{Int}(length(sparse_dict))
-    valz = [] #Array{}(length(sparse_dict))
+    rowz = [] # Array{Int}(length(sparse_dict))
+    colz = [] # Array{Int}(length(sparse_dict))
+    valz = [] # Array{}(length(sparse_dict))
     for ((r, c), v) in sparse_dict
         push!(rowz, r)
         push!(colz, c)
@@ -77,10 +77,10 @@ end
 
 
 """
-function lin_indep_cols(X; tol=1e-10)
+function lin_indep_cols(X; tol = 1e-10)
 
 
-    #if ~(nnz(X .* 1)) # check for all zeros
+    # if ~(nnz(X .* 1)) # check for all zeros
     if ~(true)
         idx = [];
     else
@@ -99,13 +99,13 @@ function lin_indep_cols(X; tol=1e-10)
 
         r = findlast(diagr .>= tol * diagr[1])
         idx = sort(P[1:r])
-        end
+    end
     idx
 end
 
 
-function lin_indep_rows(X; tol=1e-10)
-    lin_indep_cols(X'; tol=tol)
+function lin_indep_rows(X; tol = 1e-10)
+    lin_indep_cols(X'; tol = tol)
 end
 
 
@@ -211,16 +211,23 @@ function find_tricycles(graph::Dict; reduce::Bool = true)
 
     for (from, tos) in graph
         for to in tos
-            if to != from
-                for next in graph[to]
-                    if next != from
-                        for fin in graph[next]
-                            if fin == from
-                                path = [from, to, next]
-                                push!(all_tris, path)
+            try
+                if to != from
+                    for next in graph[to]
+                        if next != from
+                            for fin in graph[next]
+                                if fin == from
+                                    path = [from, to, next]
+                                    push!(all_tris, path)
+                                end
                             end
                         end
                     end
+                end
+            catch e
+                if isa(e, KeyError)
+                    err_msg = "problem with ($from, $to)"
+                    @warn err_msg
                 end
             end
         end
@@ -347,6 +354,12 @@ mov::String)
     
     if fix == mov
         final_pole = PoleCart(x = 0., y = 0., z = 0., fix = fix, mov = mov)
+
+    elseif length([p for p in poles if (p.fix == fix) & (p.mov == mov)]) == 1
+        final_pole = [p for p in poles if (p.fix == fix) & (p.mov == mov)][1]
+    elseif length([p for p in poles if (p.mov == fix) & (p.fix == mov)]) == 1
+        final_pole = [p for p in poles if (p.fix == fix) & (p.mov == mov)][1]
+        final_pole = -final_pole
     else
         vel_dg = make_digraph_from_poles(poles)
         vel_ug = make_ugraph_from_digraph(vel_dg)
@@ -356,6 +369,20 @@ mov::String)
         pole_path = get_pole_path(poles, path)
 
         final_pole = add_poles(pole_path)
+    end
+    final_pole
+end
+
+
+function get_path_euler_pole(poles::Dict, fix::String, mov::String)
+
+    if haskey(poles, (fix, mov))
+        final_pole = poles[(fix, mov)]
+    elseif haskey(poles, (mov, fix))
+        final_pole = -poles[(mov, fix)]
+    else
+        pole_arr = [v for v in values(poles)]
+        final_pole = get_path_euler_pole(pole_arr, fix, mov)
     end
     final_pole
 end
@@ -398,7 +425,37 @@ function get_vel_vec_at_pole(vel::VelocityVectorSphere, pole::PoleSphere)
 end
 
 
-function get_fault_slip_rate_from_pole(fault, pole)
+function check_vel_closures(poles; tol = 1e-5)
+    v_keys = sort(collect(Tuple(keys(poles))))
+    block_digraph = make_digraph_from_tuples(v_keys)
+    block_ugraph = make_ugraph_from_digraph(block_digraph)
+    cycles = find_tricycles(block_ugraph)
+
+    all_good = true
+
+    for cycle in cycles
+        pole_12 = get_path_euler_pole(poles, cycle[1], cycle[2])
+        pole_23 = get_path_euler_pole(poles, cycle[2], cycle[3])
+        pole_31 = get_path_euler_pole(poles, cycle[3], cycle[1])
+
+        p_sum = Oiler.pole_cart_to_sphere(pole_12 + pole_23 + pole_31)
+
+        if p_sum.rotrate > tol
+            warn_msg = "$cycle does not close"
+            all_good = false
+            @warn warn_msg
+        end
+    end
+
+    if all_good == true
+        @info "All poles close"
+    end
+    all_good
+end
+
+
+
+    function get_fault_slip_rate_from_pole(fault, pole)
     fv = Oiler.Faults.fault_to_vel(fault)
     vel_vec = get_vel_vec_at_pole(fv, pole)
     R = Oiler.Faults.build_strike_rot_matrix(fault.strike)
@@ -407,7 +464,7 @@ function get_fault_slip_rate_from_pole(fault, pole)
 end
 
 
-function get_fault_slip_rates_from_poles(faults, poles)
+    function get_fault_slip_rates_from_poles(faults, poles)
     rates = []
     for fault in faults
         fault_key = (fault.fw, fault.hw)
@@ -428,8 +485,8 @@ end
 
 
 
-function group_faults(faults, vel_group_keys)
-    fault_groups = Dict(k=>[] for k in vel_group_keys)
+    function group_faults(faults, vel_group_keys)
+    fault_groups = Dict(k => [] for k in vel_group_keys)
 
     for fault in faults
         for k in vel_group_keys
@@ -439,11 +496,11 @@ function group_faults(faults, vel_group_keys)
         end
     end
 
-    fault_groups = Dict(k=>v for (k,v) in fault_groups if v != [])
+    fault_groups = Dict(k => v for (k, v) in fault_groups if v != [])
 end
 
 
-"""
+    """
     get_fault_vels(vel_groups)
 
 Collects all of the faults from the velocity groups, with
@@ -454,28 +511,28 @@ some ancillary metadata.
 # Returns
 
 """
-function get_fault_vels(vel_groups)
-    faults = []
-    row_set_num = 0
-    vg_keys = sort(collect(Tuple(keys(vel_groups))))
+    function get_fault_vels(vel_groups)
+        faults = []
+        row_set_num = 0
+        vg_keys = sort(collect(Tuple(keys(vel_groups))))
     
-    for (i, key) in enumerate(vg_keys)
-        group = vel_groups[key]
-        col_idx = 3 * (i - 1) + 1
-        for vel in group
-            row_set_num += 1
-            if vel.vel_type == "fault"
-                row_idx = 3 * (row_set_num - 1) + 1
-                vel_idx = [row_idx:row_idx + 2, col_idx:col_idx + 2]
-                vd = Dict()
-                vd["fault"] = vel
-                vd["idx"] = vel_idx
-                push!(faults, vd)
-            end # if
+        for (i, key) in enumerate(vg_keys)
+            group = vel_groups[key]
+            col_idx = 3 * (i - 1) + 1
+            for vel in group
+                row_set_num += 1
+                if vel.vel_type == "fault"
+                    row_idx = 3 * (row_set_num - 1) + 1
+                    vel_idx = [row_idx:row_idx + 2, col_idx:col_idx + 2]
+                    vd = Dict()
+                    vd["fault"] = vel
+                    vd["idx"] = vel_idx
+                    push!(faults, vd)
+                end # if
+            end # for
         end # for
-    end # for
-    faults
-end
+        faults
+    end
 
 
 
@@ -490,40 +547,40 @@ some ancillary metadata.
 # Returns
 
 """
-function get_gnss_vels(vel_groups)
-    gnss_vels = []
-    row_set_num = 0
-    vg_keys = sort(collect(Tuple(keys(vel_groups))))
+    function get_gnss_vels(vel_groups)
+        gnss_vels = []
+        row_set_num = 0
+        vg_keys = sort(collect(Tuple(keys(vel_groups))))
 
-    for (i, key) in enumerate(vg_keys)
-        group = vel_groups[key]
-        col_idx = 3 * (i - 1) + 1
-        for vel in group
-            row_set_num += 1
-            if vel.vel_type == "GNSS"
-                row_idx = 3 * (row_set_num - 1) + 1
-                vel_idx = [row_idx:row_idx + 2, col_idx:col_idx + 2]
-                vd = Dict()
-                vd["vel"] = vel
-                vd["idx"] = vel_idx
-                push!(gnss_vels, vd)
-            end # if
+        for (i, key) in enumerate(vg_keys)
+            group = vel_groups[key]
+            col_idx = 3 * (i - 1) + 1
+            for vel in group
+                row_set_num += 1
+                if vel.vel_type == "GNSS"
+                    row_idx = 3 * (row_set_num - 1) + 1
+                    vel_idx = [row_idx:row_idx + 2, col_idx:col_idx + 2]
+                    vd = Dict()
+                    vd["vel"] = vel
+                    vd["idx"] = vel_idx
+                    push!(gnss_vels, vd)
+                end # if
+            end # for
         end # for
-    end # for
-    gnss_vels
-end
+        gnss_vels
+    end
 
 
-"""
+    """
     get_coords_from_vel_array(vels)
 
 Returns (lons, lats) as arrays of floats from an array of `VelocityVectorSphere`
 """
-function get_coords_from_vel_array(vels::Array{VelocityVectorSphere})
-    lats = [v.lat for v in vels]
-    lons = [v.lon for v in vels]
+    function get_coords_from_vel_array(vels::Array{VelocityVectorSphere})
+        lats = [v.lat for v in vels]
+        lons = [v.lon for v in vels]
 
-    (lons, lats)
-end
+        (lons, lats)
+    end
 
 end # module

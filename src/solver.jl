@@ -185,9 +185,15 @@ end
 
 function add_equality_constraints_bi_objective(PvGb, Vc, cm)
     p = size(cm, 1)
-    lhs = [PvGb; cm .* 1e12]
-    rhs = [Vc; zeros(p)]
-    (PvGb, Vc)
+    if p == 0
+        lhs = PvGb
+        rhs = Vc
+    else
+        lhs = [PvGb; cm .* 1e20]
+        rhs = [Vc; zeros(p)]
+    end
+
+    (lhs, rhs)
 end
 
 
@@ -238,7 +244,7 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
         cm = []
     else
         cm = build_constraint_matrices(cycles, vd["keys"])
-        cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
+        # cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
     end
 
     if regularize == true
@@ -253,6 +259,7 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
     end
     
     if weighted == true
+        cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
         lhs, rhs = make_weighted_constrained_lls_matrices(PvGb, Vc, cm, 
             weights)
     else
@@ -267,7 +274,7 @@ end
 
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array = [], weighted::Bool = true, regularize::Bool = false,
-    l2_lambda::Float64 = 100.0)
+    l2_lambda::Float64 = 100.0, check_closures::Bool = true)
 
     @info "setting up matrices"
     @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups; 
@@ -299,6 +306,10 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
                                      y = soln[i * 3 - 1],
                                      z = soln[i * 3],
                                      fix = fix, mov = mov)
+    end
+
+    if check_closures == true
+        closures = Oiler.Utils.check_vel_closures(poles)
     end
     poles
 end
