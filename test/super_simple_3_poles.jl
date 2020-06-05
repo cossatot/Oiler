@@ -10,6 +10,12 @@ jf_pa = Oiler.PoleSphere(lat = -0.6, lon = 37.8,
     rotrate = 0.625, mov = "jf", fix = "pa");
 na_jf = na_pa - jf_pa
 
+input_poles = Dict(
+    ("pa", "jf") => jf_pa,
+    ("pa", "na") => na_pa,
+    ("jf", "na") => na_jf
+)
+
 p_na_1 = (-121.8, 46.8)
 p_na_2 = (-122.6, 45.5)
 
@@ -72,12 +78,28 @@ wp = Dict(k => Oiler.pole_cart_to_sphere(v) for (k, v) in weight_poles)
 
 function test_poles_equal()
     for (k, p) in wp
-        @test isapprox(p.lon, nwp[k].lon; rtol = 1e-5)
-        @test isapprox(p.lat, nwp[k].lat; rtol = 1e-5)
-        @test isapprox(p.rotrate, nwp[k].rotrate; rtol = 1e-5)
+        @test isapprox(p.lon, nwp[k].lon; rtol = 1e-3)
+        @test isapprox(p.lat, nwp[k].lat; rtol = 1e-3)
+        @test isapprox(p.rotrate, nwp[k].rotrate; rtol = 1e-3)
     end
 end
 
+
+function test_poles_equal_input()
+    for (k, p) in wp
+        @test isapprox(p.lon, input_poles[k].lon; rtol = 1e-3)
+        @test isapprox(p.lat, input_poles[k].lat; rtol = 1e-3)
+        @test isapprox(p.rotrate, input_poles[k].rotrate; rtol = 1e-3)
+    end
+    for (k, p) in nwp
+        @test isapprox(p.lon, input_poles[k].lon; rtol = 1e-3)
+        @test isapprox(p.lat, input_poles[k].lat; rtol = 1e-3)
+        @test isapprox(p.rotrate, input_poles[k].rotrate; rtol = 1e-3)
+    end
+end
+
+
 @testset "super_simple_3_poles.jl pole equality" begin
     test_poles_equal()
+    test_poles_equal_input()
 end
