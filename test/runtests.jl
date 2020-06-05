@@ -9,7 +9,7 @@ using Oiler
     include("test_geom.jl")
     include("test_faults.jl")
     include("test_block_rotations.jl")
-    # include("test_io.jl")
+    include("test_io.jl")
     include("test_utils.jl")
     # include("test_okada.jl")
     # include("test_elastic.jl")  # need to fix many tests
