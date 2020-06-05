@@ -44,9 +44,9 @@ function test_fault_to_okada()
     # now test fault_to_okada
     D = Oiler.fault_to_okada(simple_fault, sx1, sy1, sx2, sy2)
 
-    @test isapprox(D["strike"], 6.283185307179583)
-    @test isapprox(D["L"], 78.617206771008568)
-    @test isapprox(D["W"], 26.870057685088810)
+    @test isapprox(D["strike"], 0.7824030134896427)
+    @test isapprox(D["L"], 78442.46601646818)
+    @test isapprox(D["W"], 26870.05768508881)
     @test isapprox(D["ofx"], -9.850338894354840e+03)
     @test isapprox(D["ofy"], -20.000000000001140)
     @test isapprox(D["ofxe"], -9.771721687583831e+03)
