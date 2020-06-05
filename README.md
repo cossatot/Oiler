@@ -1,9 +1,10 @@
 # Oiler
 
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://cossatot.gitlab.io/Oiler.jl/dev)
-[![Build Status](https://gitlab.com/cossatot/Oiler.jl/badges/master/build.svg)](https://gitlab.com/cossatot/Oiler.jl/pipelines)
-[![Coverage](https://gitlab.com/cossatot/Oiler.jl/badges/master/coverage.svg)](https://gitlab.com/cossatot/Oiler.jl/commits/master)
 
+[![Build
+Status](https://travis-ci.com/cossatot/Oiler.svg?branch=master)](https://travis-ci.com/cossatot/Oiler)
+
+[![Coverage Status](https://coveralls.io/repos/github/cossatot/Oiler/badge.svg?branch=master)](https://coveralls.io/github/cossatot/Oiler?branch=master)
 
 *Note: This project is still in rapid development and not sufficiently tested
 for use by those other than me.*
