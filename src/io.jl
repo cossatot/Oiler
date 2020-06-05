@@ -149,7 +149,6 @@ function gis_vec_file_to_df(filename::AbstractString; layername="")
     # loop over the features to fill the vectors in the Dict
     #for fid in 0:nfeat-1
     for nf in 1:nfeat
-        println(nf)
         try
             feature = AG.unsafe_nextfeature(layer)# do feature
                 for (k, v) in pairs(d)
@@ -166,11 +165,54 @@ function gis_vec_file_to_df(filename::AbstractString; layername="")
             println(e)
         end
     end
-
     # construct a DataFrame from the Dict
     df = DataFrame(d)
 end
 
-# ngeom => get nuymber of points
+
+function get_geom_coords_from_feature(feature)
+    geom = AG.getgeom(feature, 0)
+    coords = get_coords_from_geom(geom)
+end
+
+
+function get_coords_from_geom(geom)
+    n_pts = AG.ngeom(geom)
+
+    coords = Array{Float64}(undef, n_pts, 2)
+
+    for i in 0:n_pts-1
+        coords[i+1, 1] = AG.getx(geom, i)
+        coords[i+1, 2] = AG.gety(geom, i)
+    end
+    coords
+end
+
+
+function get_block_idx_for_points(point_df, block_df)
+    point_geoms = point_df[:, :geometry]
+    idxs = Array{Any}(missing, length(point_geoms))
+
+    for i_b in 1:size(block_df, 1)
+        block_geom = block_df[i_b, :geometry]
+        block_fid = block_df[i_b, :fid]
+        
+        for (i_p, pg) in enumerate(point_geoms)
+            if AG.contains(block_geom, pg)
+                if !ismissing(idxs[i_p])
+                    pfid = point_df[i_p, :fid]
+                    @warn "$pfid in multiple blocks"
+                else
+                    idxs[i_p] = block_fid
+                end
+            end
+        end
+    end
+    idxs
+end
+
+
+
+
 
 end
