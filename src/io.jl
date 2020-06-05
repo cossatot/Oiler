@@ -144,18 +144,26 @@ function gis_vec_file_to_df(filename::AbstractString; layername="")
         d[name] = typ[]
     end
     d["geometry"] = AG.IGeometry[]
+    d["fid"] = Int64[]
 
     # loop over the features to fill the vectors in the Dict
-    for fid in 0:nfeat-1
-        AG.getfeature(layer, fid) do feature
-            for (k, v) in pairs(d)
-                if k == "geometry"
-                    val = AG.getgeom(feature, 0)
-                else
-                    val = AG.getfield(feature, k)
+    #for fid in 0:nfeat-1
+    for nf in 1:nfeat
+        println(nf)
+        try
+            feature = AG.unsafe_nextfeature(layer)# do feature
+                for (k, v) in pairs(d)
+                    if k == "geometry"
+                        val = AG.getgeom(feature, 0)
+                    elseif k == "fid"
+                        val = AG.getfid(feature)
+                    else
+                        val = AG.getfield(feature, k)
+                    end
+                    push!(v, val)
                 end
-                push!(v, val)
-            end
+        catch e
+            println(e)
         end
     end
 
@@ -163,6 +171,6 @@ function gis_vec_file_to_df(filename::AbstractString; layername="")
     df = DataFrame(d)
 end
 
-
+# ngeom => get nuymber of points
 
 end
