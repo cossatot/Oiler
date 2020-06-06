@@ -6,6 +6,7 @@
 *.gpkg-shm
 
 /Manifest.toml
+/clones/
 /dev/
 /docs/build/
 /docs/site/
