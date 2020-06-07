@@ -155,6 +155,8 @@ function compare_poles(p1, p2)
     @test round(p1.rotrate; digits = 2) == round(p2.rotrate; digits = 2)
 end
 
-compare_poles(af_an_s, af_an_pred);
-compare_poles(in_af_s, in_af_pred);
-compare_poles(in_an_s, in_an_pred);
+@testset "five_plates.jl comparing input vs. output poles" begin
+compare_poles(af_an_s, af_an_pred)
+compare_poles(in_af_s, in_af_pred)
+compare_poles(in_an_s, in_an_pred)
+end

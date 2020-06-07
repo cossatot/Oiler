@@ -70,6 +70,10 @@ function compare_poles(p1, p2)
     @test round(p1.rotrate; digits = 2) == round(p2.rotrate; digits = 2)
 end
 
+
+@testset "three_poles.jl comparing input vs. output poles" begin
 compare_poles(an_af_s, an_af_pred);
 compare_poles(af_in_s, af_in_pred);
 compare_poles(an_in_s, an_in_pred);
+
+end
