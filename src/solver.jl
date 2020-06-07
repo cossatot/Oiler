@@ -202,11 +202,11 @@ function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights)
     p, q = size(cm)
     n = length(Vc)
 
-    rhs = [zeros(p, p) zeros(p, n) cm;
-           zeros(n, p) W           PvGb;
-           cm'         PvGb'       zeros(q, q)]
+    rhs = [spzeros(p, p) spzeros(p, n) cm;
+           spzeros(n, p) W           PvGb;
+           cm'           PvGb'       spzeros(q, q)]
 
-    lhs = [zeros(p); Vc; zeros(q)]
+    lhs = [spzeros(p); Vc; spzeros(q)]
 
     rhs, lhs
 end
