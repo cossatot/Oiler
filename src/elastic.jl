@@ -70,7 +70,7 @@ function calc_locking_effects_per_fault(fault::Fault, lons, lats)
     D = fault_to_okada(fault, sx1, sy1, sx2, sy2)
 
     # calc Okada partials
-    elastic_partials = distribute_partials(okada(D, -1., -1., -1.,   
+    elastic_partials = distribute_partials(okada(D, 1., 1., 1.,   
         xg, yg))
 
     # build rotation and transformation matrices
