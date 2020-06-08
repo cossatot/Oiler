@@ -78,10 +78,8 @@ end
 
 """
 function lin_indep_cols(X; tol = 1e-10)
-
-
-    if ~(nnz(X .* 1)) # check for all zeros
-        idx = [:];
+    if ~(true) # supposed to check for all zeros here
+        idx = [];
     else
         Xm = Matrix(X)
 

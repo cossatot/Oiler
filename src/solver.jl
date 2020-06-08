@@ -206,9 +206,9 @@ function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights)
            spzeros(n, p) W           PvGb;
            cm'           PvGb'       spzeros(q, q)]
 
-    lhs = [spzeros(p); Vc; spzeros(q)]
+    lhs = [zeros(p); Vc; zeros(q)]
 
-    rhs, lhs
+    sparse(rhs), lhs
 end
 
 
@@ -241,7 +241,6 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
     if cycles == Dict{Any,Any}()
         lhs = PvGb
         rhs = Vc
-        cm = []
     else
         cm = build_constraint_matrices(cycles, vd["keys"])
         # cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
