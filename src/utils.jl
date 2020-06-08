@@ -80,9 +80,8 @@ end
 function lin_indep_cols(X; tol = 1e-10)
 
 
-    # if ~(nnz(X .* 1)) # check for all zeros
-    if ~(true)
-        idx = [];
+    if ~(nnz(X .* 1)) # check for all zeros
+        idx = [:];
     else
         Xm = Matrix(X)
 
@@ -454,8 +453,7 @@ function check_vel_closures(poles; tol = 1e-5)
 end
 
 
-
-    function get_fault_slip_rate_from_pole(fault, pole)
+function get_fault_slip_rate_from_pole(fault, pole)
     fv = Oiler.Faults.fault_to_vel(fault)
     vel_vec = get_vel_vec_at_pole(fv, pole)
     R = Oiler.Faults.build_strike_rot_matrix(fault.strike)
@@ -464,7 +462,7 @@ end
 end
 
 
-    function get_fault_slip_rates_from_poles(faults, poles)
+function get_fault_slip_rates_from_poles(faults, poles)
     rates = []
     for fault in faults
         fault_key = (fault.fw, fault.hw)
@@ -484,8 +482,7 @@ end
 
 
 
-
-    function group_faults(faults, vel_group_keys)
+function group_faults(faults, vel_group_keys)
     fault_groups = Dict(k => [] for k in vel_group_keys)
 
     for fault in faults
@@ -500,7 +497,7 @@ end
 end
 
 
-    """
+"""
     get_fault_vels(vel_groups)
 
 Collects all of the faults from the velocity groups, with
@@ -511,28 +508,28 @@ some ancillary metadata.
 # Returns
 
 """
-    function get_fault_vels(vel_groups)
-        faults = []
-        row_set_num = 0
-        vg_keys = sort(collect(Tuple(keys(vel_groups))))
-    
-        for (i, key) in enumerate(vg_keys)
-            group = vel_groups[key]
-            col_idx = 3 * (i - 1) + 1
-            for vel in group
-                row_set_num += 1
-                if vel.vel_type == "fault"
-                    row_idx = 3 * (row_set_num - 1) + 1
-                    vel_idx = [row_idx:row_idx + 2, col_idx:col_idx + 2]
-                    vd = Dict()
-                    vd["fault"] = vel
-                    vd["idx"] = vel_idx
-                    push!(faults, vd)
-                end # if
-            end # for
+function get_fault_vels(vel_groups)
+    faults = []
+    row_set_num = 0
+    vg_keys = sort(collect(Tuple(keys(vel_groups))))
+
+    for (i, key) in enumerate(vg_keys)
+        group = vel_groups[key]
+        col_idx = 3 * (i - 1) + 1
+        for vel in group
+            row_set_num += 1
+            if vel.vel_type == "fault"
+                row_idx = 3 * (row_set_num - 1) + 1
+                vel_idx = [row_idx:row_idx + 2, col_idx:col_idx + 2]
+                vd = Dict()
+                vd["fault"] = vel
+                vd["idx"] = vel_idx
+                push!(faults, vd)
+            end # if
         end # for
-        faults
-    end
+    end # for
+    faults
+end
 
 
 
@@ -547,40 +544,40 @@ some ancillary metadata.
 # Returns
 
 """
-    function get_gnss_vels(vel_groups)
-        gnss_vels = []
-        row_set_num = 0
-        vg_keys = sort(collect(Tuple(keys(vel_groups))))
+function get_gnss_vels(vel_groups)
+    gnss_vels = []
+    row_set_num = 0
+    vg_keys = sort(collect(Tuple(keys(vel_groups))))
 
-        for (i, key) in enumerate(vg_keys)
-            group = vel_groups[key]
-            col_idx = 3 * (i - 1) + 1
-            for vel in group
-                row_set_num += 1
-                if vel.vel_type == "GNSS"
-                    row_idx = 3 * (row_set_num - 1) + 1
-                    vel_idx = [row_idx:row_idx + 2, col_idx:col_idx + 2]
-                    vd = Dict()
-                    vd["vel"] = vel
-                    vd["idx"] = vel_idx
-                    push!(gnss_vels, vd)
-                end # if
-            end # for
+    for (i, key) in enumerate(vg_keys)
+        group = vel_groups[key]
+        col_idx = 3 * (i - 1) + 1
+        for vel in group
+            row_set_num += 1
+            if vel.vel_type == "GNSS"
+                row_idx = 3 * (row_set_num - 1) + 1
+                vel_idx = [row_idx:row_idx + 2, col_idx:col_idx + 2]
+                vd = Dict()
+                vd["vel"] = vel
+                vd["idx"] = vel_idx
+                push!(gnss_vels, vd)
+            end # if
         end # for
-        gnss_vels
-    end
+    end # for
+    gnss_vels
+end
 
 
-    """
+"""
     get_coords_from_vel_array(vels)
 
 Returns (lons, lats) as arrays of floats from an array of `VelocityVectorSphere`
 """
-    function get_coords_from_vel_array(vels::Array{VelocityVectorSphere})
-        lats = [v.lat for v in vels]
-        lons = [v.lon for v in vels]
+function get_coords_from_vel_array(vels::Array{VelocityVectorSphere})
+    lats = [v.lat for v in vels]
+    lons = [v.lon for v in vels]
 
-        (lons, lats)
-    end
+    (lons, lats)
+end
 
 end # module
