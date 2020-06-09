@@ -197,22 +197,31 @@ function add_equality_constraints_bi_objective(PvGb, Vc, cm)
 end
 
 
-function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights)
+function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights; sparse_lhs::Bool = false)
     W = sparse(diagm(weights))
     p, q = size(cm)
     n = length(Vc)
+    if sparse_lhs
+        _zeros = spzeros
+    else
+        _zeros = zeros
+    end
+    rhs = [_zeros(p, p) _zeros(p, n) cm;
 
-    rhs = [spzeros(p, p) spzeros(p, n) cm;
-           spzeros(n, p) W           PvGb;
-           cm'           PvGb'       spzeros(q, q)]
+
+           _zeros(n, p) W           PvGb;
+           cm'           PvGb'       _zeros(q, q)]
 
     lhs = [zeros(p); Vc; zeros(q)]
 
-    sparse(rhs), lhs
+    if sparse_lhs
+        return sparse(rhs), lhs
+    else
+        return rhs, lhs
+    end
 end
 
-
-function
+    function
 set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array = [], weighted::Bool = true, regularize::Bool = false,
     l2_lambda::Float64 = 100.0)
@@ -271,7 +280,7 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
 end
 
 
-function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
+    function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array = [], weighted::Bool = true, regularize::Bool = false,
     l2_lambda::Float64 = 100.0, check_closures::Bool = true)
 
@@ -314,7 +323,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 end
 
 
-function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+    function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
     n_iters::Int)
     # consider making .oiler_config file w/ defaults such as max_iters_per_chunk
 
@@ -347,7 +356,7 @@ function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},A
 end
 
 
-function random_sample_vel(vel::VelocityVectorSphere)
+    function random_sample_vel(vel::VelocityVectorSphere)
     rnd = randn(2)
     ve = vel.ve + rnd[1] * vel.ee
     vn = vel.vn + rnd[2] * vel.en
@@ -355,7 +364,7 @@ function random_sample_vel(vel::VelocityVectorSphere)
 end
 
 
-function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int)
+    function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int)
     rnd_ve_block = randn((length(vels), n_samps))
     rnd_vn_block = randn((length(vels), n_samps))
 
@@ -370,7 +379,7 @@ function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int)
 end
 
 
-function random_sample_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+    function random_sample_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
 n_samps::Int)
     vel_group_samps = Dict{Tuple{String,String},Dict{String,Array{Float64,2}}}()
     for (key, group) in vel_groups
@@ -381,12 +390,12 @@ n_samps::Int)
 end
 
 
-function Vc_triple_from_vals(ve::Float64, vn::Float64)
+    function Vc_triple_from_vals(ve::Float64, vn::Float64)
     [ve; vn; 0]
 end
 
 
-function build_Vc_from_vel_sample(vel_samp::Dict{String,Array{Float64,2}},
+    function build_Vc_from_vel_sample(vel_samp::Dict{String,Array{Float64,2}},
     ind::Int)
 
     reduce(vcat, [Vc_triple_from_vals(ve, vel_samp["vn"][i,ind])
@@ -395,7 +404,7 @@ function build_Vc_from_vel_sample(vel_samp::Dict{String,Array{Float64,2}},
 end
 
 
-function build_Vc_from_vel_samples(vel_samps::Dict{Tuple{String,String},Dict{String,Array{Float64,2}}},
+    function build_Vc_from_vel_samples(vel_samps::Dict{Tuple{String,String},Dict{String,Array{Float64,2}}},
     vel_keys::Array{Tuple{String,String}}, ind::Int)
 
     reduce(vcat, [build_Vc_from_vel_sample(vel_samps[key], ind) for key in vel_keys])
