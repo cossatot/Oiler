@@ -70,8 +70,6 @@ th1 = Oiler.Fault(trace = [ -79.798 18.430; -78.76 17.54; -78.08 14.72],
     extension_rate=th1_ex, extension_err=20. * fault_err_scale)
 
 
-
-
 faults = [ss1; ss2; th1]
 # calc partials for each fault
 
