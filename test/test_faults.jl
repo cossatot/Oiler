@@ -44,7 +44,45 @@ function test_fault_slip_rate_to_ve_vn()
     for (inputs, outputs) in test_dict
         @test isapprox(collect(Oiler.fault_slip_rate_to_ve_vn(inputs...)), 
                        collect(outputs))
+    end
+end
 
+
+function test_ve_vn_to_fault_slip_rate()
+    sqrt2 = sqrt(2.)
+    test_dict = Dict(
+        (0., 1., 0.) =>  (1., 0.),
+        (sqrt2 / 2., sqrt2 / 2., 45.) => (1., 0.),
+        (1., 0., 90.) => (1., 0.),
+        (sqrt2 / 2., -sqrt2 / 2., 135.) => (1., 0.),
+
+        (-1., 0., 0.) => (0., 1.),
+        (-sqrt2 / 2., sqrt2 / 2, 45.) => (0., 1.),
+        (0., 1., 90.) => (0., 1.),
+        (0., 1.,   135.) => (sqrt2 / 2., sqrt2 / 2.),
+
+        (1., 1.,   0.)   => (-1., 1),
+        (-1., 1.,  0.)   => (-1, -1),
+        (1., -1.,  0.)   => (1, 1),
+        (-1., -1., 0.)   => (1, -1),
+
+        (0., sqrt2,  45.) => (1., 1.),
+        (-sqrt2, 0., 45.) =>  (-1., 1.),
+        (sqrt2, 0., 45.) => (1., -1.),
+        (0., -sqrt2, 45.) => (-1., -1.),
+        (1., 1., 90.) => (1., 1.),
+        (-1., 1., 90.) => (-1., 1.),
+        (1., -1., 90.) => (1., -1.),
+        (-1., -1., 90.) => (-1., -1.),
+        (sqrt2, 0., 135.) => (1., 1.),
+        (0., sqrt2, 135.) => (-1., 1.),
+        (0., -sqrt2, 135.) => (1., -1.),
+        (-sqrt2, 0., 135.)=> (-1., -1.)
+    )
+
+    for (inputs, outputs) in test_dict
+        @test isapprox(collect(Oiler.Faults.ve_vn_to_fault_slip_rate(inputs...)),
+        collect(outputs))
     end
 end
 
