@@ -454,8 +454,8 @@ end
 function get_fault_slip_rate_from_pole(fault, pole)
     fv = Oiler.Faults.fault_to_vel(fault)
     vel_vec = get_vel_vec_at_pole(fv, pole)
-    R = Oiler.Faults.build_strike_rot_matrix(fault.strike)
-    v_rl, v_ex, v_up = R * vel_vec
+    ve, vn = vel_vec[1], vel_vec[2]
+    v_rl, v_ex = Oiler.Faults.ve_vn_to_fault_slip_rate(ve, vn, fault.strike)
     v_rl, v_ex
 end
 

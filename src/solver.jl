@@ -323,8 +323,21 @@ end
 end
 
 
-    function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+function calc_forward_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+    poles::Dict{Any,Any}; faults::Array = [], weighted::Bool = true)
+
+    block_inv_setup = set_up_block_inv_w_constraints(vel_groups; faults=faults,
+        weighted = weighted)
+    @warn "NOT FINISHED IMPLEMENTING"
+
+end
+
+    
+
+
+function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
     n_iters::Int)
+    @warn "not updated in a while and perhaps disfunctional"
     # consider making .oiler_config file w/ defaults such as max_iters_per_chunk
 
     # left hand side
