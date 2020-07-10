@@ -222,7 +222,7 @@ end
     function
 set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array = [], weighted::Bool = true, regularize::Bool = false,
-    l2_lambda::Float64 = 100.0)
+    l2_lambda::Float64 = 100.0, sparse_lhs::Bool = false)
 
     @info " making block inversion matrices"
     vd = make_block_inversion_matrices_from_vels(vel_groups)
@@ -267,7 +267,7 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
     if weighted == true
         cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
         lhs, rhs = make_weighted_constrained_lls_matrices(PvGb, Vc, cm, 
-            weights)
+            weights; sparse_lhs = sparse_lhs)
     else
         lhs, rhs = add_equality_constraints_bi_objective(PvGb, Vc, cm)
         # lhs, rhs = add_equality_constraints_kkt(PvGb, Vc, cm)
@@ -280,12 +280,13 @@ end
 
     function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array = [], weighted::Bool = true, regularize::Bool = false,
-    l2_lambda::Float64 = 100.0, check_closures::Bool = true)
+    l2_lambda::Float64 = 100.0, check_closures::Bool = true, sparse_lhs::Bool = false)
 
     @info "setting up matrices"
     @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups; 
         faults = faults, weighted = weighted, 
-        regularize = regularize, l2_lambda = l2_lambda)
+        regularize = regularize, l2_lambda = l2_lambda,
+        sparse_lhs = sparse_lhs)
     
     lhs = block_inv_setup["lhs"]
     lhs_size = size(lhs)
