@@ -207,8 +207,6 @@ function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights; sparse_lh
         _zeros = zeros
     end
     rhs = [_zeros(p, p) _zeros(p, n) cm;
-
-
            _zeros(n, p) W           PvGb;
            cm'           PvGb'       _zeros(q, q)]
 
