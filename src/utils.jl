@@ -77,7 +77,7 @@ end
 
 
 """
-function lin_indep_cols(X; tol = 1e-10)
+function lin_indep_cols(X; tol=1e-10)
     if ~(true) # supposed to check for all zeros here
         idx = [];
     else
@@ -101,8 +101,8 @@ function lin_indep_cols(X; tol = 1e-10)
 end
 
 
-function lin_indep_rows(X; tol = 1e-10)
-    lin_indep_cols(X'; tol = tol)
+function lin_indep_rows(X; tol=1e-10)
+    lin_indep_cols(X'; tol=tol)
 end
 
 
@@ -136,7 +136,17 @@ function make_digraph_from_vels(vels::Array{VelocityVectorSphere})
 
     for vel in vels
         if vel.fix == vel.mov
-            @warn "$vel has same fix and mov, leaving it out."
+            # It's unclear to me how to handle velocities that have the
+            # same fix and mov.  This is OK for GNSS velocities but not for
+            # faults, in principle. But I do not know how it will affect the
+            # results.
+            if vel.vel_type == "GNSS"
+                if !(vel.mov in vel_graph[vel.fix])
+                    push!(vel_graph[vel.fix], vel.mov)
+                end
+            else
+                @warn "$vel has same fix and mov, leaving it out."
+            end
         elseif haskey(vel_graph, vel.fix)
             if !(vel.mov in vel_graph[vel.fix])
                 push!(vel_graph[vel.fix], vel.mov)
@@ -202,7 +212,7 @@ function make_ugraph_from_digraph(digraph::Dict)
 end
 
 
-function find_tricycles(graph::Dict; reduce::Bool = true)
+function find_tricycles(graph::Dict; reduce::Bool=true)
 
     all_tris = []
 
@@ -249,12 +259,12 @@ end
 
 function get_cycle_inds(vel_group_keys, cycle_tup)
 
-    v_ind = findall(x->x == cycle_tup, vel_group_keys)
+    v_ind = findall(x -> x == cycle_tup, vel_group_keys)
     if v_ind != []
         res = Dict("ind" => v_ind[1], "val" => 1.)
     else
         cycle_tup = Base.reverse(cycle_tup)
-        v_ind = findall(x->x == (cycle_tup), vel_group_keys)
+        v_ind = findall(x -> x == (cycle_tup), vel_group_keys)
         if v_ind != []
             res = Dict("ind" => v_ind[1], "val" => -1.)
         else
@@ -285,7 +295,7 @@ end
     flat(x)
 Flattens nested arrays of arrays
 """
-flat(x, y = vcat(x...)) = x == y ? x : flat(y)
+flat(x, y=vcat(x...)) = x == y ? x : flat(y)
 
 
 """
@@ -350,7 +360,7 @@ function get_path_euler_pole(poles::Array{PoleCart,1}, fix::String,
 mov::String)
     
     if fix == mov
-        final_pole = PoleCart(x = 0., y = 0., z = 0., fix = fix, mov = mov)
+        final_pole = PoleCart(x=0., y=0., z=0., fix=fix, mov=mov)
 
     elseif length([p for p in poles if (p.fix == fix) & (p.mov == mov)]) == 1
         final_pole = [p for p in poles if (p.fix == fix) & (p.mov == mov)][1]
@@ -422,7 +432,7 @@ function get_vel_vec_at_pole(vel::VelocityVectorSphere, pole::PoleSphere)
 end
 
 
-function check_vel_closures(poles; tol = 1e-5)
+function check_vel_closures(poles; tol=1e-5)
     v_keys = sort(collect(Tuple(keys(poles))))
     block_digraph = make_digraph_from_tuples(v_keys)
     block_ugraph = make_ugraph_from_digraph(block_digraph)
