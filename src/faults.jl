@@ -123,15 +123,15 @@ coordinates and the dip direction to ensure right-hand-rule compatibility.
 """
 function Fault(; trace::Array{Float64,2}, dip::Float64,
     dip_dir::String,
-    extension_rate::Float64 = 0.,
-    extension_err::Float64 = 0.,
-    dextral_rate::Float64 = 0.,
-    dextral_err::Float64 = 0.,
-    lsd::Float64 = 25.,
-    usd::Float64 = 0.,
-    name::String =  "",
-    hw::String = "",
-    fw::String = "")
+    extension_rate::Float64=0.,
+    extension_err::Float64=0.,
+    dextral_rate::Float64=0.,
+    dextral_err::Float64=0.,
+    lsd::Float64=25.,
+    usd::Float64=0.,
+    name::String="",
+    hw::String="",
+    fw::String="")
 
     if dip != 90.
         trace = check_right_hand_rule(trace, dip_dir)
@@ -169,9 +169,9 @@ function fault_to_vel(fault::Fault)
 
     vlon, vlat = get_midpoint(fault.trace)
 
-    VelocityVectorSphere(lon = vlon, lat = vlat, ve = ve, vn = vn, 
-        fix = fault.hw, mov = fault.fw, name = fault.name, ee = ee, en = en,
-        vel_type = "fault")
+    VelocityVectorSphere(lon=vlon, lat=vlat, ve=ve, vn=vn, 
+        fix=fault.hw, mov=fault.fw, name=fault.name, ee=ee, en=en,
+        vel_type="fault")
 end
 
 
@@ -196,7 +196,7 @@ end
 
 
 function check_right_hand_rule(trace::Array{Float64,2}, dip_dir::String; 
-    reverse_angle_threshold::Float64 = 90.)
+    reverse_angle_threshold::Float64=90.)
     # Modified from the OQ-MBTK tools, (c) Global Earthquake Model Foundation
 
     strike = average_azimuth(trace[:,1], trace[:,2])
@@ -209,7 +209,7 @@ function check_right_hand_rule(trace::Array{Float64,2}, dip_dir::String;
 
     # TODO: warn if trend_angle_difference < 15 (or some other low threshold)
     if trend_angle_difference > reverse_angle_threshold
-        trace = reverse(trace, dims = 1)
+        trace = reverse(trace, dims=1)
     end
     trace
 end
@@ -234,8 +234,8 @@ end
     fault_to_vels
 
 Makes multiple velocities from a fault. This is to weight the velocity inversion
-by the length of faults, and to provide some damping againts excessive
-local rotations induced by too few rotations.
+by the length of faults, and to provide some damping against excessive
+local rotations induced by too few local constraints.
 """
 function fault_to_vels(fault::Fault; simp_dist::Float64=1.)
     simp_trace = Oiler.Geom.simplify_polyline(fault.trace, simp_dist)
