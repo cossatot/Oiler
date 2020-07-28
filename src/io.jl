@@ -28,8 +28,8 @@ function vel_from_row(row::DataFrameRow)
         en = 0.
     end
     
-    VelocityVectorSphere(lon = row.lon, lat = row.lat, ee = ee, en = en,
-                         ve = row.ve, vn = row.vn, fix = row.fix, mov = row.mov)
+    VelocityVectorSphere(lon=row.lon, lat=row.lat, ee=ee, en=en,
+                         ve=row.ve, vn=row.vn, fix=row.fix, mov=row.mov)
 end
 
 
@@ -62,7 +62,15 @@ function group_vels_by_fix_mov(vels::Array{VelocityVectorSphere})
     for vel in vels
         fm = (vel.fix, vel.mov)
         if vel.fix == vel.mov
-            @warn "$vel has same fix, mov, leaving it out."
+            if vel.vel_type == "GNSS"
+                if haskey(vel_groups, fm)
+                    push!(vel_groups[fm], vel)
+                else
+                    vel_groups[fm] = [vel]
+                end
+            else
+                @warn "$vel has same fix, mov, leaving it out."
+            end
         elseif haskey(vel_groups, fm)
             push!(vel_groups[fm], vel)
         elseif haskey(vel_groups, Base.reverse(fm))
@@ -87,10 +95,10 @@ function pole_to_dict(pole::PoleSphere)
 end
 
 
-#function pole_dict_to_df(poles::Dict)
+# function pole_dict_to_df(poles::Dict)
 #
 
-#end
+# end
 
 function poles_to_df(poles::Array{PoleSphere,1})
     df = DataFrame()
@@ -105,7 +113,7 @@ end
 
 
 function poles_to_df(poles::Array{PoleCart,1};
-                     convert_to_sphere::Bool = false)
+                     convert_to_sphere::Bool=false)
 
     if convert_to_sphere
         pole_sphere = map(pole_cart_to_sphere, poles)
@@ -135,9 +143,9 @@ function gis_vec_file_to_df(filename::AbstractString; layername="")
     nfield = AG.nfield(layer)
 
     # prepare Dict with empty vectors of the right type for each field
-    d = Dict{String, Vector}()
+    d = Dict{String,Vector}()
     featuredefn = AG.layerdefn(layer)
-    for field_no in 0:nfield-1
+    for field_no in 0:nfield - 1
         field = AG.getfielddefn(featuredefn, field_no)
         name = AG.getname(field)
         typ = AG._FIELDTYPE[AG.gettype(field)]
@@ -147,20 +155,20 @@ function gis_vec_file_to_df(filename::AbstractString; layername="")
     d["fid"] = Int64[]
 
     # loop over the features to fill the vectors in the Dict
-    #for fid in 0:nfeat-1
+    # for fid in 0:nfeat-1
     for nf in 1:nfeat
         try
             feature = AG.unsafe_nextfeature(layer)# do feature
-                for (k, v) in pairs(d)
-                    if k == "geometry"
-                        val = AG.getgeom(feature, 0)
-                    elseif k == "fid"
-                        val = AG.getfid(feature)
-                    else
-                        val = AG.getfield(feature, k)
-                    end
-                    push!(v, val)
+            for (k, v) in pairs(d)
+                if k == "geometry"
+                    val = AG.getgeom(feature, 0)
+                elseif k == "fid"
+                    val = AG.getfid(feature)
+                else
+                    val = AG.getfield(feature, k)
                 end
+                push!(v, val)
+            end
         catch e
             println(e)
         end
@@ -181,9 +189,9 @@ function get_coords_from_geom(geom)
 
     coords = Array{Float64}(undef, n_pts, 2)
 
-    for i in 0:n_pts-1
-        coords[i+1, 1] = AG.getx(geom, i)
-        coords[i+1, 2] = AG.gety(geom, i)
+    for i in 0:n_pts - 1
+        coords[i + 1, 1] = AG.getx(geom, i)
+        coords[i + 1, 2] = AG.gety(geom, i)
     end
     coords
 end

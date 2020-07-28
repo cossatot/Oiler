@@ -145,6 +145,7 @@ function make_digraph_from_vels(vels::Array{VelocityVectorSphere})
                     push!(vel_graph[vel.fix], vel.mov)
                 end
             else
+                println(vel.vel_type)
                 @warn "$vel has same fix and mov, leaving it out."
             end
         elseif haskey(vel_graph, vel.fix)
