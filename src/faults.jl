@@ -7,7 +7,8 @@ using Parameters
 
 using Oiler
 using ..Oiler: VelocityVectorSphere, average_azimuth, az_to_angle,
-angle_difference, rotate_velocity, EARTH_RAD_KM, oblique_merc
+angle_difference, rotate_velocity, EARTH_RAD_KM, oblique_merc, PoleCart, 
+PoleSphere
 
 const direction_map = Dict{String,Float64}("N" => 0.,
                  "NNE" => 22.5,
@@ -227,6 +228,28 @@ function ve_vn_to_fault_slip_rate(ve::Float64, vn::Float64, strike::Float64)
     angle = az_to_angle(strike)
 
     rotate_velocity(ve, vn, -angle)
+end
+
+
+function get_fault_slip_rate_from_pole(fault::Oiler.Faults.Fault, pole::Oiler.PoleCart)
+    fault_mid = get_midpoint(fault.trace)
+    lon, lat = fault_mid[1], fault_mid[2]
+
+    # fault velocities should be relative to hanging wall (hw fixed)
+    if (fault.fw == pole.mov) & (fault.hw == pole.fix)
+        ve, vn, vu = Oiler.Utils.predict_block_vel(lon, lat, pole)
+        v_rl, v_ex = ve_vn_to_fault_slip_rate(ve, vn, fault.strike)
+
+    elseif (fault.fw == pole.fix) & (fault.hw == pole.mov)
+        ve, vn, vu = Oiler.Utils.predict_block_vel(lon, lat, -pole)
+        v_rl, v_ex = ve_vn_to_fault_slip_rate(ve, vn, fault.strike)
+
+    else
+        @warn "fault and pole do not match, but continuing..."
+        ve, vn, vu = Oiler.Utils.predict_block_vel(lon, lat, pole)
+        v_rl, v_ex = ve_vn_to_fault_slip_rate(ve, vn, fault.strike)
+    end
+    v_rl, v_ex
 end
 
 

@@ -422,14 +422,25 @@ function predict_vels_from_poles(block_things::Dict{String,AbstractArray},
 end
 
 
-function get_vel_vec_at_pole(vel::VelocityVectorSphere, pole::PoleCart)
+function get_vel_vec_from_pole(vel::VelocityVectorSphere, pole::PoleCart)
     PvGb = Oiler.BlockRotations.build_PvGb_vel(vel)
     vel_vec = PvGb * [pole.x; pole.y; pole.z]
 end
 
 
-function get_vel_vec_at_pole(vel::VelocityVectorSphere, pole::PoleSphere)
-    get_vel_vec_at_pole(vel, Oiler.BlockRotations.pole_sphere_to_cart(pole))
+function get_vel_vec_from_pole(vel::VelocityVectorSphere, pole::PoleSphere)
+    get_vel_vec_from_pole(vel, Oiler.BlockRotations.pole_sphere_to_cart(pole))
+end
+
+
+function predict_block_vel(lon::Float64, lat::Float64, pole::PoleCart)
+    PvGb = Oiler.BlockRotations.build_PvGb_deg(lon, lat)
+    vel_vec = PvGb * [pole.x; pole.y; pole.z]
+end
+    
+
+function predict_block_vel(lon::Float64, lat::Float64, pole::PoleSphere)
+    predict_block_vel(lon, lat, pole_sphere_to_cart(pole))
 end
 
 
@@ -462,14 +473,6 @@ function check_vel_closures(poles; tol=1e-5)
 end
 
 
-function get_fault_slip_rate_from_pole(fault, pole)
-    fv = Oiler.Faults.fault_to_vel(fault)
-    vel_vec = get_vel_vec_at_pole(fv, pole)
-    ve, vn = vel_vec[1], vel_vec[2]
-    v_rl, v_ex = Oiler.Faults.ve_vn_to_fault_slip_rate(ve, vn, fault.strike)
-    v_rl, v_ex
-end
-
 
 function get_fault_slip_rates_from_poles(faults, poles)
     rates = []
@@ -477,10 +480,10 @@ function get_fault_slip_rates_from_poles(faults, poles)
         fault_key = (fault.fw, fault.hw)
         if haskey(poles, fault_key)
             pole = poles[fault_key]
-            push!(rates, get_fault_slip_rate_from_pole(fault, pole))
+            push!(rates, Oiler.Faults.get_fault_slip_rate_from_pole(fault, pole))
         elseif haskey(poles, reverse(fault_key))
             pole = poles[reverse(fault_key)]
-            push!(rates, get_fault_slip_rate_from_pole(fault, pole))
+            push!(rates, Oiler.Faults.get_fault_slip_rate_from_pole(fault, pole))
         else
             @warn "No pole found for $fault_key"
             push!(rates, (NaN, NaN))

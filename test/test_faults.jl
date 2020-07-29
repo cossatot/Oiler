@@ -5,11 +5,6 @@ using Test
 
 using Oiler
 
-quien_sabe_coords = [-121.37575 36.93768;
-                     -121.33534 36.89357;
-                     -121.29735 36.85596;
-                     -121.25795 36.81047;
-                     -121.2073 36.75499]
 
 function test_fault_slip_rate_to_ve_vn()
     sqrt2 = sqrt(2.)
@@ -86,8 +81,17 @@ function test_ve_vn_to_fault_slip_rate()
     end
 end
 
+quien_sabe_coords = [-121.37575 36.93768;
+                     -121.33534 36.89357;
+                     -121.29735 36.85596;
+                     -121.25795 36.81047;
+                     -121.2073 36.75499];
 
-# @test Oiler.get_midpoint(quien_sabe_coords) == (-121.29735, 36.85596)
+
+function test_get_midpoint_old()
+    @test Oiler.get_midpoint_old(quien_sabe_coords) == (-121.29735, 36.85596)
+end
+
 
 qs_1 = Oiler.Fault(trace = quien_sabe_coords, dip = 89., dip_dir = "NE", 
     name = "Quien Sabe NE dip", hw = "gab", fw = "hol", dextral_rate = 35.);
@@ -151,7 +155,7 @@ end
 
 
 @testset begin
-
+    test_get_midpoint_old()
     test_fault_slip_rate_to_ve_vn()
     test_strike_rot_matrix_xd()
     test_build_velocity_projection_matrix_1()
