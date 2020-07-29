@@ -245,7 +245,12 @@ function get_fault_slip_rate_from_pole(fault::Oiler.Faults.Fault, pole::Oiler.Po
         v_rl, v_ex = ve_vn_to_fault_slip_rate(ve, vn, fault.strike)
 
     else
-        @warn "fault and pole do not match, but continuing..."
+        fw = fault.fw
+        hw = fault.hw
+        mov = pole.mov
+        fix = pole.fix
+        warn_msg = "fault ($hw, $fw) and pole ($fix, $mov) do not match, but continuing..."
+        @warn warn_msg
         ve, vn, vu = Oiler.Utils.predict_block_vel(lon, lat, pole)
         v_rl, v_ex = ve_vn_to_fault_slip_rate(ve, vn, fault.strike)
     end
