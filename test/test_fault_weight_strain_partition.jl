@@ -193,9 +193,9 @@ function predict_gnss_vels(vel_groups, fault_groups, gnss_vels, poles)
     gnss_pred_vels = []
     for vel in gnss_vels
         if haskey(poles, (vel.fix, vel.mov))
-            push!(gnss_pred_vels, Oiler.Utils.get_vel_vec_at_pole(vel, poles[(vel.fix, vel.mov)]))
+            push!(gnss_pred_vels, Oiler.Utils.get_vel_vec_from_pole(vel, poles[(vel.fix, vel.mov)]))
         else
-            push!(gnss_pred_vels, Oiler.Utils.get_vel_vec_at_pole(vel, -poles[(vel.mov, vel.fix)]))
+            push!(gnss_pred_vels, Oiler.Utils.get_vel_vec_from_pole(vel, -poles[(vel.mov, vel.fix)]))
         end
     end
     
@@ -256,8 +256,8 @@ gnss_lon = [v.lon for v in gnss_vels]
 gnss_lat = [v.lat for v in gnss_vels]
 
 figure()
-quiver(gnss_lon, gnss_lat, gnss_obs_ve, gnss_obs_vn, color="k", scale=300)
-quiver(gnss_lon, gnss_lat, gnss_pred_ve_free, gnss_pred_vn_free, color="r", scale=300)
-quiver(gnss_lon, gnss_lat, gnss_pred_ve_fix, gnss_pred_vn_fix, color="b", scale=300)
+quiver(gnss_lon, gnss_lat, gnss_obs_ve, gnss_obs_vn, color="k", scale=100)
+quiver(gnss_lon, gnss_lat, gnss_pred_ve_free, gnss_pred_vn_free, color="r", scale=100)
+quiver(gnss_lon, gnss_lat, gnss_pred_ve_fix, gnss_pred_vn_fix, color="b", scale=100)
 axis("equal")
 show()
