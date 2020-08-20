@@ -54,7 +54,7 @@ end
 Returns either the inverse of the error, or `zero_err_weight` if the weight
 is zero. The latter defaults to 1e-10.
 """
-function weight_from_error(error::Float64; zero_err_weight::Float64 = 1e-10)
+function weight_from_error(error::Float64; zero_err_weight::Float64=1e-10)
     if error == 0.
         error = zero_err_weight
     end
@@ -197,7 +197,7 @@ function add_equality_constraints_bi_objective(PvGb, Vc, cm)
 end
 
 
-function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights; sparse_lhs::Bool = false)
+function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights; sparse_lhs::Bool=false)
     W = sparse(diagm(weights))
     p, q = size(cm)
     n = length(Vc)
@@ -206,23 +206,23 @@ function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights; sparse_lh
     else
         _zeros = zeros
     end
-    rhs = [_zeros(p, p) _zeros(p, n) cm;
+    lhs = [_zeros(p, p) _zeros(p, n) cm;
            _zeros(n, p) W           PvGb;
            cm'           PvGb'       _zeros(q, q)]
 
-    lhs = [zeros(p); Vc; zeros(q)]
+    rhs = [zeros(p); Vc; zeros(q)]
 
     if sparse_lhs
-        return sparse(rhs), lhs
+        return sparse(lhs), rhs
     else
-        return rhs, lhs
+        return lhs, rhs
     end
 end
 
     function
 set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array = [], weighted::Bool = true, regularize::Bool = false,
-    l2_lambda::Float64 = 100.0, sparse_lhs::Bool = false)
+    faults::Array=[], weighted::Bool=true, regularize::Bool=false,
+    l2_lambda::Float64=100.0, sparse_lhs::Bool=false)
 
     @info " making block inversion matrices"
     vd = make_block_inversion_matrices_from_vels(vel_groups)
@@ -267,7 +267,7 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
     if weighted == true
         cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
         lhs, rhs = make_weighted_constrained_lls_matrices(PvGb, Vc, cm, 
-            weights; sparse_lhs = sparse_lhs)
+            weights; sparse_lhs=sparse_lhs)
     else
         lhs, rhs = add_equality_constraints_bi_objective(PvGb, Vc, cm)
         # lhs, rhs = add_equality_constraints_kkt(PvGb, Vc, cm)
@@ -279,14 +279,14 @@ end
 
 
     function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array = [], weighted::Bool = true, regularize::Bool = false,
-    l2_lambda::Float64 = 100.0, check_closures::Bool = true, sparse_lhs::Bool = false)
+    faults::Array=[], weighted::Bool=true, regularize::Bool=false,
+    l2_lambda::Float64=100.0, check_closures::Bool=true, sparse_lhs::Bool=false)
 
     @info "setting up matrices"
     @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups; 
-        faults = faults, weighted = weighted, 
-        regularize = regularize, l2_lambda = l2_lambda,
-        sparse_lhs = sparse_lhs)
+        faults=faults, weighted=weighted, 
+        regularize=regularize, l2_lambda=l2_lambda,
+        sparse_lhs=sparse_lhs)
     
     lhs = block_inv_setup["lhs"]
     lhs_size = size(lhs)
@@ -309,10 +309,10 @@ end
 
     poles = Dict()
     for (i, (fix, mov)) in enumerate(block_inv_setup["keys"])
-        poles[(fix, mov)] = PoleCart(x = soln[i * 3 - 2], 
-                                     y = soln[i * 3 - 1],
-                                     z = soln[i * 3],
-                                     fix = fix, mov = mov)
+        poles[(fix, mov)] = PoleCart(x=soln[i * 3 - 2], 
+                                     y=soln[i * 3 - 1],
+                                     z=soln[i * 3],
+                                     fix=fix, mov=mov)
     end
 
     if check_closures == true
@@ -323,10 +323,10 @@ end
 
 
 function calc_forward_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
-    poles::Dict{Any,Any}; faults::Array = [], weighted::Bool = true)
+    poles::Dict{Any,Any}; faults::Array=[], weighted::Bool=true)
 
     block_inv_setup = set_up_block_inv_w_constraints(vel_groups; faults=faults,
-        weighted = weighted)
+        weighted=weighted)
     @warn "NOT FINISHED IMPLEMENTING"
 
 end
@@ -358,10 +358,10 @@ function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},A
 
         kkt_soln = lhs \ rhs
 
-        results["poles"][iter] = [PoleCart(x = kkt_soln[i * 3 - 2],
-                                                y = kkt_soln[i * 3 - 1],
-                                                z = kkt_soln[i * 3],
-                                                fix = fix, mov = mov)
+        results["poles"][iter] = [PoleCart(x=kkt_soln[i * 3 - 2],
+                                                y=kkt_soln[i * 3 - 1],
+                                                z=kkt_soln[i * 3],
+                                                fix=fix, mov=mov)
                for (i, (fix, mov)) in enumerate(vd["keys"])]
     end
     results
