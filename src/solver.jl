@@ -220,8 +220,7 @@ function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights; sparse_lh
     end
 end
 
-    function
-set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
+function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array=[], weighted::Bool=true, regularize::Bool=false,
     l2_lambda::Float64=100.0, sparse_lhs::Bool=false)
 
@@ -279,7 +278,7 @@ set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{Veloc
 end
 
 
-    function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
+function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array=[], weighted::Bool=true, regularize::Bool=false,
     l2_lambda::Float64=100.0, check_closures::Bool=true, sparse_lhs::Bool=false)
 
@@ -337,6 +336,7 @@ end
 
 function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
     n_iters::Int)
+
     @warn "not updated in a while and perhaps disfunctional"
     # consider making .oiler_config file w/ defaults such as max_iters_per_chunk
 
@@ -369,7 +369,7 @@ function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},A
 end
 
 
-    function random_sample_vel(vel::VelocityVectorSphere)
+function random_sample_vel(vel::VelocityVectorSphere)
     rnd = randn(2)
     ve = vel.ve + rnd[1] * vel.ee
     vn = vel.vn + rnd[2] * vel.en
@@ -377,7 +377,7 @@ end
 end
 
 
-    function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int)
+function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int)
     rnd_ve_block = randn((length(vels), n_samps))
     rnd_vn_block = randn((length(vels), n_samps))
 
@@ -392,8 +392,9 @@ end
 end
 
 
-    function random_sample_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
-n_samps::Int)
+function random_sample_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+    n_samps::Int)
+
     vel_group_samps = Dict{Tuple{String,String},Dict{String,Array{Float64,2}}}()
     for (key, group) in vel_groups
         (ve, vn) = random_sample_vels(group, n_samps)
@@ -403,12 +404,12 @@ n_samps::Int)
 end
 
 
-    function Vc_triple_from_vals(ve::Float64, vn::Float64)
+function Vc_triple_from_vals(ve::Float64, vn::Float64)
     [ve; vn; 0]
 end
 
 
-    function build_Vc_from_vel_sample(vel_samp::Dict{String,Array{Float64,2}},
+function build_Vc_from_vel_sample(vel_samp::Dict{String,Array{Float64,2}},
     ind::Int)
 
     reduce(vcat, [Vc_triple_from_vals(ve, vel_samp["vn"][i,ind])
@@ -417,7 +418,7 @@ end
 end
 
 
-    function build_Vc_from_vel_samples(vel_samps::Dict{Tuple{String,String},Dict{String,Array{Float64,2}}},
+function build_Vc_from_vel_samples(vel_samps::Dict{Tuple{String,String},Dict{String,Array{Float64,2}}},
     vel_keys::Array{Tuple{String,String}}, ind::Int)
 
     reduce(vcat, [build_Vc_from_vel_sample(vel_samps[key], ind) for key in vel_keys])
