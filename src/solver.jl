@@ -59,6 +59,7 @@ function weight_from_error(error::Float64; zero_err_weight::Float64=1e-10)
         error = zero_err_weight
     end
     weight = error^-2
+    # weight = error^2
 end
     
 
@@ -198,7 +199,7 @@ end
 
 
 function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights; sparse_lhs::Bool=false)
-    W = sparse(diagm(weights))
+    W = sparse(diagm(1 ./ weights))
     p, q = size(cm)
     n = length(Vc)
     if sparse_lhs
