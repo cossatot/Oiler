@@ -71,13 +71,13 @@ end
 
 
 function test_weight_from_error_zero_specified()
-    @test Oiler.Solver.weight_from_error(0.; zero_err_weight = 2.) == 0.25
+    @test Oiler.Solver.weight_from_error(0.; zero_err_weight=2.) == 0.25
 end
 
 
 function test_build_weight_vector_from_vel()
-    vv = Oiler.VelocityVectorSphere(lon = 0., lat = 0., ve = 1., vn = 1., 
-    en = 2., ee = 3.)
+    vv = Oiler.VelocityVectorSphere(lon=0., lat=0., ve=1., vn=1., 
+    en=2., ee=3.)
     
     @test Oiler.Solver.build_weight_vector_from_vel(vv) == [1 / 9.; 0.25; 1.0e20]
 
@@ -85,10 +85,10 @@ end
 
 
 function test_build_weight_vector_from_vels_default_zero_weight()
-    vv = Oiler.VelocityVectorSphere(lon = 0., lat = 0., ve = 1., vn = 1., 
-        en = 2., ee = 3.)
-    ww = Oiler.VelocityVectorSphere(lon = 0., lat = 0., ve = 1., vn = 1., 
-        en = 1., ee = 1.)
+    vv = Oiler.VelocityVectorSphere(lon=0., lat=0., ve=1., vn=1., 
+        en=2., ee=3.)
+    ww = Oiler.VelocityVectorSphere(lon=0., lat=0., ve=1., vn=1., 
+        en=1., ee=1.)
 
     weight = Oiler.Solver.build_weight_vector_from_vels([vv, ww])
     weight_answer = [1 / 9.; 0.25; 1.0e20; 1.; 1.; 1.0e20]
@@ -99,8 +99,8 @@ end
 
 
 function test_build_weight_vector_from_vels_equal_zero_weights()
-    vv = Oiler.VelocityVectorSphere(lon = 0., lat = 0., ve = 1., vn = 1., ee = 0.,
-    en = 0.)
+    vv = Oiler.VelocityVectorSphere(lon=0., lat=0., ve=1., vn=1., ee=0.,
+    en=0.)
     
     ww = Oiler.Solver.build_weight_vector_from_vels([vv])
 
@@ -109,10 +109,10 @@ end
 
 
 function test_build_weight_vectors()
-    vv = Oiler.VelocityVectorSphere(lon = 0., lat = 0., ve = 1., vn = 1., 
-    en = 2., ee = 3.)
-    ww = Oiler.VelocityVectorSphere(lon = 0., lat = 0., ve = 1., vn = 1., 
-    en = 1., ee = 1.)
+    vv = Oiler.VelocityVectorSphere(lon=0., lat=0., ve=1., vn=1., 
+    en=2., ee=3.)
+    ww = Oiler.VelocityVectorSphere(lon=0., lat=0., ve=1., vn=1., 
+    en=1., ee=1.)
 
     vel_groups = Dict(("a", "b") => [vv, ww])
     weight = Oiler.Solver.build_weight_vectors(vel_groups)
@@ -125,15 +125,15 @@ end
 function test_make_block_PvGb_from_vel()
 
     vels = [
-        Oiler.VelocityVectorSphere(lon = -13.98, lat = -52.17, ve = 1., vn = 1.,
-        ee = 0., en = 0.)]
+        Oiler.VelocityVectorSphere(lon=-13.98, lat=-52.17, ve=1., vn=1.,
+        ee=0., en=0.)]
 
 end
 
 
 function test_solve_block_invs_from_vel_groups_1_vel()
-    V = Oiler.VelocityVectorSphere(lon = -13.98, lat = -52.17,
-        ve = 13.16176174592891, vn = 7.656387837884508, fix = "af", mov = "an")
+    V = Oiler.VelocityVectorSphere(lon=-13.98, lat=-52.17,
+        ve=13.16176174592891, vn=7.656387837884508, fix="af", mov="an")
 
     vg = Oiler.group_vels_by_fix_mov([V])
 
@@ -141,6 +141,74 @@ function test_solve_block_invs_from_vel_groups_1_vel()
 
     
 end
+
+
+"""
+This function contains a set of tests that compare different linear
+least-squares solution strategies: ordinary LLS (OLS), weighted LLS (WLS),
+equality-constrained LLS (CLS), equality-constrained weighted LLS (CWLS).
+
+The tests ensure that the weights are being handled correctly, that the
+constraints are met, and that non-weighted and weighted results converge
+when the weights all equal 1.
+""" 
+function test_solver_strategies()
+
+    # set up
+    x_obs = [0.,  1.,    2.,   3.,    4.]
+    y_obs = [0.3, 2.005, 2.98, 5.2,   5.]
+    y_e =   [1.4, 0.1,   5.,   0.1,   0.1]
+    y_w =   map(Oiler.Solver.weight_from_error, y_e)
+    y_w1 = ones(size(y_w))
+
+    cm = [1. -1.]
+    cm0 = [0. 0.]
+    c = 0.
+
+    PvGb = [0. 1.; 1. 1.; 2. 1.; 3. 1.; 4. 1.]
+
+    # no weights
+    m, b = PvGb \ y_obs
+
+    # weighted (real weights)
+    w_lhs, w_rhs = Oiler.Solver.weight_inv_matrices(PvGb, y_obs, y_w)
+    m_w, b_w = w_lhs \ w_rhs
+    
+    # weighted (equal weights, should be identical to OLS)
+    w1_lhs, w1_rhs = Oiler.Solver.weight_inv_matrices(PvGb, y_obs, y_w1)
+    m_w1, b_w1 = w1_lhs \ w1_rhs
+    @test isapprox(m_w1, m)
+    @test isapprox(b_w1, b)
+
+    # constrained least squares
+    c_lhs, c_rhs = Oiler.Solver.add_equality_constraints_kkt(PvGb, y_obs, cm)
+    m_c, b_c = c_lhs \ c_rhs
+    @test isapprox(m_c, b_c)
+
+    # constrained, weighted least squares (real weights)
+    cw_lhs, cw_rhs = Oiler.Solver.make_weighted_constrained_lls_matrices(PvGb,
+        y_obs, cm, y_w)
+    _, _, _, _, _, _, m_cw, b_cw = cw_lhs \ cw_rhs
+    @test isapprox(m_cw, b_cw)
+    
+    ## constrained, weighted least squares (zero constraints, should match WLS)
+    ## fails w/ singular value exception
+    # cw0_lhs, cw0_rhs = Oiler.Solver.make_weighted_constrained_lls_matrices(PvGb,
+    #    y_obs, cm0, y_w)
+    # _, _, _, _, _, _, m_cw0, b_cw0 = cw0_lhs \ cw0_rhs
+    # @test isapprox(m_w, m_cw0)
+    # @test isapprox(b_w, b_cw0)
+
+    # constrained, weighted least squares (equal weights, should match CLS)
+    cw1_lhs, cw1_rhs = Oiler.Solver.make_weighted_constrained_lls_matrices(PvGb,
+        y_obs, cm, y_w1)
+    _, _, _, _, _, _, m_cw1, b_cw1 = cw1_lhs \ cw1_rhs
+    @test isapprox(m_cw1, b_cw1)
+    @test isapprox(m_c, m_cw1)
+    @test isapprox(b_c, b_cw1)
+end
+
+
 
 
 
@@ -155,4 +223,5 @@ end
     test_build_weight_vector_from_vels_default_zero_weight()
     test_build_weight_vector_from_vels_equal_zero_weights()
     test_build_weight_vectors()
+    test_solver_strategies()
 end
