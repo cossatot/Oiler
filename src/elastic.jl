@@ -39,20 +39,10 @@ function fault_to_okada(fault::Fault, sx1::Float64, sy1::Float64,
     # calculate fault segment anchor and other buried point
     ofx =  sx1 + lsd / tan(delta) * sin(strike)
     ofy =  sy1 - lsd / tan(delta) * cos(strike)
-    ofxe = sx2 + lsd / tan(delta) * sin(strike)
-    ofye = sy2 - lsd / tan(delta) * cos(strike)
-
-    # calculate fault segment anchor and other buried point (top relative)
-    tfx =  sx1 + usd / tan(delta) * sin(strike)
-    tfy =  sy1 - usd / tan(delta) * cos(strike)
-    tfxe = sx2 + usd / tan(delta) * sin(strike)
-    tfye = sy2 - usd / tan(delta) * cos(strike)
 
     Dict("strike" => strike, "delta" => delta, "L" => L, "W" => W, "lsd" => lsd,
-         "ofx" => ofx, "ofy" => ofy, "ofxe" => ofxe, "ofye" => ofye,
-         "tfx" => tfx, "tfy" => tfy, "tfxe" => tfxe, "tfye" => tfye)
+         "ofx" => ofx, "ofy" => ofy)
 end
-
 
 
 function calc_locking_effects_per_fault(fault::Fault, lons, lats)
@@ -90,11 +80,11 @@ function calc_locking_effects_segmented_fault(fault::Fault, lons, lats)
     # may have some problems w/ dip dir for highly curved faults
     trace = fault.trace
     simp_trace = Oiler.Geom.simplify_polyline(trace, 0.2)
-    #simp_trace = trace
+    # simp_trace = trace
 
     parts = []
-    for i in 1:size(simp_trace,1) - 1
-        seg_trace = simp_trace[i:i+1,:]
+    for i in 1:size(simp_trace, 1) - 1
+        seg_trace = simp_trace[i:i + 1,:]
         part = calc_locking_effects_per_fault(Oiler.Fault(trace=seg_trace, 
                 dip=fault.dip, 
                 dip_dir=fault.dip_dir,
@@ -116,16 +106,18 @@ function make_partials_matrix(partials, i::Integer)
     # es ed et
     # ns nd nt
     # us ud ut 
+
+    # the vertical velocities are not returned, as this will cause problems
+    # when vertical velocities from GNSS are not used, as is typical.
+
     [partials[1][i] partials[4][i] partials[7][i]
      partials[2][i] partials[5][i] partials[8][i]
-     #partials[3][i] partials[6][i] partials[9][i]]
+     # partials[3][i] partials[6][i] partials[9][i]]
      0. 0. 0.]
 end
 
 
 function calc_locking_effects(faults, vel_groups)
-
-    #@info "calculating locking partials"
 
     gnss_vels = get_gnss_vels(vel_groups)
     gnss_lons = [vel["vel"].lon for vel in gnss_vels]

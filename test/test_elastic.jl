@@ -1,254 +1,77 @@
 using Test
-#using PyPlot
 
 using Oiler
 
 rtol = 0.01
 
-# set up
-simple_fault_trace = [1. 1.;
-                      1.5 1.5];
 
-simple_fault = Oiler.Fault(trace = simple_fault_trace, dip = 45., 
-                           dip_dir = "SE", usd = 1., lsd = 20.,
-                           hw = "a", fw = "b")
 
-gnss_1 = Oiler.VelocityVectorSphere(lon = 0., lat = 0., ve = 1., vn = 1., 
-    vel_type = "gnss", fix = "a", mov = "r")
-gnss_2 = Oiler.VelocityVectorSphere(lon = 1.25, lat = 1.251, ve = 1., vn = 1.,
-    vel_type = "gnss", fix = "a", mov = "r")
-gnss_3 = Oiler.VelocityVectorSphere(lon = 1.25, lat = 1.249, ve = 1., vn = 1.,
-    vel_type = "gnss", fix = "a", mov = "r")
+function test_calc_locking_effects_per_fault_1()
+    ff = Oiler.Fault(trace=[-81.905471 12.945880; -81.554797 12.114126],
+                     dip=20., dip_dir="S", lsd=20.)
 
-gnss_lons, gnss_lats = Oiler.get_coords_from_vel_array([gnss_1; gnss_2; gnss_3])
-    
+    lons = [-81.739]
+    lats = [12.527]
 
-function test_fault_to_okada()
+    pp = Oiler.Elastic.calc_locking_effects_per_fault(ff, lons, lats)[1]
 
-    x, y = Oiler.Faults.fault_oblique_merc(simple_fault, gnss_lons, gnss_lats)
-    gnss_x, gnss_y = x[1:3], y[1:3]
-
-    sx1, sy1, sx2, sy2 = x[4], y[4], x[5], y[5]
-
-    # testing setup and oblique mercator projection, not fault_to_okada
-    @test isapprox([sx1 sy1; sx2 sy2], 
-        [111244.43298350969 110580.03346651352; 
-         166877.51617048218 165880.8519944189])
-
-    @test isapprox(gnss_x, 
-        [-63.83592381656264, 139063.5799087486, 139063.63252006823])
-    
-    @test isapprox(gnss_y, 
-        [9.856198685358322e-10, 138339.6675458058, 138118.51794367697])
-
-    # now test fault_to_okada
-    D = Oiler.fault_to_okada(simple_fault, sx1, sy1, sx2, sy2)
-
-    @test isapprox(D["strike"], 0.7824030134896427)
-    @test isapprox(D["L"], 78442.46601646818)
-    @test isapprox(D["W"], 26870.05768508881)
-    @test isapprox(D["ofx"], -9.850338894354840e+03)
-    @test isapprox(D["ofy"], -20.000000000001140)
-    @test isapprox(D["ofxe"], -9.771721687583831e+03)
-    @test isapprox(D["ofye"], -20.000000000001464)
-    @test isapprox(D["tfx"], -9.850338894354840e+03)
-    @test isapprox(D["tfy"], -1.000000000001139)
-    @test isapprox(D["tfxe"], -9.771721687583831e+03)
-    @test isapprox(D["tfye"], -1.000000000001459)
+    # no good way of verifying this right now; doesn't match Meade and Loveless
+    # because of the oblique mercator projections are different
+    # and perhaps other reasons
+    @test isapprox(pp, [1.11344e8   1.0689e9    4.68748e9;
+                        -5.3601e9   -8.55279e8  -3.39197e8;
+                         0.0         0.0         0.0]; rtol=rtol)
 end
 
 
+function test_calc_locking_effects_segmented_fault_1()
 
-function test_okada_dip_slip()
-    x, y = Oiler.Faults.fault_oblique_merc(simple_fault, gnss_lons, gnss_lats)
-    gnss_x, gnss_y = x[1:3], y[1:3]
+    # Should match test_calc_lockin_effects_per_fault_1()
 
-    sx1, sy1, sx2, sy2 = x[4], y[4], x[5], y[5]
+    ff = Oiler.Fault(trace=[-81.905471 12.945880; 
+                            -81.73 12.53;
+                            -81.554797 12.114126],
+                     dip=20., dip_dir="S", lsd=20.)
 
-    D = Oiler.fault_to_okada(simple_fault, sx1, sy1, sx2, sy2)
-    ves, vns, vus, ved, vnd, vud, vet, vnt, vut = Oiler.okada(D, 0., 1., 0.,
-        gnss_x, gnss_y)
-    
-    # test values from using okada_partials.m by Meade and Loveless
-    @test isapprox(ves, [0; 0; 0]; rtol=rtol)
-    @test isapprox(vns, [0; 0; 0]; rtol=rtol)
-    @test isapprox(vus, [0; 0; 0]; rtol=rtol)
-    @test isapprox(ved,    
-        1.0e-03 .* [-0.243919705202018; 0.035030039954510;-0.034934183707360]; 
-        rtol=rtol)
-    @test isapprox(vnd,    
-        [-0.000199992219480; -0.009262479825412; 0.024227041358989]; rtol=rtol)
-    @test isapprox(vud,    
-        [-0.001992787293162; 0.023204884580011; 0.057062430886315]; rtol=rtol)
-    @test isapprox(vet, [0; 0; 0]; rtol=rtol)
-    @test isapprox(vnt, [0; 0; 0]; rtol=rtol)
-    @test isapprox(vut, [0; 0; 0]; rtol=rtol)
+    lons = [-81.739]
+    lats = [12.527]
+
+    pp = Oiler.Elastic.calc_locking_effects_segmented_fault(ff, lons, lats)[1]
+
+    # no good way of verifying this right now; doesn't match Meade and Loveless
+    # because of the oblique mercator projections are different
+    # and perhaps other reasons
+    @test isapprox(pp, [1.11344e8   1.0689e9    4.68748e9;
+                        -5.3601e9   -8.55279e8  -3.39197e8;
+                         0.0         0.0         0.0]; rtol=rtol)
 end
 
 
+function test_calc_locking_effects_1()
+    ff = Oiler.Fault(trace=[-81.905471 12.945880; -81.554797 12.114126],
+                     dip=20., dip_dir="S", lsd=20., hw="a", fw="b")
+    vv = Oiler.VelocityVectorSphere(lon=-81.739, lat=12.527, vel_type="GNSS",
+                                    ve=0., vn=0., fix="a", mov="b")
 
-function test_okada_strike_slip()
-    x, y = Oiler.Faults.fault_oblique_merc(simple_fault, gnss_lons, gnss_lats)
-    gnss_x, gnss_y = x[1:3], y[1:3]
+    fv = Oiler.Faults.fault_to_vel(ff)
 
-    sx1, sy1, sx2, sy2 = x[4], y[4], x[5], y[5]
+    vels = convert(Array{VelocityVectorSphere}, [fv, vv])
 
-    D = Oiler.fault_to_okada(simple_fault, sx1, sy1, sx2, sy2)
-    ves, vns, vus, ved, vnd, vud, vet, vnt, vut = Oiler.okada(D, 1., 0., 0.,
-        gnss_x, gnss_y)
-    
-    # test values from using okada_partials.m by Meade and Loveless
-    @test isapprox(ves,    
-        [0.000278311207785; -0.019970149820352; 0.003279330179775]; rtol=rtol)
-    @test isapprox(vns,    
-        [0.002821784569174; -0.000074894257506; 0.000072978696014]; rtol=rtol)
-    @test isapprox(vus,    
-        1.0e-3 .* [-0.316155394920109; 0.038678751237683; -0.037786443714757]; rtol=rtol)
-    @test isapprox(ved, [0; 0; 0])
-    @test isapprox(vnd, [0; 0; 0])
-    @test isapprox(vud, [0; 0; 0])
-    @test isapprox(vet, [0; 0; 0])
-    @test isapprox(vnt, [0; 0; 0])
-    @test isapprox(vut, [0; 0; 0])
-end
+    vel_groups = Oiler.IO.group_vels_by_fix_mov(vels)
 
+    le = Oiler.Elastic.calc_locking_effects([ff], vel_groups)
 
-
-function test_okada_tensile()
-    x, y = Oiler.Faults.fault_oblique_merc(simple_fault, gnss_lons, gnss_lats)
-    gnss_x, gnss_y = x[1:3], y[1:3]
-
-    sx1, sy1, sx2, sy2 = x[4], y[4], x[5], y[5]
-
-    D = Oiler.fault_to_okada(simple_fault, sx1, sy1, sx2, sy2)
-    ves, vns, vus, ved, vnd, vud, vet, vnt, vut = Oiler.okada(D, 0., 0., 1.,
-        gnss_x, gnss_y)
-    
-    # test values from using okada_partials.m by Meade and Loveless
-    @test isapprox(ves, [0; 0; 0])
-    @test isapprox(vns, [0; 0; 0])
-    @test isapprox(vus, [0; 0; 0])
-    @test isapprox(ved, [0; 0; 0])
-    @test isapprox(vnd, [0; 0; 0])
-    @test isapprox(vud, [0; 0; 0])
-    @test isapprox(vet,    
-        1.0e-03 .* [0.244273925530614; -0.035436156199882; 0.034506189911012]; 
-        rtol=rtol)
-    @test isapprox(vnt,    
-        [0.000199966556297; -0.006285547974839; -0.006095019820654]; rtol=rtol)
-    @test isapprox(vut,    
-        [0.001992761716366; -0.038169618939615; -0.038100199139836]; rtol=rtol)
-end
-
-
-function test_okada_partials()
-    x, y = Oiler.Faults.fault_oblique_merc(simple_fault, gnss_lons, gnss_lats)
-    gnss_x, gnss_y = x[1:3], y[1:3]
-
-    sx1, sy1, sx2, sy2 = x[4], y[4], x[5], y[5]
-
-    D = Oiler.fault_to_okada(simple_fault, sx1, sy1, sx2, sy2)
-    ves, vns, vus, ved, vnd, vud, vet, vnt, vut = Oiler.okada(D, 1., 1., 1.,
-        gnss_x, gnss_y)
-    
-    # test values from using okada_partials.m by Meade and Loveless
-    @test isapprox(ves,    
-        [0.000278311207785; -0.019970149820352; 0.003279330179775]; rtol=rtol)
-    @test isapprox(vns,    
-        [0.002821784569174; -0.000074894257506; 0.000072978696014]; rtol=rtol)
-    @test isapprox(vus,    
-        1.0e-3 .* [-0.316155394920109; 0.038678751237683; -0.037786443714757]; rtol=rtol)
-    @test isapprox(ved,    
-        1.0e-03 .* [-0.243919705202018; 0.035030039954510;-0.034934183707360]; rtol=rtol)
-    @test isapprox(vnd,    
-        [-0.000199992219480; -0.009262479825412; 0.024227041358989]; rtol=rtol)
-    @test isapprox(vud,    
-        [-0.001992787293162; 0.023204884580011; 0.057062430886315]; rtol=rtol)
-    @test isapprox(vet,    
-        1.0e-03 .* [0.244273925530614; -0.035436156199882; 0.034506189911012]; rtol=rtol)
-    @test isapprox(vnt,    
-        [0.000199966556297; -0.006285547974839; -0.006095019820654]; rtol=rtol)
-    @test isapprox(vut,    
-        [0.001992761716366; -0.038169618939615; -0.038100199139836]; rtol=rtol)
-end
-
-
-
-function test_okada_ss_grid()
-
-    trace = [-1. 0.00001; 1. -0.00001]
-    fault = Oiler.Fault(trace = trace, dip = 90., dip_dir = "S", hw = "a", fw = "b")
-
-    grid = collect(Iterators.product(-8.:0.5:8., -8.25:0.5:8.25))
-    site_lons = vec([g[1] for g in grid])
-    site_lats = vec([g[2] for g in grid])
-    n_sites = length(site_lons)
-
-    x, y = Oiler.Faults.fault_oblique_merc(fault, site_lons, site_lats)
-    gx, gy = x[1:n_sites], y[1:n_sites]
-    sx1, sy1, sx2, sy2 = x[n_sites + 1], y[n_sites + 1], x[end], y[end]
-
-    D = Oiler.fault_to_okada(fault, sx1, sy1, sx2, sy2)
-
-    ves, vns, vus, ved, vnd, vud, vet, vnt, vut = Oiler.okada(D, 1., 0., 0., gx,
-    gy)
-
-    ve = ves + ved + vet
-    vn = vns + vnd + vnt
-    vu = vud + vud + vut
-
-    figure()
-    plot(trace[:,1], trace[:,2], color = "red")
-    quiver(site_lons, site_lats, ves, vns, scale = 0.005)
-    # plot([sx1 sx2], [sy1 sy2])
-    # scatter(gx, gy)
-    show()
+    @test isapprox(le[4:6, 1:3], [1.11344e8   1.0689e9    4.68748e9;
+                        -5.3601e9   -8.55279e8  -3.39197e8;
+                         0.0         0.0         0.0]; rtol=rtol)
 
 end
-
-# test_okada_ss_grid()
-
-
-
-function test_okada_ss_grid_30ish_strike()
-
-    trace = [-1. -sqrt(3.) / 2.; 1. sqrt(3.) / 2.]
-    fault = Oiler.Fault(trace = trace, dip = 90., dip_dir = "S", hw = "a", fw = "b")
-
-    grid = collect(Iterators.product(-8.:0.5:8., -8.25:0.5:8.25))
-    site_lons = vec([g[1] for g in grid])
-    site_lats = vec([g[2] for g in grid])
-    n_sites = length(site_lons)
-
-    x, y = Oiler.Faults.fault_oblique_merc(fault, site_lons, site_lats)
-    gx, gy = x[1:n_sites], y[1:n_sites]
-    sx1, sy1, sx2, sy2 = x[n_sites + 1], y[n_sites + 1], x[end], y[end]
-
-    D = Oiler.fault_to_okada(fault, sx1, sy1, sx2, sy2)
-
-    ves, vns, vus, ved, vnd, vud, vet, vnt, vut = Oiler.okada(D, 1., 0., 0., gx,
-    gy)
-
-    ve = ves + ved + vet
-    vn = vns + vnd + vnt
-    vu = vud + vud + vut
-
-    figure()
-    plot(trace[:,1], trace[:,2], color = "red")
-    quiver(site_lons, site_lats, ves, vns, scale = 0.005)
-    # plot([sx1 sx2], [sy1 sy2])
-    # scatter(gx, gy)
-    show()
-
-end
-#test_okada_ss_grid_30ish_strike()
 
 
 @testset "test elastic.jl" begin
 
-    test_fault_to_okada()
-    test_okada_dip_slip()
-    test_okada_strike_slip()
-    test_okada_tensile()
-    test_okada_partials()
+    test_calc_locking_effects_per_fault_1()
+    test_calc_locking_effects_segmented_fault_1()
+    test_calc_locking_effects_1()
+
 end

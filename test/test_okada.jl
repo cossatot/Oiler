@@ -13,7 +13,7 @@ function test_okada_ml_inputs_all_disps()
         "lsd" => 20.,
         "ofx" => -9.850338894354840e+03,
         "ofy" => -20.000000000001140,
-        "ofxe"=> -9.771721687583831e+03,
+        "ofxe" => -9.771721687583831e+03,
         "ofye" => -20.000000000001464,
         "tfx" => -9.850338894354840e+03,
         "tfy" => -1.000000000001139,
@@ -45,7 +45,6 @@ function test_okada_ml_inputs_all_disps()
         [0.000199966556297; -0.006285547974839; -0.006095019820654]; rtol=rtol)
     @test isapprox(vut,    
         [0.001992761716366; -0.038169618939615; -0.038100199139836]; rtol=rtol)
-
 end
 
 @testset "okada.jl unit tests" begin
