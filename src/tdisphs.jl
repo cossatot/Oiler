@@ -362,7 +362,7 @@ function trimodefinder(x, y, z, p1, p2, p3)
         ((p2[2] - p3[2]) .* (p1[1] - p3[1]) + (p3[1] - p2[1]) .* (p1[2] - p3[2]))
     c = 1 .- a .- b
 
-    trimode = ones(length(x), 1)
+    trimode = ones(Int64, length(x), 1)
     trimode[(a .<= 0.) .& (b .>  c ) .& (c .>  a )] .= -1
     trimode[(b .<= 0.) .& (c .>  a ) .& (a .>  b )] .= -1
     trimode[(c .<= 0.) .& (a .>  b ) .& (b .>  c )] .= -1
@@ -468,6 +468,7 @@ function AngSetupFSC(X, Y, Z, bX, bY, bZ, PA, PB, nu)
         # to EFCS
         ue, un, uv = CoordTrans(v1, v2, v3, A')
     end
+
     ue, un, uv
 end
 
