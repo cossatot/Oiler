@@ -3,6 +3,8 @@ using Test
 
 using Oiler
 
+atol = 1e-10
+
 function test_TD_1()
     # all functions checked against original matlab
     X = [0.75 0.75];
@@ -22,7 +24,7 @@ function test_TD_1()
         ue, un, uv = Oiler.TD.TDdispHS(X, Y, Z, P1, P2, P3, Ss, Ds; Ts=Ts, nu=nu)
 
         @test isapprox(ue, [-0.023647457823539948 -0.023647457823539948])
-        @test isapprox(un, [-6.938893903907228e-17 -6.938893903907228e-17])
+        @test isapprox(un, [-6.938893903907228e-17 -6.938893903907228e-17];atol=atol)
         @test isapprox(uv, [0.2793337025929701 0.2793337025929701])
     end
 
@@ -30,7 +32,7 @@ function test_TD_1()
     function test_TDdisp_FS_1()
         ueMS, unMS, uvMS = Oiler.TD.TDdispFS(X, Y, Z, P1, P2, P3, Ss, Ds, Ts, nu)
         @test isapprox(ueMS, [-0.03332290083010279 -0.03332290083010279])
-        @test isapprox(unMS, [-2.0816681711721685e-17 -2.0816681711721685e-17])
+        @test isapprox(unMS, [-2.0816681711721685e-17 -2.0816681711721685e-17];atol=atol)
         @test isapprox(uvMS, [0.12911857403885424 0.12911857403885424])
     end
 
