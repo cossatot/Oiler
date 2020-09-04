@@ -246,6 +246,37 @@ function TDdispFS(X, Y, Z, P1, P2, P3, Ss, Ds, Ts, nu)
     ue, un, uv
 end
 
+
+
+"""
+    GetTriStrikeDip(P1, P2, P3)
+
+Returns the strike, dip and norm of the tri from the points.
+"""
+function GetTriStrikeDip(P1, P2, P3)
+    # Calculate unit strike; dip & normal to TD vectors: For a horizontal TD 
+    # as an exception; if the normal vector points upward; the strike & dip 
+    # vectors point Northward & Westward; whereas if the normal vector points
+    # downward; the strike and dip vectors point Southward & Westward; 
+    # respectively.
+    Vnorm = cross(P2 - P1, P3 - P1)
+    Vnorm = Vnorm / norm(Vnorm)
+
+    eY = [0.; 1.; 0.]
+    eZ = [0.; 0.; 1.]
+    Vstrike = cross(eZ, Vnorm)
+
+    if norm(Vstrike) == 0.
+        Vstrike = eY * Vnorm[3]
+    end
+    Vstrike = Vstrike / norm(Vstrike)
+    Vdip = cross(Vnorm, Vstrike)
+
+    Vstrike, Vdip, Vnorm
+end
+
+
+
 """
     TDdisp_HarFunc 
 
@@ -259,23 +290,7 @@ function TDdisp_HarFunc(X, Y, Z, P1, P2, P3, Ss, Ds, Ts, nu)
     by = Ss; # Strike-slip
     bz = Ds; # Dip-slip
 
-    # Calculate unit strike; dip & normal to TD vectors: For a horizontal TD 
-    # as an exception; if the normal vector points upward; the strike & dip 
-    # vectors point Northward & Westward; whereas if the normal vector points
-    # downward; the strike and dip vectors point Southward & Westward; 
-    # respectively.
-    Vnorm = cross(P2 - P1, P3 - P1)
-    Vnorm = Vnorm / norm(Vnorm)
-
-    eY = [0.; 1.; 0.]
-    eZ = [0.; 0.; 1.]
-    Vstrike = cross(eZ, Vnorm)
-
-    if norm(Vstrike) == 0
-        Vstrike = eY * Vnorm[3]
-    end
-    Vstrike = Vstrike / norm(Vstrike)
-    Vdip = cross(Vnorm, Vstrike)
+    Vstrike, Vdip, Vnorm = GetTriStrikeDip(P1, P2, P3)
 
     # Transform slip vector components from TDCS into EFCS
     A = [Vnorm Vstrike Vdip]
