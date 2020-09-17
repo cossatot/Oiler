@@ -163,7 +163,11 @@ function gis_vec_file_to_df(filename::AbstractString; layername="")
                 if k == "geometry"
                     val = AG.getgeom(feature, 0)
                 elseif k == "fid"
-                    val = AG.getfid(feature)
+                    try
+                        val = AG.getfield(feature, k)
+                    catch
+                        val = AG.getfid(feature)
+                    end
                 else
                     val = AG.getfield(feature, k)
                 end
