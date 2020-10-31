@@ -167,6 +167,27 @@ function add_fault_locking_to_PvGb(faults::Array{Fault},
 end
 
 
+function add_tris_to_PvGb(tris, vel_groups, PvGb)
+    gnss_vels = get_gnss_vels(vel_groups)
+    gnss_lons = [vel["vel"].lon for vel in gnss_vels]
+    gnss_lats = [vel["vel"].lat for vel in gnss_vels]
+    gnss_idxs = [vel["idx"] for vel in gnss_vels]
+    
+    tri_effects = Oiler.Elastic.calc_tri_effects(tris, gnss_lons, gnss_lats)
+
+    tri_eqn_matrix = zeros((size(PvGb)[1],size(tri_effects)[2]))
+
+    for (i, vel_idx) in enumerate(gnss_idxs)
+        gnss_row_idxs = i-2:i
+        pvgb_row_idxs = vel_idx[1]
+
+        tri_eqn_matrix[pvgb_row_idxs, :] = tri_effects[gnss_row_idxs, :]
+    end
+
+    PvGb = hcat(PvGb, tri_eqn_matrix)
+end
+
+
 function weight_inv_matrices(PvGb_in, Vc_in, weights)
     N = PvGb_in' * sparse(diagm(weights))
     Vc = N * Vc_in
@@ -221,7 +242,7 @@ function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights; sparse_lh
 end
 
 function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array=[], weighted::Bool=true, regularize::Bool=false,
+    faults::Array=[], tris::Array=[], weighted::Bool=true, regularize::Bool=false,
     l2_lambda::Float64=100.0, sparse_lhs::Bool=false)
 
     @info " making block inversion matrices"
@@ -242,6 +263,10 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
         PvGb = vd["PvGb"]
     end
 
+    if length(tris) > 0
+        @info " doing tris"
+    end
+
     Vc = vd["Vc"]
     weights = vd["weights"]
 
@@ -250,7 +275,9 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
         rhs = Vc
     else
         cm = build_constraint_matrices(cycles, vd["keys"])
-        # cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
+        if length(tris) > 0
+            cm = hstack(cm, zeros(size(cm)[1], length(tris) * 2))
+        end
     end
 
     if regularize == true
@@ -270,7 +297,6 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
             weights; sparse_lhs=sparse_lhs)
     else
         lhs, rhs = add_equality_constraints_bi_objective(PvGb, Vc, cm)
-        # lhs, rhs = add_equality_constraints_kkt(PvGb, Vc, cm)
     end
 
     Dict("lhs" => lhs, "rhs" => rhs, "keys" => vd["keys"], 

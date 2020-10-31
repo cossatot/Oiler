@@ -49,6 +49,9 @@ export okada
 include("tdisphs.jl")
 using .TD
 
+include("tris.jl")
+using .Tris
+
 include("elastic.jl")
 using .Elastic: fault_to_okada
 export fault_to_okada

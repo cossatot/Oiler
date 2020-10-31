@@ -156,4 +156,81 @@ function calc_locking_effects(faults, vel_groups)
     locking_partials
 end
 
+"""
+    calc_tri_effects
+
+Calculates unit strike and dip slip on all GNSS velocities for all tris.
+Returns an Mx2T matrix, where M is the number of sites and T is the number
+of tris. Only horizontal components are returned.
+"""
+function calc_tri_effects(tris, gnss_lons, gnss_lats)
+
+    tri_gnss_partials = hcat( collect(
+        [arrange_tri_partials(
+            calc_tri_effects_single_tri(tri, gnss_lons, gnss_lats)...
+        )]
+    )...)
+
+end
+
+
+function calc_tri_effects_single_tri(tri, lons, lats)
+
+    # project coordinates of tri and sites
+    x_proj, y_proj = Oiler.Tris.tri_merc(tri, lons, lats)
+    x_gnss, y_gnss = x_proj[1:length(lons)], y_proj[1:length(lats)]
+    z_gnss = zeros(length(x_gnss))
+
+    # make projected tri
+    tri_x_1, tri_y_1 = x_proj[end - 2], y_proj[end - 2]
+    tri_x_2, tri_y_2 = x_proj[end - 1], y_proj[end - 1]
+    tri_x_3, tri_y_3 = x_proj[end], y_proj[end]
+
+    tri_z_1 = tri.p1[3] * 1000.
+    tri_z_2 = tri.p2[3] * 1000.
+    tri_z_3 = tri.p3[3] * 1000.
+
+    tri_p1 = [tri_x_1 tri_y_1 tri_z_1]
+    tri_p2 = [tri_x_2 tri_y_2 tri_z_2]
+    tri_p3 = [tri_x_3 tri_y_3 tri_z_3]
+
+    ss_slip = 1.
+    ds_slip = 1.
+    ts_slip = 0. # no tensile slip on tris
+
+    # dip slip component
+    due, dun, duv = Oiler.TD.TDdispHS(x_gnss, y_gnss, z_gnss, tri_p1, tri_p2, 
+                                     tri_p3, 0., ds_slip)
+    
+    # strike_slip_component
+    sue, sun, suv = Oiler.TD.TDdispHS(x_gnss, y_gnss, z_gnss, tri_p1, tri_p2, 
+                                     tri_p3, ss_slip, 0.)
+    due', dun', duv', sue', sun', suv'
+end
+
+
+function arrange_tri_partials(due, dun, duv, sue, sun, suv; uv_zero=true)
+    n_vels = length(due)
+
+    if uv_zero == true
+        duv = zeros(size(duv))
+        suv = zeros(size(duv))
+    end
+
+    out = zeros(n_vels * 3, 2)
+
+    for i in 1:n_vels
+        ind_v = i * 3
+        ind_n = ind_v - 1
+        ind_e = ind_v - 2
+
+        out[ind_e,1] = due[i]
+        out[ind_n,1] = dun[i]
+        out[ind_v,1] = duv[i]
+        out[ind_e,2] = sue[i]
+        out[ind_n,2] = sun[i]
+        out[ind_v,2] = suv[i]
+    end
+    out
+end
 end # module
