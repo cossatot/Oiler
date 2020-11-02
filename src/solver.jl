@@ -178,7 +178,8 @@ function add_tris_to_PvGb(tris, vel_groups, PvGb)
     tri_eqn_matrix = zeros((size(PvGb)[1],size(tri_effects)[2]))
 
     for (i, vel_idx) in enumerate(gnss_idxs)
-        gnss_row_idxs = i-2:i
+        i3 = i * 3
+        gnss_row_idxs = i3-2:i3
         pvgb_row_idxs = vel_idx[1]
 
         tri_eqn_matrix[pvgb_row_idxs, :] = tri_effects[gnss_row_idxs, :]
@@ -234,6 +235,7 @@ function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights; sparse_lh
 
     rhs = [zeros(p); Vc; zeros(q)]
 
+
     if sparse_lhs
         return sparse(lhs), rhs
     else
@@ -265,23 +267,25 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
 
     if length(tris) > 0
         @info " doing tris"
+        PvGb = add_tris_to_PvGb(tris, vel_groups, PvGb)
     end
 
     Vc = vd["Vc"]
     weights = vd["weights"]
 
     if cycles == Dict{Any,Any}()
-        lhs = PvGb
-        rhs = Vc
+        #lhs = PvGb
+        #rhs = Vc
+        cm = []
     else
         cm = build_constraint_matrices(cycles, vd["keys"])
         if length(tris) > 0
-            cm = hstack(cm, zeros(size(cm)[1], length(tris) * 2))
+            cm = hcat(cm, zeros(size(cm)[1], length(tris) * 2))
         end
     end
 
     if regularize == true
-        println("regularizing: l2_lambda = $l2_lambda")
+        @info "regularizing: l2_lambda = $l2_lambda"
         n_vars = size(lhs, 2)
         reg_matrix = sparse(1:n_vars, 1:n_vars, ones(n_vars)) .* l2_lambda
 
@@ -292,11 +296,24 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
     end
     
     if weighted == true
-        cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
-        lhs, rhs = make_weighted_constrained_lls_matrices(PvGb, Vc, cm, 
-            weights; sparse_lhs=sparse_lhs)
+        if cycles == Dict{Any,Any}()
+            @info " Using weighted, non-constrained LLS"
+            lhs, rhs = weight_inv_matrices(PvGb, Vc, weights)
+        else
+            @info " Using weighted, constrained LLS"
+            cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
+            lhs, rhs = make_weighted_constrained_lls_matrices(PvGb, Vc, cm, 
+                weights; sparse_lhs=sparse_lhs)
+        end
     else
-        lhs, rhs = add_equality_constraints_bi_objective(PvGb, Vc, cm)
+        cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
+        if length(cm) == 0
+            @info " Using non-weighted non-constrained LLS"
+            lhs, rhs = add_equality_constraints_bi_objective(PvGb, Vc, cm)
+        else
+            @info " Using non-weighted, constrained LLS"
+            lhs, rhs = add_equality_constraints_kkt(PvGb, Vc, cm)
+        end
     end
 
     Dict("lhs" => lhs, "rhs" => rhs, "keys" => vd["keys"], 
@@ -305,12 +322,14 @@ end
 
 
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array=[], weighted::Bool=true, regularize::Bool=false,
+    faults::Array=[], tris=[], weighted::Bool=true, regularize::Bool=false,
     l2_lambda::Float64=100.0, check_closures::Bool=true, sparse_lhs::Bool=false)
 
     @info "setting up matrices"
     @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups; 
-        faults=faults, weighted=weighted, 
+        faults=faults, 
+        tris=tris,
+        weighted=weighted, 
         regularize=regularize, l2_lambda=l2_lambda,
         sparse_lhs=sparse_lhs)
     
@@ -325,13 +344,23 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 
     nk = length(kkt_soln)
     np = length(block_inv_setup["keys"])
+    nt = length(tris) * 2
 
     if weighted == true
-        soln_idx = (nk - np * 3) + 1:nk
+        soln_idx = ((nk - nt) - np * 3) + 1 : (nk - nt)
     else
         soln_idx = 1:np * 3
     end
     soln = kkt_soln[soln_idx]
+    if nt > 0
+        println(nk)
+        println(nt)
+        tri_soln_idx = last(soln_idx)+1: last(soln_idx) + nt
+        println(tri_soln_idx)
+        tri_soln = kkt_soln[tri_soln_idx]
+        println(tri_soln)
+    end
+
 
     poles = Dict()
     for (i, (fix, mov)) in enumerate(block_inv_setup["keys"])

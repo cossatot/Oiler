@@ -4,9 +4,74 @@ using SparseArrays
 
 using Oiler
 
+faults_1 = [Oiler.Fault(trace=[0. 0.; 1. 1.], dip=89., dip_dir="SW", hw="a",
+                    fw="b", name="ff1"),
+          Oiler.Fault(trace=[5. 5.; 1. 1.], dip=89., dip_dir="SW", hw="a",
+                    fw="b", name="ff2"),
+          Oiler.Fault(trace=[5. 5.; 1. 1.], dip=89., dip_dir="NE", hw="c",
+                    fw="b", name="ff3"),
+          Oiler.Fault(trace=[5. 5.; 1. 1.], dip=89., dip_dir="SW", hw="b",
+                    fw="c", name="ff4"),
+]
 
+vel_groups_1 = Dict(("a", "b") => [
+    VelocityVectorSphere(lon = 0.0,
+                         lat = 0.05,
+                         ve = 0.5,
+                         vn = 0.,
+                         fix = "a",
+                         mov = "b",
+                         name = "f1",
+                         vel_type = "fault"),
+    VelocityVectorSphere(lon = 0.05,
+                         lat = 0.,
+                         ve = 0.53,
+                         vn = 0.,
+                         fix = "a",
+                         mov = "b",
+                         name = "f2",
+                         vel_type = "fault")
+    ],
 
+    ("b", "c") => [
+    VelocityVectorSphere(lon = 0.7,
+                         lat = 0.05,
+                         ve = 1.5,
+                         vn = 0.,
+                         fix = "c",
+                         mov = "b",
+                         name = "f3",
+                         vel_type = "fault")
+],
+    ("r", "a") => [
+    VelocityVectorSphere(lon = -1.,
+                         lat = 0.05,
+                         ve = 0.0,
+                         vn = 0.,
+                         fix = "r",
+                         mov = "a",
+                         name = "g3",
+                         vel_type = "GNSS"),
 
+    VelocityVectorSphere(lon = 0.05,
+                         lat = 0.,
+                         ve = 0.15,
+                         vn = 0.,
+                         fix = "r",
+                         mov = "a",
+                         name = "g4",
+                         vel_type = "GNSS")
+    ],
+    ("r", "c") => [
+    VelocityVectorSphere(lon = 0.77,
+                         lat = 0.05,
+                         ve = 1.9,
+                         vn = 0.,
+                         fix = "r",
+                         mov = "c",
+                         name = "g5",
+                         vel_type = "GNSS")
+])
 
 function test_build_constraint_matrix()
     keys = [("a", "b"), ("b", "c"), ("c", "a"), ("r", "a"), ("r", "c")]
@@ -142,6 +207,21 @@ function test_solve_block_invs_from_vel_groups_1_vel()
     
 end
 
+function test_set_up_block_inv_w_constraints_1()
+    block_inv_setup = Oiler.Solver.set_up_block_inv_w_constraints(vel_groups_1)
+
+end
+
+
+function test_set_up_block_inv_w_constraints_1_tri()
+    tri = Oiler.Tri([81.36, 28.57, -0.],
+                    [83.18, 29.05, -25.0],
+                    [83.68, 27.56, -0.])
+
+    block_inv_setup = Oiler.Solver.set_up_block_inv_w_constraints(vel_groups_1,
+        tris=[tri])
+
+end
 
 """
 This function contains a set of tests that compare different linear

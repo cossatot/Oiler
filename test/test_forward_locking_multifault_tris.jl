@@ -2,6 +2,7 @@ using Revise
 using PyPlot
 
 using CSV
+using JSON
 using DataFrames
 
 using Oiler
@@ -12,6 +13,19 @@ pole = Oiler.PoleCart(x = -4.000480063406787e-10, y = -3.686194245405466e-9,
 
 pv = [pole.x; pole.y; pole.z];
 
+# load tris
+tri_json = JSON.parsefile("./test_data/fake_na_ca/ca_na_fake_la_tris.geojson",
+    dicttype=Dict)
+
+function tri_from_geojson(tri_feature)
+    coords = tri_feature["geometry"]["coordinates"][1]
+    Oiler.Tris.Tri(p1=Float64.(coords[1]), 
+                   p2=Float64.(coords[2]), 
+                   p3=Float64.(coords[3]), 
+                   name=tri_feature["properties"]["fid"])
+end
+
+tris = map(tri_from_geojson, tri_json["features"])
 
 # load vel points
 vels = CSV.read("./test_data/fake_na_ca/ca_na_fake_pts.csv")
@@ -97,7 +111,7 @@ vn = pn - ln
 final_vels = [Oiler.VelocityVectorSphere(lon=lon, lat=vlat[i],  
                                          ve=ve[i], vn=vn[i],
                                          #ve=pe[i], vn=pn[i],
-                                         ee=0.001, en=0.001, eu=0.001,
+                                         ee=0.01, en=0.01, #eu=0.001,
                                          fix="fix", 
                                          mov= (if i in ca_idx; "ca" else "na" end),
                                          #mov="ca", 
@@ -113,9 +127,10 @@ all_vels = vcat(final_vels, fault_vels)
 vel_groups = Oiler.group_vels_by_fix_mov(all_vels)
 
 poles = Oiler.solve_block_invs_from_vel_groups(vel_groups, 
-    faults=faults, 
-    #faults=[], 
-    weighted=false)
+    #faults=faults, 
+    faults=[ss1, ss2],
+    tris=tris,
+    weighted=true)
 
 poles[("na", "ca")] = -poles[("ca", "na")]
 

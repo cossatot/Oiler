@@ -9,6 +9,22 @@ struct Tri
     p1::Array{Float64,1}
     p2::Array{Float64,1}
     p3::Array{Float64,1}
+    dip_slip_rate::Float64
+    strike_slip_rate::Float64
+    name::String
+end
+
+
+function Tri(; 
+    p1::Array{Float64,1},
+    p2::Array{Float64,1},
+    p3::Array{Float64,1},
+    dip_slip_rate::Float64=0.,
+    strike_slip_rate::Float64=0.,
+    name::String=""
+    )
+
+    Tri(p1, p2, p3, dip_slip_rate, strike_slip_rate, name)
 end
 
 

@@ -167,8 +167,8 @@ function calc_tri_effects(tris, gnss_lons, gnss_lats)
 
     tri_gnss_partials = hcat( collect(
         [arrange_tri_partials(
-            calc_tri_effects_single_tri(tri, gnss_lons, gnss_lats)...
-        )]
+            calc_tri_effects_single_tri(tri, gnss_lons, gnss_lats)...)
+         for tri in tris]
     )...)
 
 end
@@ -194,8 +194,8 @@ function calc_tri_effects_single_tri(tri, lons, lats)
     tri_p2 = [tri_x_2 tri_y_2 tri_z_2]
     tri_p3 = [tri_x_3 tri_y_3 tri_z_3]
 
-    ss_slip = 1.
-    ds_slip = 1.
+    ss_slip = 1.# e-3 # mm
+    ds_slip = 1.# e-3 # mm
     ts_slip = 0. # no tensile slip on tris
 
     # dip slip component
