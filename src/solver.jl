@@ -175,11 +175,11 @@ function add_tris_to_PvGb(tris, vel_groups, PvGb)
     
     tri_effects = Oiler.Elastic.calc_tri_effects(tris, gnss_lons, gnss_lats)
 
-    tri_eqn_matrix = zeros((size(PvGb)[1],size(tri_effects)[2]))
+    tri_eqn_matrix = zeros((size(PvGb)[1], size(tri_effects)[2]))
 
     for (i, vel_idx) in enumerate(gnss_idxs)
         i3 = i * 3
-        gnss_row_idxs = i3-2:i3
+        gnss_row_idxs = i3 - 2:i3
         pvgb_row_idxs = vel_idx[1]
 
         tri_eqn_matrix[pvgb_row_idxs, :] = tri_effects[gnss_row_idxs, :]
@@ -190,9 +190,11 @@ end
 
 
 function weight_inv_matrices(PvGb_in, Vc_in, weights)
+    println(size(PvGb_in))
     N = PvGb_in' * sparse(diagm(weights))
     Vc = N * Vc_in
     PvGb = N * PvGb_in
+    println(size(PvGb))
     (PvGb, Vc)
 end
 
@@ -274,8 +276,8 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
     weights = vd["weights"]
 
     if cycles == Dict{Any,Any}()
-        #lhs = PvGb
-        #rhs = Vc
+        # lhs = PvGb
+        # rhs = Vc
         cm = []
     else
         cm = build_constraint_matrices(cycles, vd["keys"])
@@ -306,11 +308,11 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
                 weights; sparse_lhs=sparse_lhs)
         end
     else
-        cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
         if length(cm) == 0
             @info " Using non-weighted non-constrained LLS"
-            lhs, rhs = add_equality_constraints_bi_objective(PvGb, Vc, cm)
+            lhs, rhs = PvGb, Vc
         else
+            cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
             @info " Using non-weighted, constrained LLS"
             lhs, rhs = add_equality_constraints_kkt(PvGb, Vc, cm)
         end
@@ -347,18 +349,28 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     nt = length(tris) * 2
 
     if weighted == true
-        soln_idx = ((nk - nt) - np * 3) + 1 : (nk - nt)
+        soln_idx = ((nk - nt) - np * 3) + 1:(nk - nt)
     else
         soln_idx = 1:np * 3
     end
     soln = kkt_soln[soln_idx]
     if nt > 0
-        println(nk)
-        println(nt)
-        tri_soln_idx = last(soln_idx)+1: last(soln_idx) + nt
-        println(tri_soln_idx)
+        tri_results = Dict()
+        # println(nk)
+        # println(nt)
+        tri_soln_idx = last(soln_idx) + 1:last(soln_idx) + nt
+        # println(tri_soln_idx)
         tri_soln = kkt_soln[tri_soln_idx]
-        println(tri_soln)
+        # println(tri_soln)
+
+        for (i, tri) in enumerate(tris)
+            ds_ind = i * 2 - 1
+            ss_ind = i * 2
+            tri_results[tri.name] = Dict()
+            tri_results[tri.name]["dip_slip"] = tri_soln[ds_ind]
+            tri_results[tri.name]["strike_slip"] = tri_soln[ss_ind]
+        end
+
     end
 
 
@@ -373,7 +385,12 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     if check_closures == true
         closures = Oiler.Utils.check_vel_closures(poles)
     end
-    poles
+
+    if nt > 0
+        return poles, tri_results
+    else
+        return poles
+    end
 end
 
 

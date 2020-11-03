@@ -152,7 +152,8 @@ function gis_vec_file_to_df(filename::AbstractString; layername="")
         d[name] = typ[]
     end
     d["geometry"] = AG.IGeometry[]
-    d["fid"] = Int64[]
+    # d["fid"] = Int64[]
+    d["fid"] = []
 
     # loop over the features to fill the vectors in the Dict
     # for fid in 0:nfeat-1
