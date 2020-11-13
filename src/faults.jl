@@ -176,6 +176,14 @@ function fault_to_vel(fault::Fault)
 end
 
 
+function fault_to_vel_point(fault::Fault)
+    vlon, vlat = get_midpoint(fault.trace)
+
+    return Dict("lon" => vlon, "lat" => vlat, 
+                "rl" => fault.dextral_rate, "ex" => fault.extension_rate)
+end
+
+
 function get_midpoint(trace::Array{Float64,2})
     fault_length = Oiler.Geom.polyline_length(trace)
     mid_pt = Oiler.Geom.sample_polyline(trace, [fault_length / 2.])[1]

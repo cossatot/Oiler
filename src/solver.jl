@@ -190,11 +190,9 @@ end
 
 
 function weight_inv_matrices(PvGb_in, Vc_in, weights)
-    println(size(PvGb_in))
     N = PvGb_in' * sparse(diagm(weights))
     Vc = N * Vc_in
     PvGb = N * PvGb_in
-    println(size(PvGb))
     (PvGb, Vc)
 end
 
@@ -245,36 +243,50 @@ function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights; sparse_lh
     end
 end
 
-function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array=[], tris::Array=[], weighted::Bool=true, regularize::Bool=false,
-    l2_lambda::Float64=100.0, sparse_lhs::Bool=false)
+
+function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
+    faults::Array=[], tris::Array=[])
 
     @info " making block inversion matrices"
-    vd = make_block_inversion_matrices_from_vels(vel_groups)
+    @time vd = make_block_inversion_matrices_from_vels(vel_groups)
     PvGb_size = size(vd["PvGb"])
     @info "Raw PvGb size: $PvGb_size"
 
-    @info " done making block inversion matrices"
-    @info " finding vel cycles"
-    @time cycles = find_vel_cycles(vd["keys"])
-    @info " done finding vel cycles"
 
     if length(faults) > 0
         @info " doing locking"
-        PvGb = add_fault_locking_to_PvGb(faults, vel_groups, vd["PvGb"])
+        vd["PvGb"] = add_fault_locking_to_PvGb(faults, vel_groups, vd["PvGb"])
         @info " done doing locking"
-    else
-        PvGb = vd["PvGb"]
+
     end
 
     if length(tris) > 0
         @info " doing tris"
-        PvGb = add_tris_to_PvGb(tris, vel_groups, PvGb)
+        @time vd["PvGb"] = add_tris_to_PvGb(tris, vel_groups, vd["PvGb"])
+        @info " done doing tris"
+    end
+    
+    @info " done making block inversion matrices"
+    vd
+end
+
+
+function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
+    vd::Dict=Dict(), faults::Array=[], tris::Array=[], weighted::Bool=true, 
+    regularize::Bool=false, l2_lambda::Float64=100.0, sparse_lhs::Bool=false)
+
+    if vd == Dict()
+        vd = set_up_block_inv_no_constraints(vel_groups, faults=faults, tris=tris)
     end
 
+    PvGb = vd["PvGb"]
     Vc = vd["Vc"]
     weights = vd["weights"]
 
+    @info " finding vel cycles"
+    @time cycles = find_vel_cycles(vd["keys"])
+    @info " done finding vel cycles"
+    
     if cycles == Dict{Any,Any}()
         # lhs = PvGb
         # rhs = Vc
@@ -325,15 +337,30 @@ end
 
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array=[], tris=[], weighted::Bool=true, regularize::Bool=false,
-    l2_lambda::Float64=100.0, check_closures::Bool=true, sparse_lhs::Bool=false)
+    l2_lambda::Float64=100.0, check_closures::Bool=true, sparse_lhs::Bool=false,
+    predict_vels::Bool=false)
 
-    @info "setting up matrices"
-    @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups; 
-        faults=faults, 
-        tris=tris,
-        weighted=weighted, 
-        regularize=regularize, l2_lambda=l2_lambda,
-        sparse_lhs=sparse_lhs)
+    if predict_vels == false
+        @info "setting up matrices"
+        @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups; 
+            faults=faults, 
+            tris=tris,
+            weighted=weighted, 
+            regularize=regularize, l2_lambda=l2_lambda,
+            sparse_lhs=sparse_lhs)
+    else
+        @info "setting up unconstrained matrices"
+        @time vd = set_up_block_inv_no_constraints(vel_groups;
+            faults=faults,
+            tris=tris)
+        @info "making constrained matrices"
+        @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups;
+            vd=vd,
+            weighted=weighted,
+            tris=tris,
+            regularize=regularize, l2_lambda=l2_lambda,
+            sparse_lhs=sparse_lhs)
+    end
     
     lhs = block_inv_setup["lhs"]
     lhs_size = size(lhs)
@@ -354,14 +381,11 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         soln_idx = 1:np * 3
     end
     soln = kkt_soln[soln_idx]
+    
+    tri_results = Dict()
     if nt > 0
-        tri_results = Dict()
-        # println(nk)
-        # println(nt)
         tri_soln_idx = last(soln_idx) + 1:last(soln_idx) + nt
-        # println(tri_soln_idx)
         tri_soln = kkt_soln[tri_soln_idx]
-        # println(tri_soln)
 
         for (i, tri) in enumerate(tris)
             ds_ind = i * 2 - 1
@@ -370,9 +394,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             tri_results[tri.name]["dip_slip"] = tri_soln[ds_ind]
             tri_results[tri.name]["strike_slip"] = tri_soln[ss_ind]
         end
-
     end
-
 
     poles = Dict()
     for (i, (fix, mov)) in enumerate(block_inv_setup["keys"])
@@ -381,21 +403,97 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
                                      z=soln[i * 3],
                                      fix=fix, mov=mov)
     end
+    results = Dict()
+    results["poles"] = poles
+    results["tri_slip_rates"] = tri_results
+
+    if predict_vels == true
+        results["predicted_vels"] = predict_model_velocities(vel_groups, vd,
+            poles; tri_results=tri_results)
+        
+        results["predicted_slip_rates"] = predict_slip_rates(faults, poles)
+    end
 
     if check_closures == true
         closures = Oiler.Utils.check_vel_closures(poles)
     end
 
-    if nt > 0
-        return poles, tri_results
-    else
-        return poles
+    results
+end
+
+
+function predict_slip_rates(faults, poles)
+    slip_rates = Oiler.Utils.get_fault_slip_rates_from_poles(
+            faults, poles)
+    # slip_rates = vcat([[s[1] s[2]] for s in slip_rates]...)
+
+    new_faults = []
+
+    for (i, fault) in enumerate(faults)
+        push!(new_faults, 
+              Fault(
+                  fault.trace,
+                  fault.strike,
+                  fault.dip,
+                  fault.dip_dir,
+                  slip_rates[i][2],
+                  fault.extension_err,
+                  slip_rates[i][1],
+                  fault.dextral_err,
+                  fault.lsd,
+                  fault.usd,
+                  fault.name,
+                  fault.hw,
+                  fault.fw
+              ))
     end
+    new_faults
+end
+
+
+function predict_model_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+    block_matrices, poles; tri_results=Dict(), faults::Array=[], tris::Array=[])
+    
+    soln_vec = [[poles[k].x poles[k].y poles[k].z] 
+                for k in block_matrices["keys"]]
+    soln_vec = [(soln_vec...)...]
+    
+    if length(tri_results) > 0
+        tri_soln = [[tri["dip_slip"] tri["strike_slip"]] 
+                    for tri in values(tri_results)]
+        tri_soln = [(tri_soln...)...]
+        append!(soln_vec, tri_soln)
+    end
+
+    # multiply for pred vels
+    pred_vel_vec = block_matrices["PvGb"] * soln_vec
+
+    # loop through vels, make new vels for each w/ predicted output
+    # return in some form or fashion (pred_vel_groups?)
+    pred_vels = Dict()
+
+    counter = 1
+    for pole_key in block_matrices["keys"]
+        pred_vels[pole_key] = []# 
+
+        for vel in vel_groups[pole_key]
+            ve = pred_vel_vec[counter]
+            counter += 1
+            vn = pred_vel_vec[counter]
+            counter += 1
+            vu = pred_vel_vec[counter]
+            counter += 1
+
+            push!(pred_vels[pole_key], VelocityVectorSphere(vel, ve=ve, vn=vn))
+        end
+        convert(Array{VelocityVectorSphere}, pred_vels[pole_key])
+    end
+    pred_vels
 end
 
 
 function calc_forward_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
-    poles::Dict{Any,Any}; faults::Array=[], weighted::Bool=true)
+    poles::Dict{Any,Any}; faults::Array=[])
 
     block_inv_setup = set_up_block_inv_w_constraints(vel_groups; faults=faults,
         weighted=weighted)

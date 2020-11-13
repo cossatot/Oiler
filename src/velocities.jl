@@ -30,18 +30,18 @@ ve, vn, vu are east, north and up velocities, and ee, en, and eu are the
 end
 
 function Base.reverse(vel::VelocityVectorSphere)
-    VelocityVectorSphere(lon = vel.lon,
-        lat = vel.lat,
-        ve = -vel.ve,
-        vn = -vel.vn,
-        vu = -vel.vu,
-        ee = vel.ee,
-        en = vel.en,
-        eu = vel.eu,
-        fix = vel.mov,
-        mov = vel.fix,
-        name = vel.name,
-        vel_type = vel.vel_type)
+    VelocityVectorSphere(lon=vel.lon,
+        lat=vel.lat,
+        ve=-vel.ve,
+        vn=-vel.vn,
+        vu=-vel.vu,
+        ee=vel.ee,
+        en=vel.en,
+        eu=vel.eu,
+        fix=vel.mov,
+        mov=vel.fix,
+        name=vel.name,
+        vel_type=vel.vel_type)
 end
 
 
