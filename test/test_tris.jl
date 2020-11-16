@@ -92,6 +92,29 @@ function test_calc_tri_effects_single_tri_1()
 end
 
 
+function test_point_ordering()
+
+    p1 = [0., 0., -10.]
+    p2 = [1.5, 1.5, -1.]
+    p3 = [0., 3., -10.]
+
+    tri1 = Oiler.Tris.Tri(p1=p1, p2=p2, p3=p3)
+    tri2 = Oiler.Tris.Tri(p1=p2, p2=p3, p3=p1)
+    tri3 = Oiler.Tris.Tri(p1=p3, p2=p1, p3=p2)
+    tri4 = Oiler.Tris.Tri(p1=p3, p2=p2, p3=p1)
+    tri5 = Oiler.Tris.Tri(p1=p1, p2=p3, p3=p2)
+    tri6 = Oiler.Tris.Tri(p1=p2, p2=p1, p3=p3)
+    
+    site_lons = [0.35, 0.25, -0.5]
+    site_lats = [1.5, 1.1, 2.3]
+
+    outs = [Oiler.Elastic.arrange_tri_partials(
+        Oiler.Elastic.calc_tri_effects_single_tri(tri, site_lons, site_lats)...)
+        for tri in (tri1, tri2, tri3, tri4, tri5, tri6)]
+            
+end
+
+
 function test_calc_tri_effects_1()
     tri1 = Oiler.Tri([0., 0., -10.],
                      [1.5, 1.5, -1.],

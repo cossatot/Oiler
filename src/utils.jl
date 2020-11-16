@@ -585,11 +585,33 @@ end
 
 Returns (lons, lats) as arrays of floats from an array of `VelocityVectorSphere`
 """
-function get_coords_from_vel_array(vels::Array{VelocityVectorSphere})
+function get_coords_from_vel_array(vels)
     lats = [v.lat for v in vels]
     lons = [v.lon for v in vels]
 
     (lons, lats)
 end
+
+
+function make_df_from_vel_array(vels)
+    lons, lats = get_coords_from_vel_array(vels)
+    vel_df = DataFrame(lon=lons, lat=lats)
+
+    vel_df.ve = [v.ve for v in vels]
+    vel_df.vn = [v.vn for v in vels]
+    vel_df.name = [v.name for v in vels]
+    vel_df.fix = [v.fix for v in vels]
+    vel_df.mov = [v.mov for v in vels]
+
+    vel_df
+end
+
+
+function make_gnss_df_from_vel_groups(vel_groups)
+    vel__ = get_gnss_vels(vel_groups)
+    vels = [v["vel"] for v in vel__]
+    make_df_from_vel_array(vels)
+end
+
 
 end # module
