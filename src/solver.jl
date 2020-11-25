@@ -212,7 +212,7 @@ function add_equality_constraints_bi_objective(PvGb, Vc, cm)
         lhs = PvGb
         rhs = Vc
     else
-        lhs = [PvGb; cm .* 1e20]
+        lhs = [PvGb; cm .* 1e10]
         rhs = [Vc; zeros(p)]
     end
 
@@ -220,7 +220,26 @@ function add_equality_constraints_bi_objective(PvGb, Vc, cm)
 end
 
 
-function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights; sparse_lhs::Bool=false)
+function make_weighted_constrained_bi_objective_lls_matrices(PvGb, Vc, cm, weights;
+    sparse_lhs::Bool=false)
+
+    new_PvGb, new_Vc = add_equality_constraints_bi_objective(PvGb, Vc, cm)
+
+    cm_weights = ones(size(cm, 1))
+
+    new_weights = vcat(weights, cm_weights)
+
+    new_lhs, new_rhs = weight_inv_matrices(new_PvGb, new_Vc, new_weights)
+
+    if sparse_lhs
+        return sparse(new_lhs), new_rhs
+    else
+        return new_lhs, new_rhs
+    end
+end
+
+
+function make_weighted_constrained_kkt_lls_matrices(PvGb, Vc, cm, weights; sparse_lhs::Bool=false)
     W = sparse(diagm(1 ./ weights))
     p, q = size(cm)
     n = length(Vc)
@@ -229,17 +248,35 @@ function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights; sparse_lh
     else
         _zeros = zeros
     end
-    lhs = [_zeros(p, p) _zeros(p, n) cm;
-           _zeros(n, p) W           PvGb;
-           cm'           PvGb'       _zeros(q, q)]
+    # lhs = [_zeros(p, p) _zeros(p, n) cm;
+    #       _zeros(n, p) W           PvGb;
+    #       cm'           PvGb'       _zeros(q, q)]
 
     rhs = [zeros(p); Vc; zeros(q)]
 
+    lhs = [cm           _zeros(p, p) _zeros(p, n);
+           PvGb         _zeros(n, p) W;
+           _zeros(q, q) cm'          PvGb']
 
     if sparse_lhs
         return sparse(lhs), rhs
     else
         return lhs, rhs
+    end
+end
+
+
+function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights; 
+    sparse_lhs::Bool=false, method="kkt")
+
+    if method == "kkt"
+        return make_weighted_constrained_kkt_lls_matrices(PvGb, Vc, cm, weights;
+            sparse_lhs=sparse_lhs)
+    elseif method == "bi_obj"
+        return make_weighted_constrained_bi_objective_lls_matrices(PvGb, Vc, cm,
+            weights; sparse_lhs=sparse_lhs)
+    else
+        throw(ArgumentError("contraint method not implemented"))
     end
 end
 
@@ -273,7 +310,8 @@ end
 
 function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     vd::Dict=Dict(), faults::Array=[], tris::Array=[], weighted::Bool=true, 
-    regularize::Bool=false, l2_lambda::Float64=100.0, sparse_lhs::Bool=false)
+    regularize::Bool=false, l2_lambda::Float64=100.0, sparse_lhs::Bool=false,
+    constraint_method="kkt")
 
     if vd == Dict()
         vd = set_up_block_inv_no_constraints(vel_groups, faults=faults, tris=tris)
@@ -317,7 +355,7 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
             @info " Using weighted, constrained LLS"
             cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
             lhs, rhs = make_weighted_constrained_lls_matrices(PvGb, Vc, cm, 
-                weights; sparse_lhs=sparse_lhs)
+                weights; sparse_lhs=sparse_lhs, method=constraint_method)
         end
     else
         if length(cm) == 0
@@ -338,29 +376,31 @@ end
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array=[], tris=[], weighted::Bool=true, regularize::Bool=false,
     l2_lambda::Float64=100.0, check_closures::Bool=true, sparse_lhs::Bool=false,
-    predict_vels::Bool=false)
+    predict_vels::Bool=false, constraint_method="kkt")
 
-    if predict_vels == false
-        @info "setting up matrices"
-        @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups; 
-            faults=faults, 
-            tris=tris,
-            weighted=weighted, 
-            regularize=regularize, l2_lambda=l2_lambda,
-            sparse_lhs=sparse_lhs)
-    else
-        @info "setting up unconstrained matrices"
-        @time vd = set_up_block_inv_no_constraints(vel_groups;
+    # if predict_vels == false
+    #    @info "setting up matrices"
+    #    @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups; 
+    #        faults=faults, 
+    #        tris=tris,
+    #        weighted=weighted, 
+    #        regularize=regularize, l2_lambda=l2_lambda,
+    #        sparse_lhs=sparse_lhs,
+    #        constraint_method=constraint_method)
+    # else
+    @info "setting up unconstrained matrices"
+    @time vd = set_up_block_inv_no_constraints(vel_groups;
             faults=faults,
             tris=tris)
-        @info "making constrained matrices"
-        @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups;
+    @info "making constrained matrices"
+    @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups;
             vd=vd,
             weighted=weighted,
             tris=tris,
             regularize=regularize, l2_lambda=l2_lambda,
-            sparse_lhs=sparse_lhs)
-    end
+            sparse_lhs=sparse_lhs,
+            constraint_method=constraint_method)
+    # end
     
     lhs = block_inv_setup["lhs"]
     lhs_size = size(lhs)
@@ -369,23 +409,23 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     @info "RHS size $rhs_size"
 
     @info "solving"
-    @time kkt_soln = lhs \ block_inv_setup["rhs"]
+    @time soln = lhs \ block_inv_setup["rhs"]
 
-    nk = length(kkt_soln)
+    
+
+    nk = length(soln)
     np = length(block_inv_setup["keys"])
-    nt = length(tris) * 2
+    nt = length(tris)
+    
+    soln_idx = 1:np * 3 + nt * 2
+    soln = soln[soln_idx]
 
-    if weighted == true
-        soln_idx = ((nk - nt) - np * 3) + 1:(nk - nt)
-    else
-        soln_idx = 1:np * 3
-    end
-    soln = kkt_soln[soln_idx]
+    _  = get_uncertainties(vd["PvGb"], vd["Vc"], vd["weights"], soln;
+                           weighted=weighted)
     
     tri_results = Dict()
     if nt > 0
-        tri_soln_idx = last(soln_idx) + 1:last(soln_idx) + nt
-        tri_soln = kkt_soln[tri_soln_idx]
+        tri_soln = soln[(np * 3 + 1):end]
 
         for (i, tri) in enumerate(tris)
             ds_ind = i * 2 - 1
@@ -422,7 +462,21 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 end
 
 
-function predict_slip_rates(faults, poles)
+function get_uncertainties(PvGb, Vc, weights, soln; weighted::Bool=true)
+    if weighted == false
+        weights = ones(size(weights))
+    end
+
+    @info "Estimating uncertainties"
+    @info "  Getting covariance matrix"
+    @time prod = (PvGb' * sparse(diagm(weights)) * PvGb)
+    @time cov = Matrix(prod) \ I(size(prod, 2))
+    @info "  done for now"
+
+end
+
+
+    function predict_slip_rates(faults, poles)
     slip_rates = Oiler.Utils.get_fault_slip_rates_from_poles(
             faults, poles)
     # slip_rates = vcat([[s[1] s[2]] for s in slip_rates]...)
@@ -451,7 +505,7 @@ function predict_slip_rates(faults, poles)
 end
 
 
-function predict_model_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+    function predict_model_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
     block_matrices, poles; tri_results=Dict(), faults::Array=[], tris::Array=[])
     
     soln_vec = [[poles[k].x poles[k].y poles[k].z] 
@@ -492,7 +546,7 @@ function predict_model_velocities(vel_groups::Dict{Tuple{String,String},Array{Ve
 end
 
 
-function calc_forward_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+    function calc_forward_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
     poles::Dict{Any,Any}; faults::Array=[])
 
     block_inv_setup = set_up_block_inv_w_constraints(vel_groups; faults=faults,
@@ -504,7 +558,7 @@ end
     
 
 
-function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+    function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
     n_iters::Int)
 
     @warn "not updated in a while and perhaps disfunctional"
@@ -539,7 +593,7 @@ function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},A
 end
 
 
-function random_sample_vel(vel::VelocityVectorSphere)
+    function random_sample_vel(vel::VelocityVectorSphere)
     rnd = randn(2)
     ve = vel.ve + rnd[1] * vel.ee
     vn = vel.vn + rnd[2] * vel.en
@@ -547,7 +601,7 @@ function random_sample_vel(vel::VelocityVectorSphere)
 end
 
 
-function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int)
+    function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int)
     rnd_ve_block = randn((length(vels), n_samps))
     rnd_vn_block = randn((length(vels), n_samps))
 
@@ -562,7 +616,7 @@ function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int)
 end
 
 
-function random_sample_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+    function random_sample_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
     n_samps::Int)
 
     vel_group_samps = Dict{Tuple{String,String},Dict{String,Array{Float64,2}}}()
@@ -574,12 +628,12 @@ function random_sample_vel_groups(vel_groups::Dict{Tuple{String,String},Array{Ve
 end
 
 
-function Vc_triple_from_vals(ve::Float64, vn::Float64)
+    function Vc_triple_from_vals(ve::Float64, vn::Float64)
     [ve; vn; 0]
 end
 
 
-function build_Vc_from_vel_sample(vel_samp::Dict{String,Array{Float64,2}},
+    function build_Vc_from_vel_sample(vel_samp::Dict{String,Array{Float64,2}},
     ind::Int)
 
     reduce(vcat, [Vc_triple_from_vals(ve, vel_samp["vn"][i,ind])
@@ -588,7 +642,7 @@ function build_Vc_from_vel_sample(vel_samp::Dict{String,Array{Float64,2}},
 end
 
 
-function build_Vc_from_vel_samples(vel_samps::Dict{Tuple{String,String},Dict{String,Array{Float64,2}}},
+    function build_Vc_from_vel_samples(vel_samps::Dict{Tuple{String,String},Dict{String,Array{Float64,2}}},
     vel_keys::Array{Tuple{String,String}}, ind::Int)
 
     reduce(vcat, [build_Vc_from_vel_sample(vel_samps[key], ind) for key in vel_keys])

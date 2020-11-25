@@ -1,6 +1,7 @@
 using Test
 
 using SparseArrays
+using LinearAlgebra
 
 using Oiler
 
@@ -15,62 +16,62 @@ faults_1 = [Oiler.Fault(trace=[0. 0.; 1. 1.], dip=89., dip_dir="SW", hw="a",
 ]
 
 vel_groups_1 = Dict(("a", "b") => [
-    VelocityVectorSphere(lon = 0.0,
-                         lat = 0.05,
-                         ve = 0.5,
-                         vn = 0.,
-                         fix = "a",
-                         mov = "b",
-                         name = "f1",
-                         vel_type = "fault"),
-    VelocityVectorSphere(lon = 0.05,
-                         lat = 0.,
-                         ve = 0.53,
-                         vn = 0.,
-                         fix = "a",
-                         mov = "b",
-                         name = "f2",
-                         vel_type = "fault")
+    VelocityVectorSphere(lon=0.0,
+                         lat=0.05,
+                         ve=0.5,
+                         vn=0.,
+                         fix="a",
+                         mov="b",
+                         name="f1",
+                         vel_type="fault"),
+    VelocityVectorSphere(lon=0.05,
+                         lat=0.,
+                         ve=0.53,
+                         vn=0.,
+                         fix="a",
+                         mov="b",
+                         name="f2",
+                         vel_type="fault")
     ],
 
     ("b", "c") => [
-    VelocityVectorSphere(lon = 0.7,
-                         lat = 0.05,
-                         ve = 1.5,
-                         vn = 0.,
-                         fix = "c",
-                         mov = "b",
-                         name = "f3",
-                         vel_type = "fault")
+    VelocityVectorSphere(lon=0.7,
+                         lat=0.05,
+                         ve=1.5,
+                         vn=0.,
+                         fix="c",
+                         mov="b",
+                         name="f3",
+                         vel_type="fault")
 ],
     ("r", "a") => [
-    VelocityVectorSphere(lon = -1.,
-                         lat = 0.05,
-                         ve = 0.0,
-                         vn = 0.,
-                         fix = "r",
-                         mov = "a",
-                         name = "g3",
-                         vel_type = "GNSS"),
+    VelocityVectorSphere(lon=-1.,
+                         lat=0.05,
+                         ve=0.0,
+                         vn=0.,
+                         fix="r",
+                         mov="a",
+                         name="g3",
+                         vel_type="GNSS"),
 
-    VelocityVectorSphere(lon = 0.05,
-                         lat = 0.,
-                         ve = 0.15,
-                         vn = 0.,
-                         fix = "r",
-                         mov = "a",
-                         name = "g4",
-                         vel_type = "GNSS")
+    VelocityVectorSphere(lon=0.05,
+                         lat=0.,
+                         ve=0.15,
+                         vn=0.,
+                         fix="r",
+                         mov="a",
+                         name="g4",
+                         vel_type="GNSS")
     ],
     ("r", "c") => [
-    VelocityVectorSphere(lon = 0.77,
-                         lat = 0.05,
-                         ve = 1.9,
-                         vn = 0.,
-                         fix = "r",
-                         mov = "c",
-                         name = "g5",
-                         vel_type = "GNSS")
+    VelocityVectorSphere(lon=0.77,
+                         lat=0.05,
+                         ve=1.9,
+                         vn=0.,
+                         fix="r",
+                         mov="c",
+                         name="g5",
+                         vel_type="GNSS")
 ])
 
 function test_build_constraint_matrix()
@@ -268,7 +269,7 @@ function test_solver_strategies()
     # constrained, weighted least squares (real weights)
     cw_lhs, cw_rhs = Oiler.Solver.make_weighted_constrained_lls_matrices(PvGb,
         y_obs, cm, y_w)
-    _, _, _, _, _, _, m_cw, b_cw = cw_lhs \ cw_rhs
+    m_cw, b_cw, _, _, _, _, _, _ = cw_lhs \ cw_rhs
     @test isapprox(m_cw, b_cw)
     
     ## constrained, weighted least squares (zero constraints, should match WLS)
@@ -279,10 +280,11 @@ function test_solver_strategies()
     # @test isapprox(m_w, m_cw0)
     # @test isapprox(b_w, b_cw0)
 
-    # constrained, weighted least squares (equal weights, should match CLS)
-    cw1_lhs, cw1_rhs = Oiler.Solver.make_weighted_constrained_lls_matrices(PvGb,
+    # KKT constrained, weighted least squares (equal weights, should match CLS)
+    cw1_lhs, cw1_rhs = Oiler.Solver.make_weighted_constrained_kkt_lls_matrices(PvGb,
         y_obs, cm, y_w1)
     _, _, _, _, _, _, m_cw1, b_cw1 = cw1_lhs \ cw1_rhs
+    # KKT constrained, weighted least squares (equal weights, should match CLS)
     @test isapprox(m_cw1, b_cw1)
     @test isapprox(m_c, m_cw1)
     @test isapprox(b_c, b_cw1)

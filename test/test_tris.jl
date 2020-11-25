@@ -12,7 +12,7 @@ function test_tri_merc_1()
                     [83.68, 27.56, -0.]
                     )
     
-    lon_1 = (81.36 +83.18 + 83.68) / 3.
+    lon_1 = (81.36 + 83.18 + 83.68) / 3.
     lat_1 = (28.57 + 29.05 + 27.56) / 3.
 
     xp, yp = Oiler.Tris.tri_merc(tri, [lon_1], [lat_1])
@@ -49,7 +49,7 @@ function test_tri_strike_slip()
     tp3 = [tx3 ty3 tz3]
 
 
-    ss_disp = 10. #1.0e-3 # mm / yr in m
+    ss_disp = 10. # 1.0e-3 # mm / yr in m
     ds_disp = 0.0 # mm / yr in m
     ts_disp = 0. # no opening or closing of fault
 
@@ -73,7 +73,7 @@ function test_tri_strike_slip()
 
 end
 
-#test_tri_dip_slip()
+# test_tri_dip_slip()
 
 
 
@@ -131,15 +131,28 @@ function test_calc_tri_effects_1()
 
     hcat(
         collect(
-    
-    [Oiler.Elastic.arrange_tri_partials(
-        Oiler.Elastic.calc_tri_effects_single_tri(
-            tri, site_lons, site_lats)...
-        )
-    for tri in tris])...
+            [Oiler.Elastic.arrange_tri_partials(
+                Oiler.Elastic.calc_tri_effects_single_tri(
+                    tri, site_lons, site_lats)...
+                )
+            for tri in tris]
+        )...
     )
 end
 
-#@testset "test tris.jl" begin
+
+function test_get_tri_strike_line_1()
+    p1 = [0., 1., 1.]
+    p2 = [1., 0.5, 0.5]
+    p3 = [0., 0., 0.]
+
+    @test Oiler.Tris.get_tri_strike_line(
+        p1, p2, p3) == ([1.0, 0.5, 0.5], [0.0, 0.5000000000000001, 0.5])
+end
+
+
+
+
+# @testset "test tris.jl" begin
 #    test_tri_merc_1()
-#end
+# end

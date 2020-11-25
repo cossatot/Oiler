@@ -132,6 +132,17 @@ function test_break_polyline_equal_3()
 end
 
 
+function test_check_winding_order_array_2_1()
+    aa = [0. 0.; 1. 0.; 1. 1.; 0. 1.; 0. 0.]
+    @test Oiler.Geom.check_winding_order(aa) == 1
+end
+
+function test_check_winding_order_array_arrays_1()
+    bb = [[0. 0.], [1. 0.], [1. 1.], [0. 1.], [0. 0.]]
+    @test Oiler.Geom.check_winding_order(bb) == 1
+end
+
+
 @testset "test geom.jl" begin
     test_gc_dist()
     test_azimuth_1()

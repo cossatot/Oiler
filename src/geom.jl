@@ -21,7 +21,7 @@ end
 
 
 function gc_distance(lon1::Float64, lat1::Float64,
-                 lon2::Float64, lat2::Float64, R = EARTH_RAD_KM)
+                 lon2::Float64, lat2::Float64, R=EARTH_RAD_KM)
 
     lon1 = deg2rad(lon1)
     lat1 = deg2rad(lat1)
@@ -74,7 +74,7 @@ end
     angle_difference(trend_1, trend_2)
 Calculates the difference between to angles, azimuths or trends, in degrees.
 """
-function angle_difference(trend_1::Float64, trend_2::Float64; return_abs::Bool = true)
+function angle_difference(trend_1::Float64, trend_2::Float64; return_abs::Bool=true)
 
     difference = trend_2 - trend_1
 
@@ -154,7 +154,7 @@ function polyline_seg_lengths(polyline::Array{Float64,2})
     
     for i in 1:n_segs
         seg_lengths[i] = gc_distance(polyline[i,1], polyline[i,2],
-            polyline[i+1,1], polyline[i+1,2])
+            polyline[i + 1,1], polyline[i + 1,2])
     end
     seg_lengths
 end
@@ -204,7 +204,7 @@ function sample_polyline(polyline::Array{Float64,2}, dists)
         last_smaller_idx = size(cum_lengths[cum_lengths .< dist], 1) 
         if last_smaller_idx <= n_segs
             start_lon, start_lat = polyline[last_smaller_idx, :]
-            end_lon, end_lat = polyline[last_smaller_idx+1, :]
+            end_lon, end_lat = polyline[last_smaller_idx + 1, :]
             seg_az = azimuth(start_lon, start_lat, end_lon, end_lat)
             remain_dist = dist - cum_lengths[last_smaller_idx]
             
@@ -277,7 +277,7 @@ function break_polyline_equal(polyline, n_segs)
     if n_segs > 1
         seg_length = poly_length / n_segs
         cum_lengths = seg_length .* collect(1:n_segs)
-        break_dists = cum_lengths[1:end-1]
+        break_dists = cum_lengths[1:end - 1]
 
         break_coords = sample_polyline(polyline, break_dists)
         break_idxs = [length(vertex_cum_dists[vertex_cum_dists .< break_dist])
@@ -290,23 +290,45 @@ function break_polyline_equal(polyline, n_segs)
                 seg_trace = vcat(polyline[start_idx:stop_idx, :], 
                                  break_coords[1])
             elseif (n_seg > 1) & (n_seg < n_segs)
-                start_idx = break_idxs[n_seg-1] + 1
+                start_idx = break_idxs[n_seg - 1] + 1
                 stop_idx = break_idxs[n_seg]
-                seg_trace = vcat(break_coords[n_seg-1], 
+                seg_trace = vcat(break_coords[n_seg - 1], 
                                  polyline[start_idx:stop_idx, :],
                                  break_coords[n_seg])
             else
-                start_idx = break_idxs[n_seg-1] + 1
-                seg_trace = vcat(break_coords[n_seg-1],
+                start_idx = break_idxs[n_seg - 1] + 1
+                seg_trace = vcat(break_coords[n_seg - 1],
                                  polyline[start_idx:end,:])
-            end #if
+            end # if
             push!(new_polylines, seg_trace)
-        end #for n_seg
+        end # for n_seg
     else
         push!(new_polylines, polyline)
     end
     new_polylines
 end
+
+
+function check_winding_order(coords::Array{Float64,2})
+
+    function fun(p1, p2)
+        (p2[1] - p1[1]) * (p2[2] + p1[2])
+    end
+
+    Int(sign(sum([fun(coords[i,:], coords[i - 1,:]) for i in 2:size(coords, 1)])))
+end
+
+
+function check_winding_order(coords)
+
+    function fun(p1, p2)
+        (p2[1] - p1[1]) * (p2[2] + p1[2])
+    end
+
+    Int(sign(sum([fun(coords[i], coords[i - 1]) for i in 2:size(coords, 1)])))
+end
+
+
 
 
 end # module
