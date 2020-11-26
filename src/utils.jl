@@ -460,7 +460,8 @@ function check_vel_closures(poles; tol=1e-5)
         p_sum = Oiler.pole_cart_to_sphere(pole_12 + pole_23 + pole_31)
 
         if p_sum.rotrate > tol
-            warn_msg = "$cycle does not close"
+            rr = p_sum.rotrate
+            warn_msg = "$cycle does not close: $rr"
             all_good = false
             @warn warn_msg
         end

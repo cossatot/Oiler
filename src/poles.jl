@@ -45,7 +45,7 @@ end
 
 
 function Base.:-(pole::PoleCart)
-    PoleCart(x = -pole.x, y = -pole.y, z = -pole.z, fix = pole.mov, mov = pole.fix)
+    PoleCart(x=-pole.x, y=-pole.y, z=-pole.z, fix=pole.mov, mov=pole.fix)
 end
 
 function Base.:-(pole::PoleSphere)
@@ -59,8 +59,8 @@ function add_poles(poles::PoleCart...)
     yn = sum(pole.y for pole in poles)
     zn = sum(pole.z for pole in poles)
 
-    PoleCart(x = xn, y = yn, z = zn, fix = poles[1].fix, 
-                  mov = poles[end].mov)
+    PoleCart(x=xn, y=yn, z=zn, fix=poles[1].fix, 
+                  mov=poles[end].mov)
 end
 
 
@@ -69,8 +69,8 @@ function add_poles(poles::Array{PoleCart})
     yn = sum(pole.y for pole in poles)
     zn = sum(pole.z for pole in poles)
 
-    PoleCart(x = xn, y = yn, z = zn, fix = poles[1].fix, 
-                  mov = poles[end].mov)
+    PoleCart(x=xn, y=yn, z=zn, fix=poles[1].fix, 
+                  mov=poles[end].mov)
 end
 
 
@@ -95,7 +95,7 @@ function subtract_poles(pole1::PoleCart, pole2::PoleCart)
     yy = pole1.y - pole2.y
     zz = pole1.z - pole2.z
 
-    PoleCart(x = xx, y = yy, z = zz, fix = pole1.fix, mov = pole2.fix)
+    PoleCart(x=xx, y=yy, z=zz, fix=pole1.fix, mov=pole2.fix)
 end
 
 function subtract_poles(pole1::PoleSphere, pole2::PoleSphere)
@@ -134,9 +134,9 @@ function pole_cart_to_sphere(pole::PoleCart)
 
     rotation_rate_deg_Myr = rad2deg(rotation_rate_cart) * 1e6
 
-    PoleSphere(lon = pole_lon, lat = pole_lat, 
-                    rotrate = rotation_rate_deg_Myr,
-    fix = pole.fix, mov = pole.mov)
+    PoleSphere(lon=pole_lon, lat=pole_lat, 
+                    rotrate=rotation_rate_deg_Myr,
+    fix=pole.fix, mov=pole.mov)
 end
 
 
@@ -147,7 +147,7 @@ function pole_sphere_to_cart(pole::PoleSphere)
     y = r * cosd(pole.lat) * sind(pole.lon)
     z = r * sind(pole.lat)
 
-    PoleCart(x = x, y = y, z = z, fix = pole.fix, mov = pole.mov)
+    PoleCart(x=x, y=y, z=z, fix=pole.fix, mov=pole.mov)
 end
 
 
