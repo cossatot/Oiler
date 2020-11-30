@@ -408,13 +408,6 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     @info "solving"
     @time full_soln = lhs \ rhs
 
-    if pred_se == true
-        se_vec = get_soln_standard_error(lhs, rhs, full_soln, 
-            length(basic_matrices["Vc"]), size(basic_matrices["PvGb"], 2))
-    else
-        se_vec = zeros(length(rhs))
-    end
-
     nk = length(full_soln)
     np = length(block_inv_setup["keys"])
     nt = length(tris)
@@ -447,10 +440,20 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     results["poles"] = poles
     results["tri_slip_rates"] = tri_results
 
+    if pred_se == true
+        @info "Estimating solution uncertainties"
+        @time results["se_vec"] = get_soln_standard_error(lhs,
+            get_pred_solution(basic_matrices["PvGb"], basic_matrices["keys"],
+                              poles; tri_results), 
+            basic_matrices["Vc"], size(basic_matrices["PvGb"], 2))
+    else
+        results["se_vec"] = zeros(length(basic_matrices["Vc"]))
+    end
+
     if predict_vels == true
         pred_vel_vec = lhs * full_soln
         results["predicted_vels"] = predict_model_velocities(vel_groups, basic_matrices,
-            pred_vel_vec, se_vec; poles=poles, tri_results=tri_results)
+            pred_vel_vec, results["se_vec"]; poles=poles, tri_results=tri_results)
         
         results["predicted_slip_rates"] = predict_slip_rates(faults, poles)
     end
@@ -463,23 +466,21 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 end
 
 
-function get_soln_standard_error(lhs, y, soln, n, p)
+function diag_dot(A, B)
+    out = dot.(eachrow(A), eachcol(B))
+end
 
-    @info "Estimating uncertainties"
-    @info "  QR factorization"
-    @time Q = qr(lhs)
-    @info "  Getting covariance matrix"
-    @time cov = (Q.R' * Q.R)
-    @info "  Calculating misfit"
-    # @time e = (I(size(Q.Q, 2)) - Q.Q * Q.Q') * y
-    @time pred = lhs * soln
-    e = y - pred
-    @time MSE = 1 / (n - p) * e' * e
+function get_soln_standard_error(lhs, y_pred, y_obs, p)
 
-    @info "  Calculating variance"
-    @time var = MSE \ cov
+    n = length(y_obs)
 
-    standard_error_vec = sqrt.([var[i,i] for i in size(var, 2)])
+    Q = qr(lhs)
+    cov = diag_dot(Q.R', Q.R)
+    e = y_pred .- y_obs
+    MSE = 1 / (n - p) * e' * e
+
+    var = MSE / cov
+    standard_error_vec = sqrt.(var)
 end
 
 
@@ -512,11 +513,10 @@ function predict_slip_rates(faults, poles)
 end
 
 
-function predict_model_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
-    block_matrices, pred_vel_vec, soln_se_vec; poles=Dict(), tri_results=Dict(), faults::Array=[], tris::Array=[])
+function get_pred_solution(PvGb, keys, poles; tri_results=Dict())
     
     soln_vec = [[poles[k].x poles[k].y poles[k].z] 
-                for k in block_matrices["keys"]]
+                 for k in keys]
     soln_vec = [(soln_vec...)...]
     
     if length(tri_results) > 0
@@ -527,7 +527,15 @@ function predict_model_velocities(vel_groups::Dict{Tuple{String,String},Array{Ve
     end
 
     # multiply for pred vels
-    pred_vel_vec = block_matrices["PvGb"] * soln_vec
+    pred_vel_vec = PvGb * soln_vec
+end
+
+
+function predict_model_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+    block_matrices, pred_vel_vec, soln_se_vec; poles=Dict(), tri_results=Dict(), faults::Array=[], tris::Array=[])
+    
+    pred_vel_vec = get_pred_solution(block_matrices["PvGb"], block_matrices["keys"],
+        poles; tri_results)
 
     # loop through vels, make new vels for each w/ predicted output
     # return in some form or fashion (pred_vel_groups?)
