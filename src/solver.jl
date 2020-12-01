@@ -374,16 +374,6 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     l2_lambda::Float64=100.0, check_closures::Bool=true, sparse_lhs::Bool=false,
     predict_vels::Bool=false, constraint_method="kkt", pred_se::Bool=false)
 
-    # if predict_vels == false
-    #    @info "setting up matrices"
-    #    @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups; 
-    #        faults=faults, 
-    #        tris=tris,
-    #        weighted=weighted, 
-    #        regularize=regularize, l2_lambda=l2_lambda,
-    #        sparse_lhs=sparse_lhs,
-    #        constraint_method=constraint_method)
-    # else
     @info "setting up unconstrained matrices"
     @time basic_matrices = set_up_block_inv_no_constraints(vel_groups;
             faults=faults,
@@ -441,19 +431,31 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     results["tri_slip_rates"] = tri_results
 
     if pred_se == true
+        if weighted == true
+            se_weights = basic_matrices["weights"]
+        else
+            se_weights = ones(size(basic_matrices["weights"]))
+        end
         @info "Estimating solution uncertainties"
-        @time results["se_vec"] = get_soln_standard_error(lhs,
+        @time se_vec = get_soln_standard_error(basic_matrices["PvGb"],
             get_pred_solution(basic_matrices["PvGb"], basic_matrices["keys"],
                               poles; tri_results), 
-            basic_matrices["Vc"], size(basic_matrices["PvGb"], 2))
+            basic_matrices["Vc"],
+            se_weights)
     else
-        results["se_vec"] = zeros(length(basic_matrices["Vc"]))
+        se_vec = zeros(length(basic_matrices["Vc"]))
+    end
+
+    for (i, (fix, mov)) in enumerate(block_inv_setup["keys"])
+        poles[(fix, mov)] = PoleCart(poles[(fix, mov)];
+                                     ex=se_vec[i * 3 - 2], 
+                                     ey=se_vec[i * 3 - 1],
+                                     ez=se_vec[i * 3])
     end
 
     if predict_vels == true
-        pred_vel_vec = lhs * full_soln
-        results["predicted_vels"] = predict_model_velocities(vel_groups, basic_matrices,
-            pred_vel_vec, results["se_vec"]; poles=poles, tri_results=tri_results)
+        results["predicted_vels"] = predict_model_velocities(vel_groups, 
+            basic_matrices, poles; tri_results=tri_results)
         
         results["predicted_slip_rates"] = predict_slip_rates(faults, poles)
     end
@@ -470,16 +472,28 @@ function diag_dot(A, B)
     out = dot.(eachrow(A), eachcol(B))
 end
 
-function get_soln_standard_error(lhs, y_pred, y_obs, p)
+function get_soln_standard_error(lhs, y_pred, y_obs, weights)
 
-    n = length(y_obs)
-
-    Q = qr(lhs)
-    cov = diag_dot(Q.R', Q.R)
+    n, p = size(lhs)
+    
     e = y_pred .- y_obs
     MSE = 1 / (n - p) * e' * e
+    RMSE_string = "RMSE: " * string(sqrt(MSE))
+    @info RMSE_string
 
-    var = MSE / cov
+    # Q = qr(sparse(diagm(sqrt.(weights)) * (lhs)))
+    # qrr = Q.R' * Q.R
+    # cov = Matrix(qrr) \ I
+    
+    if any(x -> x != 1., weights)
+        red_lhs = lhs' * sparse(diagm(weights)) * lhs
+    else
+        red_lhs = lhs' * lhs
+    end
+
+    cov = Matrix(red_lhs) \ I
+
+    var = abs.(MSE / diag(cov))
     standard_error_vec = sqrt.(var)
 end
 
@@ -507,7 +521,9 @@ function predict_slip_rates(faults, poles)
                   fault.name,
                   fault.hw,
                   fault.fw
-              ))
+              )
+        )
+
     end
     new_faults
 end
@@ -532,7 +548,7 @@ end
 
 
 function predict_model_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
-    block_matrices, pred_vel_vec, soln_se_vec; poles=Dict(), tri_results=Dict(), faults::Array=[], tris::Array=[])
+    block_matrices, poles; tri_results=Dict())
     
     pred_vel_vec = get_pred_solution(block_matrices["PvGb"], block_matrices["keys"],
         poles; tri_results)
