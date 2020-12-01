@@ -6,27 +6,6 @@ using ..Oiler: EARTH_RAD_MM, VelocityVectorSphere, PoleSphere, PoleCart,
         pole_sphere_to_cart, pole_cart_to_sphere
 
 
-function build_Pv_deg_ned(lon::Float64, lat::Float64)
-
-    pv11 = -sind(lat) * cosd(lon) # nx
-    pv12 = -sind(lat) * sind(lon) # ny
-    pv13 = cosd(lat) # nz
-
-    pv21 = -sind(lon) # ex
-    pv22 = cosd(lon)  # ey
-    pv23 = 0. # ez
-
-    pv31 = -cosd(lat) * cosd(lon) # dx
-    pv32 = -cosd(lat) * sind(lon) # dy
-    pv33 = -sind(lat) # dz
-
-    Pv = [pv11 pv12 pv13;
-          pv21 pv22 pv23;
-          pv31 pv32 pv33]
-    return Pv
-end
-
-
 function build_Pv_deg(lon::Float64, lat::Float64)
     pex = -sind(lon)
     pey = cosd(lon)
@@ -187,11 +166,21 @@ function predict_block_vels(lons::Array{Float64},
         n_vels = size(lons)[2]
     end
 
+    # Propagate uncertainty in pole (Vel locations have negligible uncertainty)
+    if any(x -> x != 0., [pole.ex, pole.ey, pole.ez])
+        V_err = diag(PvGb * diagm([pole.ex, pole.ey, pole.ez]) * PvGb')
+    else
+        V_err = zeros(size(V_pred))
+    end
+    Ve_err = V_err[1:3:end]
+    Vn_err = V_err[2:3:end]
+
     pred_vels = Array{VelocityVectorSphere}(undef, n_vels)
 
     for n in 1:n_vels
         pred_vels[n] = VelocityVectorSphere(lon=lons[n], lat=lats[n],
                                             ve=Ve_pred[n], vn=Vn_pred[n],
+                                            ee=Ve_err[n], en=Vn_err[n],
                                             fix=pole.fix, mov=pole.mov)
     end
     return pred_vels
