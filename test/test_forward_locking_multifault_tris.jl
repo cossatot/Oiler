@@ -121,7 +121,7 @@ results = Oiler.solve_block_invs_from_vel_groups(vel_groups,
     # faults=faults, 
     faults=[ss1, ss2],
     tris=tris,
-    weighted=true,
+    weighted=false,
     predict_vels=true,
     pred_se=true)
 
@@ -130,13 +130,16 @@ pred_g_vels = Oiler.Utils.make_gnss_df_from_vel_groups(results["predicted_vels"]
 
 
 
-figure()
-quiver(vlon, vlat, ve, vn, scale=300, color="black")
-# quiver(vlon, vlat, pve, pvn, scale=300, color="red", alpha=0.5)
-quiver(pred_g_vels.lon, pred_g_vels.lat, pred_g_vels.ve, pred_g_vels.vn,
-       scale=300, color="red", alpha=0.5)
-plot(ss1.trace[:,1], ss1.trace[:,2])
-plot(ss2.trace[:,1], ss2.trace[:,2])
-plot(th1.trace[:,1], th1.trace[:,2])
-axis("equal")
-show()
+# figure()
+# quiver(vlon, vlat, ve, vn, scale=300, color="black")
+## quiver(vlon, vlat, pve, pvn, scale=300, color="red", alpha=0.5)
+# quiver(pred_g_vels.lon, pred_g_vels.lat, pred_g_vels.ve, pred_g_vels.vn,
+#       scale=300, color="red", alpha=0.5)
+# plot(ss1.trace[:,1], ss1.trace[:,2])
+# plot(ss2.trace[:,1], ss2.trace[:,2])
+# plot(th1.trace[:,1], th1.trace[:,2])
+# axis("equal")
+# show()
+# display(gcf()
+
+Oiler.pole_cart_to_sphere(results["poles"][("ca", "na")])
