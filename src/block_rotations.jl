@@ -2,6 +2,7 @@ module BlockRotations
 
 export build_PvGb_from_vels, build_vel_column_from_vels, predict_block_vels
 
+using LinearAlgebra
 using ..Oiler: EARTH_RAD_MM, VelocityVectorSphere, PoleSphere, PoleCart,
         pole_sphere_to_cart, pole_cart_to_sphere
 

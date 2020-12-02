@@ -249,7 +249,7 @@ end
 function ee_en_to_fault_slip_rate_err(ee::Float64, en::Float64, strike::Float64)
     angle = az_to_angle(strike)
 
-    rotate_velocity_err(ee, en, -angle)
+    Oiler.Geom.rotate_velocity_err(ee, en, -angle)
 end
 
 
