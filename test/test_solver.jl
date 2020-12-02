@@ -283,7 +283,7 @@ function test_solver_strategies()
     # KKT constrained, weighted least squares (equal weights, should match CLS)
     cw1_lhs, cw1_rhs = Oiler.Solver.make_weighted_constrained_kkt_lls_matrices(PvGb,
         y_obs, cm, y_w1)
-    _, _, _, _, _, _, m_cw1, b_cw1 = cw1_lhs \ cw1_rhs
+    m_cw1, b_cw1, _, _, _, _, _, _ = cw1_lhs \ cw1_rhs
     # KKT constrained, weighted least squares (equal weights, should match CLS)
     @test isapprox(m_cw1, b_cw1)
     @test isapprox(m_c, m_cw1)

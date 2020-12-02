@@ -16,9 +16,9 @@ based on them, and then try to invert this data to recover the three poles.
 """
 
 
-an_af_s = Oiler.PoleSphere(lat = 9.3, lon = -41.7, rotrate = 0.15, mov = "an", fix = "af");
-af_in_s = Oiler.PoleSphere(lat = 17.3, lon = 46., rotrate = 0.64, mov = "af", fix = "in");
-an_in_s = Oiler.PoleSphere(lat = 18.7, lon = 32.5, rotrate = 0.67, mov = "an", fix = "in");
+an_af_s = Oiler.PoleSphere(lat=9.3, lon=-41.7, rotrate=0.15, mov="an", fix="af");
+af_in_s = Oiler.PoleSphere(lat=17.3, lon=46., rotrate=0.64, mov="af", fix="in");
+an_in_s = Oiler.PoleSphere(lat=18.7, lon=32.5, rotrate=0.67, mov="an", fix="in");
 
 
 an_af_sites = [13.98 -52.17;
@@ -57,7 +57,7 @@ an_in_vels = Oiler.predict_block_vels(an_in_sites[:,1], an_in_sites[:,2],
 vels = reduce(vcat, (an_af_vels, af_in_vels, an_in_vels));
 vel_groups = Oiler.group_vels_by_fix_mov(vels);
 
-poles = Oiler.solve_block_invs_from_vel_groups(vel_groups);
+poles = Oiler.solve_block_invs_from_vel_groups(vel_groups)["poles"];
 
 an_af_pred = Oiler.pole_cart_to_sphere(poles[("af", "an")]);
 af_in_pred = Oiler.pole_cart_to_sphere(poles[("in", "af")]);
@@ -65,15 +65,15 @@ an_in_pred = Oiler.pole_cart_to_sphere(poles[("in", "an")]);
 
 
 function compare_poles(p1, p2)
-    @test round(p1.lon; digits = 1) == round(p2.lon; digits = 1)
-    @test round(p1.lat; digits = 1) == round(p2.lat; digits = 1)
-    @test round(p1.rotrate; digits = 2) == round(p2.rotrate; digits = 2)
+    @test round(p1.lon; digits=1) == round(p2.lon; digits=1)
+    @test round(p1.lat; digits=1) == round(p2.lat; digits=1)
+    @test round(p1.rotrate; digits=2) == round(p2.rotrate; digits=2)
 end
 
 
 @testset "three_poles.jl comparing input vs. output poles" begin
-compare_poles(an_af_s, an_af_pred);
-compare_poles(af_in_s, af_in_pred);
-compare_poles(an_in_s, an_in_pred);
+    compare_poles(an_af_s, an_af_pred);
+    compare_poles(af_in_s, af_in_pred);
+    compare_poles(an_in_s, an_in_pred);
 
 end
