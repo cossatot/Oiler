@@ -122,6 +122,15 @@ function build_vel_column_from_vels(vels::Array{VelocityVectorSphere})
 end
 
 
+function predict_block_vel(lon::Float64, lat::Float64, pole::PoleCart)
+    vel_pred = predict_block_vels([lon], [lat], pole)[1]
+end
+    
+
+function predict_block_vel(lon::Float64, lat::Float64, pole::PoleSphere)
+    predict_block_vel(lon, lat, pole_sphere_to_cart(pole))
+end
+
 
 function predict_block_vels(lons::Array{Float64},
                             lats::Array{Float64},

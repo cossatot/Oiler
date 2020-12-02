@@ -399,6 +399,7 @@ end
 function predict_vels_from_poles(block_things::Dict{String,AbstractArray},
     poles::Array{PoleCart,1})
 
+    @warn "predict_vels_from_poles  has no error propagation"
     pole_list = [get_path_euler_pole(poles, fix, mov) for (fix, mov) in
     block_things["keys"]]
     
@@ -430,17 +431,6 @@ end
 
 function get_vel_vec_from_pole(vel::VelocityVectorSphere, pole::PoleSphere)
     get_vel_vec_from_pole(vel, Oiler.BlockRotations.pole_sphere_to_cart(pole))
-end
-
-
-function predict_block_vel(lon::Float64, lat::Float64, pole::PoleCart)
-    PvGb = Oiler.BlockRotations.build_PvGb_deg(lon, lat)
-    vel_vec = PvGb * [pole.x; pole.y; pole.z]
-end
-    
-
-function predict_block_vel(lon::Float64, lat::Float64, pole::PoleSphere)
-    predict_block_vel(lon, lat, pole_sphere_to_cart(pole))
 end
 
 

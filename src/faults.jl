@@ -164,8 +164,7 @@ function fault_to_vel(fault::Fault)
     ve, vn = fault_slip_rate_to_ve_vn(fault.dextral_rate, fault.extension_rate,
         fault.strike)
     
-    # this may not be valid, need to check...
-    ee, en = fault_slip_rate_to_ve_vn(fault.dextral_err, fault.extension_err,
+    ee, en = fault_slip_rate_err_to_ee_en(fault.dextral_err, fault.extension_err,
         fault.strike)
 
     vlon, vlat = get_midpoint(fault.trace)
@@ -180,7 +179,8 @@ function fault_to_vel_point(fault::Fault)
     vlon, vlat = get_midpoint(fault.trace)
 
     return Dict("lon" => vlon, "lat" => vlat, 
-                "rl" => fault.dextral_rate, "ex" => fault.extension_rate)
+                "rl" => fault.dextral_rate, "ex" => fault.extension_rate,
+                "e_rl" => fault.dextral_err, "e_ex" => fault.extension_err)
 end
 
 
@@ -231,11 +231,25 @@ function fault_slip_rate_to_ve_vn(dextral_rate::Float64, extension_rate::Float64
     rotate_velocity(dextral_rate, extension_rate, angle)
 end
 
+function fault_slip_rate_err_to_ee_en(dextral_err::Float64, extension_err::Float64,
+    strike::Float64)
+    angle = az_to_angle(strike)
+
+    Oiler.Geom.rotate_velocity_err(dextral_err, extension_err, angle)
+end
+
 
 function ve_vn_to_fault_slip_rate(ve::Float64, vn::Float64, strike::Float64)
     angle = az_to_angle(strike)
 
     rotate_velocity(ve, vn, -angle)
+end
+
+
+function ee_en_to_fault_slip_rate_err(ee::Float64, en::Float64, strike::Float64)
+    angle = az_to_angle(strike)
+
+    rotate_velocity_err(ee, en, -angle)
 end
 
 
@@ -245,13 +259,9 @@ function get_fault_slip_rate_from_pole(fault::Oiler.Faults.Fault, pole::Oiler.Po
 
     # fault velocities should be relative to hanging wall (hw fixed)
     if (fault.fw == pole.mov) & (fault.hw == pole.fix)
-        ve, vn, vu = Oiler.Utils.predict_block_vel(lon, lat, pole)
-        v_rl, v_ex = ve_vn_to_fault_slip_rate(ve, vn, fault.strike)
-
+        pole_use = pole
     elseif (fault.fw == pole.fix) & (fault.hw == pole.mov)
-        ve, vn, vu = Oiler.Utils.predict_block_vel(lon, lat, -pole)
-        v_rl, v_ex = ve_vn_to_fault_slip_rate(ve, vn, fault.strike)
-
+        pole_use = -pole
     else
         fw = fault.fw
         hw = fault.hw
@@ -259,10 +269,19 @@ function get_fault_slip_rate_from_pole(fault::Oiler.Faults.Fault, pole::Oiler.Po
         fix = pole.fix
         warn_msg = "fault ($hw, $fw) and pole ($fix, $mov) do not match, but continuing..."
         @warn warn_msg
-        ve, vn, vu = Oiler.Utils.predict_block_vel(lon, lat, pole)
-        v_rl, v_ex = ve_vn_to_fault_slip_rate(ve, vn, fault.strike)
+        pole_use = pole
     end
-    v_rl, v_ex
+    
+    pred_vel = Oiler.BlockRotations.predict_block_vel(lon, lat, pole_use)
+    v_rl, v_ex = ve_vn_to_fault_slip_rate(pred_vel.ve, pred_vel.vn, fault.strike)
+    
+    if (pred_vel.ee == 0.) & (pred_vel.en == 0.)
+        e_rl, e_ex = 0., 0.
+    else
+        e_rl, e_ex = ee_en_to_fault_slip_rate_err(pred_vel.ee, pred_vel.en,
+                                                  fault.strike)
+    end
+    v_rl, v_ex, e_rl, e_ex
 end
 
 

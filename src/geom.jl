@@ -94,11 +94,15 @@ end
 
 function rotate_velocity(vx::Float64, vy::Float64, angle::Float64)
     Vp = [cos(angle) -sin(angle); sin(angle) cos(angle)] * [vx; vy]
-
-    (Vp[1], Vp[2])
 end
 
 
+function rotate_velocity_err(ex, ey, angle)
+    R = [cos(angle) -sin(angle); sin(angle) cos(angle)]
+    
+    var = R * diagm([ex; ey].^2) * R'
+    err = sqrt.(diag(var))
+end
 
 """
     rotate_xy_vec
