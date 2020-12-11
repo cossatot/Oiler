@@ -481,7 +481,7 @@ function get_soln_standard_error(lhs, y_pred, y_obs, weights)
     RMSE_string = "RMSE: " * string(sqrt(MSE))
     @info RMSE_string
 
-    # Q = qr(sparse(diagm(sqrt.(weights)) * (lhs)))
+    # Q = qr(sparse(diagm(sqrt.(weights)) * lhs))
     # qrr = Q.R' * Q.R
     # cov = Matrix(qrr) \ I
     
@@ -513,9 +513,9 @@ function predict_slip_rates(faults, poles)
                   fault.dip,
                   fault.dip_dir,
                   slip_rates[i][2],
-                  fault.extension_err,
+                  slip_rates[i][4], # fault.extension_err,
                   slip_rates[i][1],
-                  fault.dextral_err,
+                  slip_rates[i][3], # fault.dextral_err,
                   fault.lsd,
                   fault.usd,
                   fault.name,

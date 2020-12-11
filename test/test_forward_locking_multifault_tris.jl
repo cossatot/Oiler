@@ -121,7 +121,7 @@ results = Oiler.solve_block_invs_from_vel_groups(vel_groups,
     # faults=faults, 
     faults=[ss1, ss2],
     tris=tris,
-    weighted=false,
+    weighted=true,
     predict_vels=true,
     pred_se=true)
 

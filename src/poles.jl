@@ -192,7 +192,8 @@ function err_cart_to_sphere(x::Float64, y::Float64, z::Float64,
 
     M = [d11 d12 d13; d21 d22 d23; d31 d32 d33]
 
-    er, etheta, ephi = M * [ex, ey, ez]
+    er, etheta, ephi = abs.(M * [ex, ey, ez])
+    # er, etheta, ephi = sqrt.(diag(M * diagm([ex, ey, ez].^2) * M'))
 
     elon = rad2deg(etheta)
     elat = rad2deg(ephi)
@@ -231,7 +232,8 @@ function err_sphere_to_cart(lon::Float64, lat::Float64, rotrate::Float64,
 
     M = [d11 d12 d13; d21 d22 d23; d31 d32 d33]
 
-    ex, ey, ez = M * [er, etheta, ephi]
+    # ex, ey, ez = sqrt.(diag(M * diagm([er, etheta, ephi].^2) * M'))
+    ex, ey, ez = abs.(M * [er, etheta, ephi])
 
 end
 

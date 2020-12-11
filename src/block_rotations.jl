@@ -136,26 +136,7 @@ end
 function predict_block_vels(lons::Array{Float64},
                             lats::Array{Float64},
                             pole::PoleSphere)
-
-    PvGb = build_PvGb_from_degs(lons, lats)
-
-    cart_pole = pole_sphere_to_cart(pole)
-
-    V_pred = PvGb * [cart_pole.x; cart_pole.y; cart_pole.z]
-    Ve_pred = V_pred[1:3:end]
-    Vn_pred = V_pred[2:3:end]
-    Vu_pred = V_pred[3:3:end]
-
-    n_vels = length(lons)
-
-    pred_vels = Array{VelocityVectorSphere}(undef, n_vels)
-
-    for n in 1:n_vels
-        pred_vels[n] = VelocityVectorSphere(lon=lons[n], lat=lats[n],
-                                            ve=Ve_pred[n], vn=Vn_pred[n],
-                                            fix=pole.fix, mov=pole.mov)
-    end
-    return pred_vels
+    predict_block_vels(lons, lats, pole_sphere_to_cart(pole))
 end
     
 
@@ -178,7 +159,7 @@ function predict_block_vels(lons::Array{Float64},
 
     # Propagate uncertainty in pole (Vel locations have negligible uncertainty)
     if any(x -> x != 0., [pole.ex, pole.ey, pole.ez])
-        V_err = diag(PvGb * diagm([pole.ex, pole.ey, pole.ez]) * PvGb')
+        V_err = sqrt.(diag(PvGb * diagm([pole.ex^2, pole.ey^2, pole.ez^2]) * PvGb'))
     else
         V_err = zeros(size(V_pred))
     end

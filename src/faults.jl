@@ -253,9 +253,13 @@ function ee_en_to_fault_slip_rate_err(ee::Float64, en::Float64, strike::Float64)
 end
 
 
-function get_fault_slip_rate_from_pole(fault::Oiler.Faults.Fault, pole::Oiler.PoleCart)
-    fault_mid = get_midpoint(fault.trace)
-    lon, lat = fault_mid[1], fault_mid[2]
+function get_fault_slip_rate_from_pole(fault::Oiler.Faults.Fault, pole::Oiler.PoleCart;
+                                       lon=nothing, lat=nothing)
+                                       
+    if isnothing(lon)
+        fault_mid = get_midpoint(fault.trace)
+        lon, lat = fault_mid[1], fault_mid[2]
+    end
 
     # fault velocities should be relative to hanging wall (hw fixed)
     if (fault.fw == pole.mov) & (fault.hw == pole.fix)
