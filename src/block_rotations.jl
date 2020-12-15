@@ -159,7 +159,7 @@ function predict_block_vels(lons::Array{Float64},
 
     # Propagate uncertainty in pole (Vel locations have negligible uncertainty)
     if any(x -> x != 0., [pole.ex, pole.ey, pole.ez])
-        V_err = sqrt.(diag(PvGb * diagm([pole.ex^2, pole.ey^2, pole.ez^2]) * PvGb'))
+        V_err = sqrt.(diag(PvGb * make_pole_cov_matrix(pole) * PvGb'))
     else
         V_err = zeros(size(V_pred))
     end
@@ -177,6 +177,19 @@ function predict_block_vels(lons::Array{Float64},
     return pred_vels
 end
    
+function make_pole_cov_matrix(pole::PoleCart)
+    xx = pole.ex^2
+    yy = pole.ey^2
+    zz = pole.ez^2
+    xy = pole.vxy
+    xz = pole.vxz
+    yz = pole.vyz
+
+    [xx xy xz;
+     xy yy yz;
+     xz yz zz]
+end
+
 
 function predict_block_vels(vels::Array{VelocityVectorSphere},
 pole::PoleCart)

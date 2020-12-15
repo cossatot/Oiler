@@ -25,6 +25,9 @@ Euler Pole (rotation vector) in Cartesian coordinates
     ex::Float64 = 0.
     ey::Float64 = 0.
     ez::Float64 = 0.
+    vxy::Float64 = 0.
+    vxz::Float64 = 0.
+    vyz::Float64 = 0.
     fix::String = ""
     mov::String = ""
 end

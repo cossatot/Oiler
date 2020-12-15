@@ -444,16 +444,19 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             se_weights = ones(size(block_inv_setup["weights"]))
         end
         @info "Estimating solution uncertainties"
-        @time se_vec = get_soln_standard_error(block_inv_setup, results, weighted)
+        @time pole_var = get_soln_standard_error(block_inv_setup, results, weighted)
     else
-        se_vec = zeros(length(block_inv_setup["Vc"]))
+        pole_var = zeros(length(block_inv_setup["Vc"]), length(block_inv_setup["Vc"]))
     end
 
     for (i, (fix, mov)) in enumerate(block_inv_setup["keys"])
         poles[(fix, mov)] = PoleCart(poles[(fix, mov)];
-                                     ex=se_vec[i * 3 - 2], 
-                                     ey=se_vec[i * 3 - 1],
-                                     ez=se_vec[i * 3])
+                                     ex=sqrt(pole_var[i * 3 - 2, i * 3 - 2]), 
+                                     ey=sqrt(pole_var[i * 3 - 1, i * 3 - 1]),
+                                     ez=sqrt(pole_var[i * 3, i * 3]),
+                                     vxy=pole_var[i * 3 - 2, i * 3 - 1],
+                                     vxz=pole_var[i * 3 - 2, i * 3],
+                                     vyz=pole_var[i * 3 - 1, i * 3])
     end
 
     if predict_vels == true
@@ -566,14 +569,14 @@ function get_soln_standard_error(block_matrices, results, weighted=true)
             p, 1000)
     end
 
-    var = MSE * diag(var_cov)
-    standard_error_vec = sqrt.(var)
+    var = MSE * var_cov
+    standard_error_vec = sqrt.(diag(var))
     SE_string = "mean SE: " * string(
         sum(standard_error_vec) / length(standard_error_vec))
 
     @info SE_string
 
-    standard_error_vec
+    var
 end
 
 
