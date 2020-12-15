@@ -38,6 +38,7 @@ function build_constraint_matrix(cycle, vel_group_keys)
     constraint_mat
 end
 
+
 """
     build_constraint_matrices(cycle, vel_group_keys)
 
@@ -63,7 +64,6 @@ function weight_from_error(error::Float64; zero_err_weight::Float64=1e-10)
         error = zero_err_weight
     end
     weight = error^-2
-    # weight = error^2
 end
     
 
@@ -224,25 +224,6 @@ function add_equality_constraints_bi_objective(PvGb, Vc, cm)
 end
 
 
-function make_weighted_constrained_bi_objective_lls_matrices(PvGb, Vc, cm, weights;
-    sparse_lhs::Bool=false)
-
-    new_PvGb, new_Vc = add_equality_constraints_bi_objective(PvGb, Vc, cm)
-
-    cm_weights = ones(size(cm, 1))
-
-    new_weights = vcat(weights, cm_weights)
-
-    new_lhs, new_rhs = weight_inv_matrices(new_PvGb, new_Vc, new_weights)
-
-    if sparse_lhs
-        return sparse(new_lhs), new_rhs
-    else
-        return new_lhs, new_rhs
-    end
-end
-
-
 function make_weighted_constrained_kkt_lls_matrices(PvGb, Vc, cm, weights; sparse_lhs::Bool=false)
     W = sparse(diagm(1 ./ weights))
     p, q = size(cm)
@@ -272,9 +253,6 @@ function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights;
     if method == "kkt"
         return make_weighted_constrained_kkt_lls_matrices(PvGb, Vc, cm, weights;
             sparse_lhs=sparse_lhs)
-    elseif method == "bi_obj"
-        return make_weighted_constrained_bi_objective_lls_matrices(PvGb, Vc, cm,
-            weights; sparse_lhs=sparse_lhs)
     else
         throw(ArgumentError("contraint method not implemented"))
     end
@@ -287,7 +265,7 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
     @info " making block inversion matrices"
     @time vd = make_block_inversion_matrices_from_vels(vel_groups)
     PvGb_size = size(vd["PvGb"])
-    @info "Raw PvGb size: $PvGb_size"
+    @info "  raw PvGb size: $PvGb_size"
 
 
     if length(faults) > 0
@@ -375,7 +353,51 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
     basic_matrices
 end
 
+"""
+    solve_block_invs_from_vel_groups
 
+Main solution function in Oiler. This function takes the `vel_groups` dictionary
+that holds all of the velocity information as well as any faults or tris, and
+solves for Euler poles, fault/tri slip rates, and uncertainty.
+
+# Arguments
+- `vel_groups`: Dictionary with lists of `VelocityVectorSphere` organized by the
+    pole that the velocity is referenced to.
+- `faults`: (Optional) list of `Fault`s that are used in the inversion. Each
+    `Fault` is used to calculate geodetic locking effects and will provide an
+    additional pole between the hanging wall and footwall block, which can
+    change a model from an unconstrained to a constrained least squares model. 
+- `tris`: (Optional) list of `Tri`s that are used to simulate large, irregular
+    fault surfaces that may slip at a rate different than the block convergence
+    rate. Tris are used to model geodetic locking but (as they generally do not
+    slip at the block convergence rate) do not provide an additional pole.
+- `weighted`: Boolean flag to indicate whether to incorporate observation
+    weights (i.e. standard deviations of the observed velocity components) into
+    the solution.
+- `regularize`: (*semi-deprecated*) Boolean flag to indicate whether to incorporate L2
+    regularization into the solution. It is (probably) only applicable for
+    models without equality constraints on the poles, i.e. without faults,
+    because it does not seem to be compatible with the Constrained Least Squares
+    solution.
+- `l2_lambda`: (*semi-deprecated*) Value to use for L2 regularization. Defaults
+    to 100.
+- `check_closures`: Boolean flag to indicate whether to check that plate
+    circuits close. Defaults to `true`.
+- `sparse_lhs`: Boolean flag to indicate whether the design matrix (left-hand
+    side or LHS in the solution) should be sparse or dense. A sparse matrix will
+    probably take less RAM and use the sparse solver from SuiteSparse, which may
+    perform differently than the dense solver. Defaults to `false`.
+- `predict_vels`: Boolean flag to indicate whether to predict GNSS velocities
+    and fault slip rates and deliver them in the results. Defaults to `false`.
+- `constraint_method`: Method used to deal with pole circuits (equality
+    constraints) in the solution. Currently the only method that is known to
+    work is making a system that uses Karush-Kuhn-Tucker conditions.  Defaults
+    to `"kkt"`.
+- `pred_se`: Boolean flag whether to calculate standard errors for the poles and
+    slip rates. This can be more computationally expensive than the regular
+    solution, and may not need to be run regularly. Defaults to `false`.
+
+"""
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array=[], tris=[], weighted::Bool=true, regularize::Bool=false,
     l2_lambda::Float64=100.0, check_closures::Bool=true, sparse_lhs::Bool=false,
@@ -393,7 +415,6 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             regularize=regularize, l2_lambda=l2_lambda,
             sparse_lhs=sparse_lhs,
             constraint_method=constraint_method)
-    # end
     
     lhs = block_inv_setup["lhs"]
     lhs_size = size(lhs)
@@ -444,7 +465,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             se_weights = ones(size(block_inv_setup["weights"]))
         end
         @info "Estimating solution uncertainties"
-        @time pole_var = get_soln_standard_error(block_inv_setup, results, weighted)
+        @time pole_var = get_soln_covariance_matrix(block_inv_setup, results, weighted)
     else
         pole_var = zeros(length(block_inv_setup["Vc"]), length(block_inv_setup["Vc"]))
     end
@@ -480,19 +501,20 @@ end
 
 
 function make_OLS_cov(PvGb)
-    println("OLS covariances")
+    @info "OLS covariances"
     Matrix(PvGb * PvGb') \ I
 end
 
 
 function make_WLS_cov(PvGb, weights)
-    println("WLS covariances")
+    @info "WLS covariances"
     Matrix(PvGb' * sparse(diagm(weights)) * PvGb) \ I
 end
 
 
 function make_CLS_cov(PvGb, cm)
-    println("CLS covariances")
+    @info "CLS covariances"
+    @warn "unclear if CLS covariance calcs are correct"
     n, p = size(PvGb)
     nc = size(cm, 1)
 
@@ -503,7 +525,7 @@ function make_CLS_cov(PvGb, cm)
 end
 
 function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, n_iters)
-    println("CWLS covariances")
+    @info "CLS covariances through Monte Carlo techniques"
     p, q = size(cm)
     zvec = [zeros(p); zeros(q)]
 
@@ -512,18 +534,12 @@ function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, n_iters)
     # rng = MersenneTwister(69) # to be replaced via config later
 
     rand_vel_noise = randn((length(Vc), n_iters))
-    for (i, v) in enumerate(Vc)
-        if Vc == 0.
-            rand_vel_noise[i,:] = zeros(n_iters)
-        end
-    end
 
     stoch_poles = zeros((n_iters, n_pole_vars)) # we want each soln to be a row
     
     lu_lhs = lu(lhs)
 
     @threads for i in 1:n_iters
-    # for i in 1:n_iters
         Vc_stochastic = Vc + vel_stds .* rand_vel_noise[:,i]
         rhs = [Vc_stochastic; zvec]
 
@@ -536,7 +552,7 @@ function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, n_iters)
 end
 
 
-function get_soln_standard_error(block_matrices, results, weighted=true)
+function get_soln_covariance_matrix(block_matrices, results, weighted=true)
 
     PvGb = block_matrices["PvGb"]
     cm = block_matrices["cm"]
@@ -563,17 +579,16 @@ function get_soln_standard_error(block_matrices, results, weighted=true)
         var_cov = make_OLS_cov(PvGb)
     elseif any(x -> x != 1., weights) & (length(cm) == 0)
         var_cov = make_WLS_cov(PvGb, weights)
-    else # eventually separate CLS and CWLS
-        # var_cov = make_CLS_cov(PvGb, cm)
+    else
         var_cov = make_CWLS_cov_iter(block_matrices["lhs"], weights, y_obs, cm,
             p, 1000)
     end
 
     var = MSE * var_cov
     standard_error_vec = sqrt.(diag(var))
-    SE_string = "mean SE: " * string(
-        sum(standard_error_vec) / length(standard_error_vec))
 
+    SE_string = "mean standard error: " * string(
+        sum(standard_error_vec) / length(standard_error_vec))
     @info SE_string
 
     var
@@ -583,7 +598,6 @@ end
 function predict_slip_rates(faults, poles)
     slip_rates = Oiler.Utils.get_fault_slip_rates_from_poles(
             faults, poles)
-    # slip_rates = vcat([[s[1] s[2]] for s in slip_rates]...)
 
     new_faults = []
 
@@ -605,7 +619,6 @@ function predict_slip_rates(faults, poles)
                   fault.fw
               )
         )
-
     end
     new_faults
 end
