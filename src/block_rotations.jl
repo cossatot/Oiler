@@ -181,9 +181,9 @@ function make_pole_cov_matrix(pole::PoleCart)
     xx = pole.ex^2
     yy = pole.ey^2
     zz = pole.ez^2
-    xy = pole.vxy
-    xz = pole.vxz
-    yz = pole.vyz
+    xy = pole.cxy
+    xz = pole.cxz
+    yz = pole.cyz
 
     [xx xy xz;
      xy yy yz;

@@ -15,6 +15,12 @@ Euler Pole (rotation vector) in Cartesian coordinates
 - `x::Float64`: *x* coordinate in the Cartesian system
 - `y::Float64`: *y* coordinate in the Cartesian system
 - `z::Float64`: *z* coordinate in the Cartesian system
+- `ex::Float64`: Standard deviation of *x* coordinate
+- `ey::Float64`: Standard deviation of *y* coordinate
+- `ez::Float64`: Standard deviation of *z* coordinate
+- `cxy::Float64`: Covariance between *x* and *y*
+- `cxz::Float64`: Covariance between *x* and *z*
+- `cyz::Float64`: Covariance between *y* and *z*
 - `fix::String`: Name of fixed block. Defaults to "".
 - `mov::String`: Name of moving (movative) block.  Defaults to "".
 """
@@ -25,9 +31,9 @@ Euler Pole (rotation vector) in Cartesian coordinates
     ex::Float64 = 0.
     ey::Float64 = 0.
     ez::Float64 = 0.
-    vxy::Float64 = 0.
-    vxz::Float64 = 0.
-    vyz::Float64 = 0.
+    cxy::Float64 = 0.
+    cxz::Float64 = 0.
+    cyz::Float64 = 0.
     fix::String = ""
     mov::String = ""
 end
@@ -50,6 +56,9 @@ Euler Pole (rotation vector) in spherical coordinates.
     elon::Float64 = 0.
     elat::Float64 = 0.
     erotrate::Float64 = 0.
+    clonlat::Float64 = 0.
+    clonrotrate::Float64 = 0.
+    clatrotrate::Float64 = 0.
     fix::String = ""
     mov::String = ""
 end

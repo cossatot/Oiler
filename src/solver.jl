@@ -475,9 +475,9 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
                                      ex=sqrt(pole_var[i * 3 - 2, i * 3 - 2]), 
                                      ey=sqrt(pole_var[i * 3 - 1, i * 3 - 1]),
                                      ez=sqrt(pole_var[i * 3, i * 3]),
-                                     vxy=pole_var[i * 3 - 2, i * 3 - 1],
-                                     vxz=pole_var[i * 3 - 2, i * 3],
-                                     vyz=pole_var[i * 3 - 1, i * 3])
+                                     cxy=pole_var[i * 3 - 2, i * 3 - 1],
+                                     cxz=pole_var[i * 3 - 2, i * 3],
+                                     cyz=pole_var[i * 3 - 1, i * 3])
     end
 
     if predict_vels == true
