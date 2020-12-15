@@ -9,10 +9,14 @@ using ..Oiler: VelocityVectorSphere, PoleCart, PoleSphere, build_PvGb_from_vels,
     build_vel_column_from_vels, add_poles, pole_sphere_to_cart, find_vel_cycles,
     diagonalize_matrices, Fault
 
+# using Random
 using Logging
+using Statistics
 using DataFrames
 using SparseArrays
 using LinearAlgebra
+import Base.Threads.@threads
+
 
 """
     build_constraint_matrix(cycle, vel_group_keys)
@@ -364,8 +368,11 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
         end
     end
 
-    Dict("lhs" => lhs, "rhs" => rhs, "keys" => basic_matrices["keys"], 
-         "n_constraints" => size(cm, 1))
+    basic_matrices["lhs"] = lhs
+    basic_matrices["rhs"] = rhs
+    basic_matrices["cm"] = cm
+
+    basic_matrices
 end
 
 
@@ -375,12 +382,12 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     predict_vels::Bool=false, constraint_method="kkt", pred_se::Bool=false)
 
     @info "setting up unconstrained matrices"
-    @time basic_matrices = set_up_block_inv_no_constraints(vel_groups;
+    @time block_inv_setup = set_up_block_inv_no_constraints(vel_groups;
             faults=faults,
             tris=tris)
     @info "making constrained matrices"
     @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups;
-            basic_matrices=basic_matrices,
+            basic_matrices=block_inv_setup,
             weighted=weighted,
             tris=tris,
             regularize=regularize, l2_lambda=l2_lambda,
@@ -432,18 +439,14 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 
     if pred_se == true
         if weighted == true
-            se_weights = basic_matrices["weights"]
+            se_weights = block_inv_setup["weights"]
         else
-            se_weights = ones(size(basic_matrices["weights"]))
+            se_weights = ones(size(block_inv_setup["weights"]))
         end
         @info "Estimating solution uncertainties"
-        @time se_vec = get_soln_standard_error(basic_matrices["PvGb"],
-            get_pred_solution(basic_matrices["PvGb"], basic_matrices["keys"],
-                              poles; tri_results), 
-            basic_matrices["Vc"],
-            se_weights)
+        @time se_vec = get_soln_standard_error(block_inv_setup, results, weighted)
     else
-        se_vec = zeros(length(basic_matrices["Vc"]))
+        se_vec = zeros(length(block_inv_setup["Vc"]))
     end
 
     for (i, (fix, mov)) in enumerate(block_inv_setup["keys"])
@@ -455,7 +458,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 
     if predict_vels == true
         results["predicted_vels"] = predict_model_velocities(vel_groups, 
-            basic_matrices, poles; tri_results=tri_results)
+            block_inv_setup, poles; tri_results=tri_results)
         
         results["predicted_slip_rates"] = predict_slip_rates(faults, poles)
     end
@@ -472,29 +475,105 @@ function diag_dot(A, B)
     out = dot.(eachrow(A), eachcol(B))
 end
 
-function get_soln_standard_error(lhs, y_pred, y_obs, weights)
 
-    n, p = size(lhs)
+function make_OLS_cov(PvGb)
+    println("OLS covariances")
+    Matrix(PvGb * PvGb') \ I
+end
+
+
+function make_WLS_cov(PvGb, weights)
+    println("WLS covariances")
+    Matrix(PvGb' * sparse(diagm(weights)) * PvGb) \ I
+end
+
+
+function make_CLS_cov(PvGb, cm)
+    println("CLS covariances")
+    n, p = size(PvGb)
+    nc = size(cm, 1)
+
+    J = [Matrix(PvGb); Matrix(cm)]
+    J_inv = pinv(J)
+
+    cov = J_inv * [I(n) zeros(n, nc); zeros(nc, n) zeros(nc, nc)] * J_inv'
+end
+
+function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, n_iters)
+    println("CWLS covariances")
+    p, q = size(cm)
+    zvec = [zeros(p); zeros(q)]
+
+    vel_stds = 1 ./ sqrt.(weights)
+
+    # rng = MersenneTwister(69) # to be replaced via config later
+
+    rand_vel_noise = randn((length(Vc), n_iters))
+    for (i, v) in enumerate(Vc)
+        if Vc == 0.
+            rand_vel_noise[i,:] = zeros(n_iters)
+        end
+    end
+
+    stoch_poles = zeros((n_iters, n_pole_vars)) # we want each soln to be a row
+    
+    lu_lhs = lu(lhs)
+
+    @threads for i in 1:n_iters
+    # for i in 1:n_iters
+        Vc_stochastic = Vc + vel_stds .* rand_vel_noise[:,i]
+        rhs = [Vc_stochastic; zvec]
+
+
+        full_soln = lu_lhs \ rhs
+        soln = full_soln[1:n_pole_vars]
+        stoch_poles[i,:] = soln'
+    end
+    var_cov = cov(stoch_poles; dims=1)
+end
+
+
+function get_soln_standard_error(block_matrices, results, weighted=true)
+
+    PvGb = block_matrices["PvGb"]
+    cm = block_matrices["cm"]
+    y_obs = block_matrices["Vc"]
+
+    if weighted == true
+        weights = block_matrices["weights"]
+    else
+        weights = ones(length(block_matrices["weights"]))
+    end
+
+
+    y_pred = get_pred_solution(PvGb, block_matrices["keys"],
+        results["poles"]; tri_results=results["tri_slip_rates"])
+    
+    n, p = size(PvGb)
     
     e = y_pred .- y_obs
     MSE = 1 / (n - p) * e' * e
     RMSE_string = "RMSE: " * string(sqrt(MSE))
     @info RMSE_string
 
-    # Q = qr(sparse(diagm(sqrt.(weights)) * lhs))
-    # qrr = Q.R' * Q.R
-    # cov = Matrix(qrr) \ I
-    
-    if any(x -> x != 1., weights)
-        red_lhs = lhs' * sparse(diagm(weights)) * lhs
-    else
-        red_lhs = lhs' * lhs
+    if all(x -> x == 1., weights) & (length(cm) == 0)
+        var_cov = make_OLS_cov(PvGb)
+    elseif any(x -> x != 1., weights) & (length(cm) == 0)
+        var_cov = make_WLS_cov(PvGb, weights)
+    else # eventually separate CLS and CWLS
+        # var_cov = make_CLS_cov(PvGb, cm)
+        var_cov = make_CWLS_cov_iter(block_matrices["lhs"], weights, y_obs, cm,
+            p, 1000)
     end
 
-    cov = Matrix(red_lhs) \ I
-
-    var = abs.(MSE / diag(cov))
+    var = MSE * diag(var_cov)
     standard_error_vec = sqrt.(var)
+    SE_string = "mean SE: " * string(
+        sum(standard_error_vec) / length(standard_error_vec))
+
+    @info SE_string
+
+    standard_error_vec
 end
 
 
