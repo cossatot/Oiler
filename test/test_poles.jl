@@ -38,20 +38,20 @@ function test_err_cart_to_sphere()
         x=4.942785033008153e-10,
         y=3.0887336517757523e-9,
         z=-2.864680725578047e-9,
-        ex=1.4821768706642342e-13,
-        ey=1.4821747112934177e-13,
-        ez=1.482185081352683e-13,
+        ex=1.4821768706642342e-10,
+        ey=1.4821747112934177e-10,
+        ez=1.482185081352683e-10,
         fix="ca",
         mov="na"
     )
 
     elon, elat, erotrate = Oiler.RotationPoles.err_cart_to_sphere(
-        pole.x, pole.y, pole.z, pole.ex, pole.ey, pole.ez
-    )
+        pole.x, pole.y, pole.z, pole.ex, pole.ey, pole.ez, pole.cxy,
+        pole.cxz, pole.cyz)
 
-    @test isapprox(elon, 0.0024587902406104133)
-    @test isapprox(elat, 0.003043497101088724)
-    @test isapprox(erotrate, 3.0693154994497914e-7)
+    @test isapprox(elon, 0.15338052234690125)
+    @test isapprox(elat, 0.06996314752420013)
+    @test isapprox(erotrate, 1.2587072976554877e-12)
 end
 
 
@@ -60,9 +60,9 @@ function test_cart_to_sphere_w_errors()
         x=4.942785033008153e-10,
         y=3.0887336517757523e-9,
         z=-2.864680725578047e-9,
-        ex=1.4821768706642342e-13,
-        ey=1.4821747112934177e-13,
-        ez=1.482185081352683e-13,
+        ex=1.4821768706642342e-10,
+        ey=1.4821747112934177e-10,
+        ez=1.482185081352683e-10,
         fix="ca",
         mov="na"
     )
@@ -72,9 +72,9 @@ function test_cart_to_sphere_w_errors()
     @test isapprox(pole_sphere.lon, 80.90825589356842)
     @test isapprox(pole_sphere.lat, -42.483737633837634)
     @test isapprox(pole_sphere.rotrate, 0.24302450801360484)
-    @test isapprox(pole_sphere.elon, 0.0024587902406104133)
-    @test isapprox(pole_sphere.elat, 0.003043497101088724)
-    @test isapprox(pole_sphere.erotrate, 3.0693154994497914e-7)
+    @test isapprox(pole_sphere.elon, 0.15338052234690125)
+    @test isapprox(pole_sphere.elat, 0.06996314752420013)
+    @test isapprox(pole_sphere.erotrate, 1.2587072976554877e-12)
     @test pole_sphere.fix == "ca"
     @test pole_sphere.mov == "na"
 end

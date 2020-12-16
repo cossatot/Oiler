@@ -23,6 +23,7 @@ ve, vn, vu are east, north and up velocities, and ee, en, and eu are the
     ee::Float64 = 0.
     en::Float64 = 0.
     eu::Float64 = 0.
+    cen::Float64 = 0.
     fix::String = ""
     mov::String = ""
     name::String = ""
@@ -38,6 +39,7 @@ function Base.reverse(vel::VelocityVectorSphere)
         ee=vel.ee,
         en=vel.en,
         eu=vel.eu,
+        cen=vel.cen, # I think
         fix=vel.mov,
         mov=vel.fix,
         name=vel.name,

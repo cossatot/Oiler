@@ -75,6 +75,7 @@ struct Fault
     extension_err::Float64
     dextral_rate::Float64
     dextral_err::Float64
+    cde::Float64
     lsd::Float64
     usd::Float64
     name::String
@@ -111,6 +112,7 @@ coordinates and the dip direction to ensure right-hand-rule compatibility.
 - `dextral_rate::Float64 = 0.`: Rate of dextral slip on the fault in mm/yr.
     Negative values indicate sinistral slip.
 - `dextral_err::Float64 = 0.`: 1-s.d. uncertainty of dextral slip rate in mm/yr.
+- `cde::Float64 = 0.`: covariance between dextral and extension rates/errs.
 - `lsd::Float64 = 25.`: Lower seismogenic/locking depth, in km.
 - `usd::Float64 = 0.`: Upper seismogenic/locking_depth, in km.
 - `name::String = ""`: Name of the fault (segment).
@@ -128,6 +130,7 @@ function Fault(; trace::Array{Float64,2}, dip::Float64,
     extension_err::Float64=0.,
     dextral_rate::Float64=0.,
     dextral_err::Float64=0.,
+    cde::Float64=0.,
     lsd::Float64=25.,
     usd::Float64=0.,
     name::String="",
@@ -146,7 +149,7 @@ function Fault(; trace::Array{Float64,2}, dip::Float64,
     #    lsd = lsd, usd = usd, name = name, hw = hw, fw = fw)
     Fault(trace, strike, dip, dip_dir, 
         extension_rate, extension_err, 
-        dextral_rate, dextral_err, 
+        dextral_rate, dextral_err, cde,
         lsd, usd, name, hw, fw)
 end
 
@@ -164,13 +167,13 @@ function fault_to_vel(fault::Fault)
     ve, vn = fault_slip_rate_to_ve_vn(fault.dextral_rate, fault.extension_rate,
         fault.strike)
     
-    ee, en = fault_slip_rate_err_to_ee_en(fault.dextral_err, fault.extension_err,
-        fault.strike)
+    ee, en, cen = fault_slip_rate_err_to_ee_en(fault.dextral_err, fault.extension_err,
+        fault.strike; cde=fault.cde)
 
     vlon, vlat = get_midpoint(fault.trace)
 
     VelocityVectorSphere(lon=vlon, lat=vlat, ve=ve, vn=vn, 
-        fix=fault.hw, mov=fault.fw, name=fault.name, ee=ee, en=en,
+        fix=fault.hw, mov=fault.fw, name=fault.name, ee=ee, en=en, cen=cen,
         vel_type="fault")
 end
 
@@ -232,10 +235,10 @@ function fault_slip_rate_to_ve_vn(dextral_rate::Float64, extension_rate::Float64
 end
 
 function fault_slip_rate_err_to_ee_en(dextral_err::Float64, extension_err::Float64,
-    strike::Float64)
+    strike::Float64; cde::Float64=0.)
     angle = az_to_angle(strike)
 
-    Oiler.Geom.rotate_velocity_err(dextral_err, extension_err, angle)
+    Oiler.Geom.rotate_velocity_err(dextral_err, extension_err, angle; cov=cde)
 end
 
 
@@ -246,10 +249,11 @@ function ve_vn_to_fault_slip_rate(ve::Float64, vn::Float64, strike::Float64)
 end
 
 
-function ee_en_to_fault_slip_rate_err(ee::Float64, en::Float64, strike::Float64)
+function ee_en_to_fault_slip_rate_err(ee::Float64, en::Float64, strike::Float64;
+    cen::Float64=0.)
     angle = az_to_angle(strike)
 
-    Oiler.Geom.rotate_velocity_err(ee, en, -angle)
+    Oiler.Geom.rotate_velocity_err(ee, en, -angle; cov=cen)
 end
 
 
@@ -280,12 +284,12 @@ function get_fault_slip_rate_from_pole(fault::Oiler.Faults.Fault, pole::Oiler.Po
     v_rl, v_ex = ve_vn_to_fault_slip_rate(pred_vel.ve, pred_vel.vn, fault.strike)
     
     if (pred_vel.ee == 0.) & (pred_vel.en == 0.)
-        e_rl, e_ex = 0., 0.
+        e_rl, e_ex, cde = 0., 0., 0.
     else
-        e_rl, e_ex = ee_en_to_fault_slip_rate_err(pred_vel.ee, pred_vel.en,
-                                                  fault.strike)
+        e_rl, e_ex, cde = ee_en_to_fault_slip_rate_err(pred_vel.ee, pred_vel.en,
+                                                  fault.strike; cen=pred_vel.cen)
     end
-    v_rl, v_ex, e_rl, e_ex
+    v_rl, v_ex, e_rl, e_ex, cde
 end
 
 

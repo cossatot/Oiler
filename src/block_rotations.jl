@@ -3,6 +3,8 @@ module BlockRotations
 export build_PvGb_from_vels, build_vel_column_from_vels, predict_block_vels
 
 using LinearAlgebra
+
+using Oiler
 using ..Oiler: EARTH_RAD_MM, VelocityVectorSphere, PoleSphere, PoleCart,
         pole_sphere_to_cart, pole_cart_to_sphere
 
@@ -158,13 +160,21 @@ function predict_block_vels(lons::Array{Float64},
     end
 
     # Propagate uncertainty in pole (Vel locations have negligible uncertainty)
+    V_err = zeros(size(V_pred))
     if any(x -> x != 0., [pole.ex, pole.ey, pole.ez])
-        V_err = sqrt.(diag(PvGb * make_pole_cov_matrix(pole) * PvGb'))
-    else
-        V_err = zeros(size(V_pred))
+        err_mat = PvGb * Oiler.RotationPoles.make_pole_cov_matrix(pole) * PvGb'
+        for i in 1:length(lons)
+            ee_ind = i * 3 - 2
+            en_ind = i * 3 - 1
+            cov_ind = i * 3
+            V_err[ee_ind] = sqrt(err_mat[ee_ind, ee_ind]) # V_east
+            V_err[en_ind] = sqrt(err_mat[en_ind, en_ind]) # V_north
+            V_err[cov_ind] = err_mat[ee_ind, en_ind] # cov_Ve_Vn
+        end
     end
     Ve_err = V_err[1:3:end]
     Vn_err = V_err[2:3:end]
+    V_err_cov = V_err[3:3:end]
 
     pred_vels = Array{VelocityVectorSphere}(undef, n_vels)
 
@@ -172,25 +182,12 @@ function predict_block_vels(lons::Array{Float64},
         pred_vels[n] = VelocityVectorSphere(lon=lons[n], lat=lats[n],
                                             ve=Ve_pred[n], vn=Vn_pred[n],
                                             ee=Ve_err[n], en=Vn_err[n],
+                                            cen=V_err_cov[n],
                                             fix=pole.fix, mov=pole.mov)
     end
     return pred_vels
 end
    
-function make_pole_cov_matrix(pole::PoleCart)
-    xx = pole.ex^2
-    yy = pole.ey^2
-    zz = pole.ez^2
-    xy = pole.cxy
-    xz = pole.cxz
-    yz = pole.cyz
-
-    [xx xy xz;
-     xy yy yz;
-     xz yz zz]
-end
-
-
 function predict_block_vels(vels::Array{VelocityVectorSphere},
 pole::PoleCart)
     lons = [v.lon for v in vels]

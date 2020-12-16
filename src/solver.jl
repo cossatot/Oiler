@@ -612,6 +612,7 @@ function predict_slip_rates(faults, poles)
                   slip_rates[i][4], # fault.extension_err,
                   slip_rates[i][1],
                   slip_rates[i][3], # fault.dextral_err,
+                  slip_rates[i][5], # fault.cde,
                   fault.lsd,
                   fault.usd,
                   fault.name,

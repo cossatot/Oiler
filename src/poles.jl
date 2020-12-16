@@ -137,6 +137,39 @@ function Base.:-(pole1::PoleSphere, pole2::PoleSphere)
 end
 
 
+function make_pole_cov_matrix(pole::PoleCart)
+    xx = pole.ex^2
+    yy = pole.ey^2
+    zz = pole.ez^2
+    xy = pole.cxy
+    xz = pole.cxz
+    yz = pole.cyz
+
+    make_cov_matrix(xx, yy, zz, xy, xz, yz)
+end
+
+
+function make_cov_matrix(xx, yy, zz, xy, xz, yz)
+    [xx xy xz;
+     xy yy yz;
+     xz yz zz]
+end
+
+
+function make_pole_cov_matrix(pole::PoleSphere)
+
+    etheta = deg2rad(pole.elon)
+    ephi = deg2rad(pole.elat)
+    er = deg2rad(pole.erotrate) / 1e6
+
+    ertheta = deg2rad(pole.clonrotrate)
+    erphi = deg2rad(pole.clatrotrate)
+    ethetaphi = deg2rad(pole.clonlat)
+
+    make_cov_matrix(er^2, etheta^2, ephi^2, ertheta, erphi, ethetaphi)
+end
+
+
 function err_cart_to_sphere_bm(x::Float64, y::Float64, z::Float64, 
     ex::Float64, ey::Float64, ez::Float64)
     # Derivation modified slightly from 'OmegaSigToEulerSig.m' in the Blocks
@@ -170,15 +203,17 @@ end
 
 
 function err_cart_to_sphere(pole::PoleCart)
-    err_cart_to_sphere(pole.x, pole.y, pole.z, pole.ex, pole.ey, pole.ez)
+    err_cart_to_sphere(pole.x, pole.y, pole.z, pole.ex, pole.ey, pole.ez,
+        pole.cxy, pole.cxz, pole.cyz)
 end
 
 
 function err_cart_to_sphere(x::Float64, y::Float64, z::Float64, 
-                            ex::Float64, ey::Float64, ez::Float64)
+                            ex::Float64, ey::Float64, ez::Float64,
+                            cxy::Float64, cxz::Float64, cyz::Float64)
 
     if all(x -> x == 0., [ex, ey, ez])
-        return 0., 0., 0.
+        return 0., 0., 0., 0., 0., 0.
     end
     
     r = sqrt(x^2 + y^2 + z^2)
@@ -204,22 +239,36 @@ function err_cart_to_sphere(x::Float64, y::Float64, z::Float64,
 
     M = [d11 d12 d13; d21 d22 d23; d31 d32 d33]
 
-    er, etheta, ephi = abs.(M * [ex, ey, ez])
-    # er, etheta, ephi = sqrt.(diag(M * diagm([ex, ey, ez].^2) * M'))
+    # er, etheta, ephi = abs.(M * [ex, ey, ez])
+    MM = M * make_cov_matrix(ex^2, ey^2, ez^2, cxy, cxz, cyz) * M'
+
+    er = MM[1,1]
+    etheta = MM[2,2]
+    ephi = MM[3,3]
+
+    c_er_etheta = MM[1,2]
+    c_er_ephi = MM[1,3]
+    c_etheta_ephi = MM[2,3]
 
     elon = rad2deg(etheta)
     elat = rad2deg(ephi)
     erotrate = 1e6 * rad2deg(er)
 
-    elon, elat, erotrate
+    clonlat = rad2deg(c_etheta_ephi)
+    clonrotrate = rad2deg(c_er_etheta)
+    clatrotrate = rad2deg(c_er_ephi)
+
+    elon, elat, erotrate, clonlat, clonrotrate, clatrotrate
 end
 
 
 function err_sphere_to_cart(lon::Float64, lat::Float64, rotrate::Float64, 
-                            elon::Float64, elat::Float64, erotrate::Float64)
+                            elon::Float64, elat::Float64, erotrate::Float64,
+                            clonlat::Float64, clonrotrate::Float64, clatrotrate::Float64
+                            )
 
     if all(x -> x == 0., [elon, elat, erotrate])
-        return 0., 0., 0.
+        return 0., 0., 0., 0., 0., 0.
     end
 
     theta = deg2rad(lon)
@@ -229,6 +278,10 @@ function err_sphere_to_cart(lon::Float64, lat::Float64, rotrate::Float64,
     etheta = deg2rad(elon)
     ephi = deg2rad(elat)
     er = deg2rad(erotrate) / 1e6
+
+    ertheta = deg2rad(clonrotrate)
+    erphi = deg2rad(clatrotrate)
+    ethetaphi = deg2rad(clonlat)
 
     d11 = cos(theta) * sin(phi)
     d12 = -r * sin(theta) * sin(phi)
@@ -244,15 +297,25 @@ function err_sphere_to_cart(lon::Float64, lat::Float64, rotrate::Float64,
 
     M = [d11 d12 d13; d21 d22 d23; d31 d32 d33]
 
-    # ex, ey, ez = sqrt.(diag(M * diagm([er, etheta, ephi].^2) * M'))
-    ex, ey, ez = abs.(M * [er, etheta, ephi])
+    CM = make_cov_matrix(er^2, etheta^2, ephi^2, ertheta, erphi, ethetaphi)
 
+    MM = M * CM * M'
+
+    ex = sqrt(MM[1,1])
+    ey = sqrt(MM[2,2])
+    ez = sqrt(MM[3,3])
+    cxy = MM[1,2]
+    cxz = MM[1,3]
+    cyz = MM[2,3]
+
+    ex, ey, ez, cxy, cxz, cyz
 end
 
 
 function err_sphere_to_cart(pole::PoleSphere)
     err_sphere_to_cart(pole.lon, pole.lat, pole.rotrate,
-                       pole.elon, pole.elat, pole.erotrate)
+                       pole.elon, pole.elat, pole.erotrate,
+                       pole.clonlat, pole.clonrotrate, pole.clatrotrate)
 end
 
 
@@ -275,11 +338,14 @@ function pole_cart_to_sphere(pole::PoleCart)
     pole_lat = atand(pole_z_norm / sqrt(pole_x_norm^2 + pole_y_norm^2))
 
     rotation_rate_deg_Myr = rad2deg(rotation_rate_cart) * 1e6
-
-    elon, elat, erotrate = err_cart_to_sphere(pole)
+    
+    perr = err_cart_to_sphere(pole)
+    # println(perr)
+    elon, elat, erotrate, clonlat, clonrotrate, clatrotrate = perr
 
     PoleSphere(lon=pole_lon, lat=pole_lat, rotrate=rotation_rate_deg_Myr,
                elon=elon, elat=elat, erotrate=erotrate,
+               clonlat=clonlat, clonrotrate=clonrotrate, clatrotrate=clatrotrate,
                fix=pole.fix, mov=pole.mov)
 end
 
