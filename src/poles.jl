@@ -78,9 +78,15 @@ function add_poles(poles::PoleCart...)
     xn = sum(pole.x for pole in poles)
     yn = sum(pole.y for pole in poles)
     zn = sum(pole.z for pole in poles)
+    exn = sqrt(sum(pole.ex^2 for pole in poles))
+    eyn = sqrt(sum(pole.ey^2 for pole in poles))
+    ezn = sqrt(sum(pole.ez^2 for pole in poles))
+    cxy = sum(pole.cxy for pole in poles)
+    cxz = sum(pole.cxz for pole in poles)
+    cyz = sum(pole.cyz for pole in poles)
 
-    PoleCart(x=xn, y=yn, z=zn, fix=poles[1].fix, 
-                  mov=poles[end].mov)
+    PoleCart(x=xn, y=yn, z=zn,  ex=exn, ey=eyn, ez=ezn,
+             cxy=cxy, cxz=cxz, cyz=cyz, fix=poles[1].fix,mov=poles[end].mov) 
 end
 
 
@@ -88,9 +94,15 @@ function add_poles(poles::Array{PoleCart})
     xn = sum(pole.x for pole in poles)
     yn = sum(pole.y for pole in poles)
     zn = sum(pole.z for pole in poles)
+    exn = sqrt(sum(pole.ex^2 for pole in poles))
+    eyn = sqrt(sum(pole.ey^2 for pole in poles))
+    ezn = sqrt(sum(pole.ez^2 for pole in poles))
+    cxy = sum(pole.cxy for pole in poles)
+    cxz = sum(pole.cxz for pole in poles)
+    cyz = sum(pole.cyz for pole in poles)
 
-    PoleCart(x=xn, y=yn, z=zn, fix=poles[1].fix, 
-                  mov=poles[end].mov)
+    PoleCart(x=xn, y=yn, z=zn, ex=exn, ey=eyn, ez=ezn,
+             cxy=cxy, cxz=cxz, cyz=cyz, fix=poles[1].fix, mov=poles[end].mov) 
 end
 
 
@@ -114,8 +126,15 @@ function subtract_poles(pole1::PoleCart, pole2::PoleCart)
     xx = pole1.x - pole2.x
     yy = pole1.y - pole2.y
     zz = pole1.z - pole2.z
+    ex = sqrt(pole1.ex^2 + pole2.ex^2)
+    ey = sqrt(pole1.ey^2 + pole2.ey^2)
+    ez = sqrt(pole1.ez^2 + pole2.ez^2)
+    cxy = pole1.cxy + pole2.cxy
+    cxz = pole1.cxz + pole2.cxz
+    cyz = pole1.cyz + pole2.cyz
 
-    PoleCart(x=xx, y=yy, z=zz, fix=pole1.fix, mov=pole2.fix)
+    PoleCart(x=xx, y=yy, z=zz, ex=ex, ey=ey, ez=ez, cxy=cxy, cxz=cxz,
+             fix=pole1.fix, mov=pole2.fix)
 end
 
 function subtract_poles(pole1::PoleSphere, pole2::PoleSphere)
