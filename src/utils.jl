@@ -377,7 +377,6 @@ mov::String)
         path = find_shortest_path(vel_ug, fix, mov)
 
         pole_path = get_pole_path(poles, path)
-        println([(pole.fix, pole.mov) for pole in pole_path])
 
         final_pole = add_poles(pole_path)
     end
