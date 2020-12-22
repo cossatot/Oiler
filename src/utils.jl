@@ -365,9 +365,11 @@ mov::String)
 
     elseif length([p for p in poles if (p.fix == fix) & (p.mov == mov)]) == 1
         final_pole = [p for p in poles if (p.fix == fix) & (p.mov == mov)][1]
-    elseif length([p for p in poles if (p.mov == fix) & (p.fix == mov)]) == 1
+
+    elseif length([p for p in poles if (p.fix == mov) & (p.mov == fix)]) == 1
         final_pole = [p for p in poles if (p.fix == fix) & (p.mov == mov)][1]
         final_pole = -final_pole
+    
     else
         vel_dg = make_digraph_from_poles(poles)
         vel_ug = make_ugraph_from_digraph(vel_dg)
@@ -375,6 +377,7 @@ mov::String)
         path = find_shortest_path(vel_ug, fix, mov)
 
         pole_path = get_pole_path(poles, path)
+        println([(pole.fix, pole.mov) for pole in pole_path])
 
         final_pole = add_poles(pole_path)
     end

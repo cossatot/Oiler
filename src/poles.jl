@@ -65,7 +65,7 @@ end
 
 
 function Base.:-(pole::PoleCart)
-    PoleCart(pole; x=-pole.x, y=-pole.y, z=-pole.z)
+    PoleCart(pole; x=-pole.x, y=-pole.y, z=-pole.z, mov=pole.fix, fix=pole.mov)
 end
 
 function Base.:-(pole::PoleSphere)
@@ -86,7 +86,8 @@ function add_poles(poles::PoleCart...)
     cyz = sum(pole.cyz for pole in poles)
 
     PoleCart(x=xn, y=yn, z=zn,  ex=exn, ey=eyn, ez=ezn,
-             cxy=cxy, cxz=cxz, cyz=cyz, fix=poles[1].fix,mov=poles[end].mov) 
+             cxy=cxy, cxz=cxz, cyz=cyz, 
+             fix=poles[1].fix, mov=poles[end].mov) 
 end
 
 
@@ -102,7 +103,8 @@ function add_poles(poles::Array{PoleCart})
     cyz = sum(pole.cyz for pole in poles)
 
     PoleCart(x=xn, y=yn, z=zn, ex=exn, ey=eyn, ez=ezn,
-             cxy=cxy, cxz=cxz, cyz=cyz, fix=poles[1].fix, mov=poles[end].mov) 
+             cxy=cxy, cxz=cxz, cyz=cyz, fix=poles[1].fix, 
+             mov=poles[end].mov) 
 end
 
 

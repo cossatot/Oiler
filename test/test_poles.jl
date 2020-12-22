@@ -18,7 +18,7 @@ end
 
 
 function test_minus()
-    p1 = Oiler.PoleCart(x=100., y=200., z=-300., fix="me")
+    p1 = Oiler.PoleCart(x=100., y=200., z=-300., fix="me", mov="it")
     minus_p1 = -p1
 
     @test minus_p1.x == -100.0
@@ -27,8 +27,8 @@ function test_minus()
     @test minus_p1.ex == 0.0
     @test minus_p1.ey == 0.0
     @test minus_p1.ez == 0.0
-    @test minus_p1.fix == "me"
-    @test minus_p1.mov == ""
+    @test minus_p1.fix == "it"
+    @test minus_p1.mov == "me"
 end
 
 
