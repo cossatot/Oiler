@@ -24,8 +24,15 @@ function Tri(;
     name::String=""
     )
 
+    for z in [p1[3] p2[3] p3[3]]
+        if z < 0.
+            warn_msg = "Z coordinate $z > 0 (above HS surface)"
+            @warn warn_msg
+        end
+    end
+
     if Oiler.Geom.check_winding_order([p1, p2, p3]) == 1
-        println("reversing tri")
+        @warn "reversing tri"
         p1, p2, p3 = (p3, p2, p1)
     end
 
@@ -86,11 +93,8 @@ function get_tri_strike_line(p1, p2, p3)
     elseif p2[3] == p3[3]
         strike_line = (p2, p3)
     else
-        # println(p1)
-        # println(p2)
-        # println(p3)
-        # sort by z coordinate (depth is positive)
-        p_high, p_med, p_low = sort([p1, p2, p3], by=x -> x[end])
+        # sort by z coordinate (depth is negative)
+        p_low, p_med, p_high = sort([p1, p2, p3], by=x -> x[end])
 
         # find point on other leg at point of equal depth to p_med
         # this point is at a horizontal fraction of the great circle distance
@@ -103,7 +107,6 @@ function get_tri_strike_line(p1, p2, p3)
 
         p_mid_other_leg = Oiler.Geom.sample_polyline(
             vcat(vec(p_low)', vec(p_high)'), [l])[1]
-        println(p_mid_other_leg)
     
         strike_line = (p_med, [p_mid_other_leg[1], p_mid_other_leg[2], p_med[3]])
     end
