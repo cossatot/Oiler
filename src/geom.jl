@@ -3,10 +3,10 @@ module Geom
 export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
     angle_difference, rotate_velocity, rotate_xy_vec, oblique_merc
 
-import Statistics: mean
+import Statistics:mean
 import Proj4: Projection, transform
 
-using ..Oiler: EARTH_RAD_KM
+using ..Oiler:EARTH_RAD_KM
 using LinearAlgebra
 
 function azimuth(lon1::Float64, lat1::Float64,
@@ -334,6 +334,14 @@ function check_winding_order(coords)
 
     Int(sign(sum([fun(coords[i], coords[i - 1]) for i in 2:size(coords, 1)])))
 end
+
+
+
+function point_in_spherical_poly(polyline)
+
+
+end
+
 
 
 
