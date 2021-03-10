@@ -179,7 +179,7 @@ function test_TD_1()
     end
 
 
-    @testset begin
+    @testset "test TDs against matlab" begin
         test_TDdispHS_1()
         test_TDdisp_FS_1()
         test_TDdisp_HarFunc_1()
@@ -196,6 +196,56 @@ function test_TD_1()
 
 end
 
+
+function test_TD_point_ordering()
+    X = [0.75 0.75];
+    Y = [1. 1.];
+    Z = [-0.01 -0.01];
+
+    P1 = [0., 1., -0.01];
+    P2 = [1., 0., -1.];
+    P3 = [1., 2., -1.];
+
+    Ss = 0.;
+    Ds = 1.;
+    Ts = 0.;
+    nu = 0.25;
+
+    ue, un, uv = Oiler.TD.TDdispHS(X, Y, Z, P1, P2, P3, Ss, Ds; Ts=Ts, nu=nu)
+
+    ue231, un231, uv231 = Oiler.TD.TDdispHS(X, Y, Z, P2, P3, P1, Ss, Ds; Ts=Ts, nu=nu)
+    ue312, un312, uv312 = Oiler.TD.TDdispHS(X, Y, Z, P3, P1, P2, Ss, Ds; Ts=Ts, nu=nu)
+    
+    ue321, un312, uv321 = Oiler.TD.TDdispHS(X, Y, Z, P3, P2, P1, Ss, Ds; Ts=Ts, nu=nu)
+    
+    ue213, un213, uv213 = Oiler.TD.TDdispHS(X, Y, Z, P2, P1, P3, Ss, Ds; Ts=Ts, nu=nu)
+    ue132, un132, uv132 = Oiler.TD.TDdispHS(X, Y, Z, P1, P3, P2, Ss, Ds; Ts=Ts, nu=nu)
+    
+    @testset "test TD reorder" begin
+        @test isapprox(ue, ue231)
+        @test isapprox(ue, ue312)
+    end
+    
+    @testset "test TD reverse" begin
+        @test isapprox(ue, ue321)
+    end
+
+    @testset "test TD scramble" begin
+        @test isapprox(ue, ue213)
+        @test isapprox(ue, ue132)
+    end
+end
+    
+
+
+
+
+
+
+
+
+
 @testset "test TD unit tests" begin
     test_TD_1()
+    test_TD_point_ordering()
 end

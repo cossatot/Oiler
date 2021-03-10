@@ -5,8 +5,8 @@ using LinearAlgebra
 
 using Oiler
 
-faults_1 = [Oiler.Fault(trace=[0. 0.; 1. 1.], dip=89., dip_dir="SW", hw="a",
-                    fw="b", name="ff1"),
+faults_1 = [Oiler.Fault(trace=[0. 0.1; 1. 1.], dip=89., dip_dir="SW", hw="a",
+                    fw="c", name="ff1"),
           Oiler.Fault(trace=[5. 5.; 1. 1.], dip=89., dip_dir="SW", hw="a",
                     fw="b", name="ff2"),
           Oiler.Fault(trace=[5. 5.; 1. 1.], dip=89., dip_dir="NE", hw="c",
@@ -15,26 +15,27 @@ faults_1 = [Oiler.Fault(trace=[0. 0.; 1. 1.], dip=89., dip_dir="SW", hw="a",
                     fw="c", name="ff4"),
 ]
 
-vel_groups_1 = Dict(("a", "b") => [
-    VelocityVectorSphere(lon=0.0,
-                         lat=0.05,
-                         ve=0.5,
-                         vn=0.,
-                         fix="a",
-                         mov="b",
-                         name="f1",
-                         vel_type="fault"),
-    VelocityVectorSphere(lon=0.05,
-                         lat=0.,
-                         ve=0.53,
-                         vn=0.,
-                         fix="a",
-                         mov="b",
-                         name="f2",
-                         vel_type="fault")
-    ],
+vel_groups_1 = Dict(
+    # ("a", "b") => [
+    # VelocityVectorSphere(lon=0.0,
+    #                      lat=0.05,
+    #                      ve=0.5,
+    #                      vn=0.,
+    #                      fix="a",
+    #                      mov="b",
+    #                      name="f1",
+    #                      vel_type="fault"),
+    # VelocityVectorSphere(lon=0.05,
+    #                      lat=0.,
+    #                      ve=0.53,
+    #                      vn=0.,
+    #                      fix="a",
+    #                      mov="b",
+    #                      name="f2",
+    #                      vel_type="fault")
+    # ],
 
-    ("b", "c") => [
+    ("a", "c") => [
     VelocityVectorSphere(lon=0.7,
                          lat=0.05,
                          ve=1.5,
@@ -187,12 +188,16 @@ function test_build_weight_vectors()
 end
 
 
-
 function test_make_block_PvGb_from_vel()
 
     vels = [
         Oiler.VelocityVectorSphere(lon=-13.98, lat=-52.17, ve=1., vn=1.,
         ee=0., en=0.)]
+
+end
+
+
+function test_add_tris_to_PvGb()
 
 end
 
@@ -215,9 +220,9 @@ end
 
 
 function test_set_up_block_inv_w_constraints_1_tri()
-    tri = Oiler.Tri([81.36, 28.57, -0.],
-                    [83.18, 29.05, -25.0],
-                    [83.68, 27.56, -0.])
+    tri = Oiler.Tri(p1=[-1.01, -1.0, 0.],
+                    p2=[-1.51, 2.0, -25.0],
+                    p3=[-1.01, 2., 0.])
 
     block_inv_setup = Oiler.Solver.set_up_block_inv_w_constraints(vel_groups_1,
         tris=[tri])

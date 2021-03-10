@@ -216,9 +216,9 @@ function TDdispFS(X, Y, Z, P1, P2, P3, Ss, Ds, Ts, nu)
         w[casenLog] = w1Tn + w2Tn + w3Tn
     end
     if count(!iszero, casezLog) > 0
-        u[casezLog] = NaN
-        v[casezLog] = NaN
-        w[casezLog] = NaN
+        u[casezLog] .= NaN
+        v[casezLog] .= NaN
+        w[casezLog] .= NaN
     end
 
     # Calculate the Burgers' function contribution corresponding to the TD

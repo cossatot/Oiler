@@ -94,9 +94,9 @@ end
 
 function test_point_ordering()
 
-    p1 = [0., 0., -10.]
+    p1 = [0.1, 0.2, -10.]
     p2 = [1.5, 1.5, -1.]
-    p3 = [0., 3., -10.]
+    p3 = [0.1, 3., -10.]
 
     tri1 = Oiler.Tris.Tri(p1=p1, p2=p2, p3=p3)
     tri2 = Oiler.Tris.Tri(p1=p2, p2=p3, p3=p1)
@@ -142,17 +142,19 @@ end
 
 
 function test_get_tri_strike_line_1()
-    p1 = [0., 1., 1.]
-    p2 = [1., 0.5, 0.5]
+    p1 = [0., 1., -1.]
+    p2 = [1., 0.5, -0.5]
     p3 = [0., 0., 0.]
 
-    @test Oiler.Tris.get_tri_strike_line(
-        p1, p2, p3) == ([1.0, 0.5, 0.5], [0.0, 0.5000000000000001, 0.5])
+    strike_line = Oiler.Tris.get_tri_strike_line(p1, p2, p3)
+    @test isapprox(strike_line[1], [1.0, 0.5, -0.5])
+    @test isapprox(strike_line[2], [0.0, 0.5000000000000001, -0.5])
 end
 
 
 
 
-# @testset "test tris.jl" begin
-#    test_tri_merc_1()
-# end
+@testset "test tris.jl" begin
+    test_tri_merc_1()
+    test_get_tri_strike_line_1()
+end

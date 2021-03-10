@@ -175,6 +175,16 @@ end
 
 
 function calc_tri_effects_single_tri(tri, lons, lats)
+    
+    ss_slip = 1.# e-3 # mm
+    ds_slip = 1.# e-3 # mm
+    ts_slip = 0. # no tensile slip on tris
+
+    calc_tri_slip(tri, lons, lats; ss_slip=ss_slip, ds_slip=ds_slip, ts_slip=ts_slip)
+end
+
+
+function calc_tri_slip(tri, lons, lats; ss_slip=0., ds_slip=0., ts_slip=0.)
 
     # project coordinates of tri and sites
     x_proj, y_proj = Oiler.Tris.tri_merc(tri, lons, lats)
@@ -193,10 +203,6 @@ function calc_tri_effects_single_tri(tri, lons, lats)
     tri_p1 = [tri_x_1 tri_y_1 tri_z_1]
     tri_p2 = [tri_x_2 tri_y_2 tri_z_2]
     tri_p3 = [tri_x_3 tri_y_3 tri_z_3]
-
-    ss_slip = 1.# e-3 # mm
-    ds_slip = 1.# e-3 # mm
-    ts_slip = 0. # no tensile slip on tris
 
     # dip slip component
     due, dun, duv = Oiler.TD.TDdispHS(x_gnss, y_gnss, z_gnss, tri_p1, tri_p2, 

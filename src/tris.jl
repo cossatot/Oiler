@@ -2,6 +2,8 @@ module Tris
 
 export Tri
 
+using LinearAlgebra
+
 using ..Oiler
 
 
@@ -25,13 +27,13 @@ function Tri(;
     )
 
     for z in [p1[3] p2[3] p3[3]]
-        if z < 0.
+        if z > 0.
             warn_msg = "Z coordinate $z > 0 (above HS surface)"
             @warn warn_msg
         end
     end
 
-    if Oiler.Geom.check_winding_order([p1, p2, p3]) == 1
+    if Oiler.Geom.check_winding_order([p1, p2, p3, p1]) == 1
         @warn "reversing tri"
         p1, p2, p3 = (p3, p2, p1)
     end
@@ -110,6 +112,15 @@ function get_tri_strike_line(p1, p2, p3)
     
         strike_line = (p_med, [p_mid_other_leg[1], p_mid_other_leg[2], p_med[3]])
     end
+
+    # println(azimuth(strike_line[1][1], strike_line[1][2],
+    #                strike_line[2][1], strike_line[2][2]))
+
+    # p_low = sort([p1, p2, p3], by=x -> x[end])[1]
+
+    # print(cross(strike_line[2] - strike_line[1],
+    #            p_low - strike_line[1]))
+
     strike_line
 end
 
