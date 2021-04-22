@@ -18,7 +18,7 @@ end
 
 
 function test_minus()
-    p1 = Oiler.PoleCart(x=100., y=200., z=-300., fix="me")
+    p1 = Oiler.PoleCart(x=100., y=200., z=-300., fix="me", mov="it")
     minus_p1 = -p1
 
     @test minus_p1.x == -100.0
@@ -27,8 +27,8 @@ function test_minus()
     @test minus_p1.ex == 0.0
     @test minus_p1.ey == 0.0
     @test minus_p1.ez == 0.0
-    @test minus_p1.fix == "me"
-    @test minus_p1.mov == ""
+    @test minus_p1.fix == "it"
+    @test minus_p1.mov == "me"
 end
 
 
@@ -82,16 +82,20 @@ end
 
 function test_err_cart_to_sphere_and_back()
     pole_cart = Oiler.PoleCart(
-        x=-7.847946759531013e-10,
-        y=-2.793395895990385e-9,
-        z=-3.0474969002079643e-9,
-        ex=5.9141853976928515e-11,
-        ey=3.609643565813829e-10,
-        ez=2.5551499055462377e-10,
-        fix="6",
-        mov="2"
+        x=1.7595239620687005e-9,
+        y=-7.509137368732926e-9,
+        z=-4.11009580217663e-9,
+        ex=1.4887106312185033e-9,
+        ey=9.481715572889885e-9,
+        ez=6.380368177374067e-9,
+        cxy=1.405005292532337e-17,
+        cxz=9.457727139873025e-18,
+        cyz=6.047061530260166e-17,
+        fix="1111",
+        mov="6"
     )
 
+ 
     pole_sphere = Oiler.pole_cart_to_sphere(pole_cart)
     pole_cart_back = Oiler.pole_sphere_to_cart(pole_sphere)
 
