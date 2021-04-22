@@ -8,6 +8,7 @@ using Logging
 
 using CSV
 using ArchGDAL
+using GeoFormatTypes
 using DataFrames: DataFrame, DataFrameRow
 
 const AG = ArchGDAL
@@ -225,7 +226,41 @@ function get_block_idx_for_points(point_df, block_df)
 end
 
 
+function get_block_idx_for_points(point_df, block_df, to_epsg)
 
+    # source_crs = AG.importEPSG(4326)
+    # target_crs = AG.importEPSG(to_epsg)
+
+    point_geoms = point_df[:, :geometry]
+    point_geoms_p = [AG.clone(p) for p in point_geoms]
+    point_geoms_p = [AG.reproject(pg, 
+            ProjString("+proj=longlat +datum=WGS84 +no_defs"), 
+            EPSG(to_epsg)) for pg in point_geoms_p]
+
+    idxs = Array{Any}(missing, length(point_geoms))
+
+    for i_b in 1:size(block_df, 1)
+        block_geom = block_df[i_b, :geometry]
+
+        block_geom_p = AG.reproject(AG.clone(block_geom), 
+            ProjString("+proj=longlat +datum=WGS84 +no_defs"), 
+            EPSG(to_epsg))
+
+        block_fid = block_df[i_b, :fid]
+        
+        for (i_p, pg) in enumerate(point_geoms_p)
+            if AG.contains(block_geom_p, pg)
+                if !ismissing(idxs[i_p])
+                    pfid = point_df[i_p, :fid]
+                    @warn "$pfid in multiple blocks"
+                else
+                    idxs[i_p] = block_fid
+                end
+            end
+        end
+    end
+    idxs
+end
 
 
 end
