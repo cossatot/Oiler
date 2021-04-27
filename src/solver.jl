@@ -13,10 +13,11 @@ using ..Oiler: VelocityVectorSphere, PoleCart, PoleSphere, build_PvGb_from_vels,
 using Logging
 using Statistics
 using DataFrames
-using SparseArrays
+using SparseArrays, MKLSparse
 using LinearAlgebra
 import Base.Threads.@threads
 
+LinearAlgebra.BLAS.set_num_threads(Threads.nthreads())
 
 """
     build_constraint_matrix(cycle, vel_group_keys)
@@ -423,8 +424,12 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     @info "LHS block size $lhs_size"
     @info "RHS size $rhs_size"
 
+    @info "LU factorization"
+    @time lu_lhs = lu(lhs)
+    @info "  dun"
+    #block_inv_setup["lu_lhs"] = lu_lhs
     @info "solving"
-    @time full_soln = lhs \ rhs
+    @time full_soln = lu_lhs \ rhs
 
     nk = length(full_soln)
     np = length(block_inv_setup["keys"])
@@ -465,7 +470,8 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             se_weights = ones(size(block_inv_setup["weights"]))
         end
         @info "Estimating solution uncertainties"
-        @time pole_var = get_soln_covariance_matrix(block_inv_setup, results, weighted)
+        @time pole_var = get_soln_covariance_matrix(block_inv_setup, lu_lhs, results, 
+                                                    weighted)
     else
         pole_var = zeros(length(block_inv_setup["Vc"]), length(block_inv_setup["Vc"]))
     end
@@ -525,7 +531,7 @@ function make_CLS_cov(PvGb, cm)
 end
 
 function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, n_iters)
-    @info "CLS covariances through Monte Carlo techniques"
+    @info "CWLS covariances through Monte Carlo techniques"
     p, q = size(cm)
     zvec = [zeros(p); zeros(q)]
 
@@ -537,14 +543,14 @@ function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, n_iters)
 
     stoch_poles = zeros((n_iters, n_pole_vars)) # we want each soln to be a row
     
-    lu_lhs = lu(lhs)
+    # lu_lhs = lu(lhs)
 
     @threads for i in 1:n_iters
         Vc_stochastic = Vc + vel_stds .* rand_vel_noise[:,i]
         rhs = [Vc_stochastic; zvec]
 
 
-        full_soln = lu_lhs \ rhs
+        full_soln = lhs \ rhs
         soln = full_soln[1:n_pole_vars]
         stoch_poles[i,:] = soln'
     end
@@ -552,7 +558,8 @@ function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, n_iters)
 end
 
 
-function get_soln_covariance_matrix(block_matrices, results, weighted=true)
+function get_soln_covariance_matrix(block_matrices, lu_lhs, results, 
+                                    weighted=true)
 
     PvGb = block_matrices["PvGb"]
     cm = block_matrices["cm"]
@@ -580,7 +587,7 @@ function get_soln_covariance_matrix(block_matrices, results, weighted=true)
     elseif any(x -> x != 1., weights) & (length(cm) == 0)
         var_cov = make_WLS_cov(PvGb, weights)
     else
-        var_cov = make_CWLS_cov_iter(block_matrices["lhs"], weights, y_obs, cm,
+        var_cov = make_CWLS_cov_iter(lu_lhs, weights, y_obs, cm,
             p, 1000)
     end
 
