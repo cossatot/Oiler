@@ -9,15 +9,16 @@ using ..Oiler: VelocityVectorSphere, PoleCart, PoleSphere, build_PvGb_from_vels,
     build_vel_column_from_vels, add_poles, pole_sphere_to_cart, find_vel_cycles,
     diagonalize_matrices, Fault
 
-# using Random
 using Logging
 using Statistics
 using DataFrames
-using SparseArrays, MKLSparse
+using SuiteSparse
+using SparseArrays
 using LinearAlgebra
 import Base.Threads.@threads
 
 LinearAlgebra.BLAS.set_num_threads(Threads.nthreads())
+SuiteSparse.UMFPACK.umf_ctrl[8] = 0
 
 """
     build_constraint_matrix(cycle, vel_group_keys)
@@ -60,7 +61,7 @@ end
 Returns either the inverse of the error, or `zero_err_weight` if the weight
 is zero. The latter defaults to 1e-10.
 """
-function weight_from_error(error::Float64; zero_err_weight::Float64=1e-10)
+function weight_from_error(error::Float64; zero_err_weight::Float64=1e2)
     if error == 0.
         error = zero_err_weight
     end
@@ -75,10 +76,6 @@ end
 
 function build_weight_vector_from_vels(vels::Array{VelocityVectorSphere})
     W = reduce(vcat, [build_weight_vector_from_vel(vel) for vel in vels])
-
-    if all(W .== W[1])
-        W = ones(size(W))
-    end
     W
 end
 
@@ -102,6 +99,10 @@ function make_block_PvGb_from_vels(vel_groups::Dict{Tuple{String,String},Array{V
 
     weights = build_weight_vectors(vel_groups)
     weight_vec = reduce(vcat, [weights[key] for key in v_keys]) 
+
+    if all(weight_vec .== weight_vec[1])
+        weight_vec = ones(size(weight_vec))
+    end
     
     return Dict("PvGb" => big_PvGb, 
                 "keys" => v_keys,
@@ -427,10 +428,10 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     @info "LU factorization"
     @time lu_lhs = lu(lhs)
     @info "  dun"
-    #block_inv_setup["lu_lhs"] = lu_lhs
+    # block_inv_setup["lu_lhs"] = lu_lhs
     @info "solving"
     @time full_soln = lu_lhs \ rhs
-
+    
     nk = length(full_soln)
     np = length(block_inv_setup["keys"])
     nt = length(tris)
