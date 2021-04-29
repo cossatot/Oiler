@@ -133,7 +133,7 @@ end
 
 
 function test_weight_from_error_zero()
-    @test Oiler.Solver.weight_from_error(0.) == 1.0e20
+    @test Oiler.Solver.weight_from_error(0.) == 1.0e-4
 end
 
 
@@ -146,7 +146,7 @@ function test_build_weight_vector_from_vel()
     vv = Oiler.VelocityVectorSphere(lon=0., lat=0., ve=1., vn=1., 
     en=2., ee=3.)
     
-    @test Oiler.Solver.build_weight_vector_from_vel(vv) == [1 / 9.; 0.25; 1.0e20]
+    @test Oiler.Solver.build_weight_vector_from_vel(vv) == [1 / 9.; 0.25; 1.0e-4]
 
 end
 
@@ -158,7 +158,7 @@ function test_build_weight_vector_from_vels_default_zero_weight()
         en=1., ee=1.)
 
     weight = Oiler.Solver.build_weight_vector_from_vels([vv, ww])
-    weight_answer = [1 / 9.; 0.25; 1.0e20; 1.; 1.; 1.0e20]
+    weight_answer = [1 / 9.; 0.25; 1.0e-4; 1.; 1.; 1.0e-4]
 
     @test weight == weight_answer
 end
@@ -168,10 +168,13 @@ end
 function test_build_weight_vector_from_vels_equal_zero_weights()
     vv = Oiler.VelocityVectorSphere(lon=0., lat=0., ve=1., vn=1., ee=0.,
     en=0.)
+    ww = Oiler.VelocityVectorSphere(lon=1., lat=0., ve=1., vn=1., ee=0.,
+    en=0.)
     
-    ww = Oiler.Solver.build_weight_vector_from_vels([vv])
+    vel_groups = Dict(("a", "b") => [vv, ww])
+    block_matrices = Oiler.Solver.make_block_PvGb_from_vels(vel_groups)
 
-    @test ww == [1.; 1.; 1.]
+    @test block_matrices["weights"] == [1.; 1.; 1.; 1.; 1.; 1]
 end
 
 
@@ -183,7 +186,7 @@ function test_build_weight_vectors()
 
     vel_groups = Dict(("a", "b") => [vv, ww])
     weight = Oiler.Solver.build_weight_vectors(vel_groups)
-    weight_answer = Dict(("a", "b") => [1 / 9.; 0.25; 1.0e20; 1.; 1.; 1.0e20])
+    weight_answer = Dict(("a", "b") => [1 / 9.; 0.25; 1.0e-4; 1.; 1.; 1.0e-4])
     @test weight == weight_answer
 end
 
