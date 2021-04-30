@@ -1,19 +1,17 @@
-using Revise
-
 using Oiler
 
 using PyPlot
 
 
-pole = Oiler.PoleCart(x = -4.000480063406787e-10, y = -3.686194245405466e-9,
-                      z = 3.100995264274769e-9, fix = "na", mov = "ca");
+pole = Oiler.PoleCart(x=-4.000480063406787e-10, y=-3.686194245405466e-9,
+                      z=3.100995264274769e-9, fix="na", mov="ca");
 
 # thrust_trace = [-81.905471 12.945880; -81.554797 12.114126];
 # thrust = Oiler.Fault(trace = thrust_trace, dip_dir = "SW", dip = 20., hw = "na",
 #                      fw = "ca")
 
 strike_slip_trace = [-81.5 13.75; -80.650 14.091; -79.798 14.430];
-ss = Oiler.Fault(trace = strike_slip_trace, dip_dir = "S", dip = 89., hw = "ca", fw = "na")
+ss = Oiler.Fault(trace=strike_slip_trace, dip_dir="S", dip=89., hw="ca", fw="na")
 
 fault_line(lon) = 0.3995299647473563 * lon + 46.31169212690954
 
@@ -49,7 +47,7 @@ end
 # results in meters per year
 
 figure()
-#quiver(glons, glats, pe, pn)
+# quiver(glons, glats, pe, pn)
 quiver(glons, glats, ve, vn)
 plot(strike_slip_trace[:,1], strike_slip_trace[:,2])
 axis("equal")

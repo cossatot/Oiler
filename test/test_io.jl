@@ -1,5 +1,3 @@
-using Revise
-
 using Test
 
 using Oiler
@@ -11,7 +9,7 @@ function test_gis_vec_file_to_df_gpkg_faults()
     fault_df = Oiler.IO.gis_vec_file_to_df(test_gpkg;
         layername="faults")
 
-    @test size(fault_df) == (3,15)
+    @test size(fault_df) == (3, 15)
     @test fault_df[:, :fid] == [1, 2, 4]
     @test fault_df[:, :dip_dir] == ["E", "NW", "E"]
 end

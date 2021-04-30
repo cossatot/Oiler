@@ -1,9 +1,8 @@
-using Revise
 using Oiler
 using PyPlot
 
 
-ind_eur_pole = Oiler.PoleSphere(lon = 13.9, lat = 26.5, rotrate = 0.341, fix = "eur", mov = "ind");
+ind_eur_pole = Oiler.PoleSphere(lon=13.9, lat=26.5, rotrate=0.341, fix="eur", mov="ind");
 
 
 sites = [79.33 29.0; 
@@ -27,7 +26,7 @@ V = Oiler.build_vel_column_from_vels(pred_vels);
 
 oh = PvGb \ V;
 
-pred_pole = Oiler.pole_cart_to_sphere(Oiler.PoleCart(x = oh[1], y = oh[2], z = oh[3]));
+pred_pole = Oiler.pole_cart_to_sphere(Oiler.PoleCart(x=oh[1], y=oh[2], z=oh[3]));
 
 
 figure()
