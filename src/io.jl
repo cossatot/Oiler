@@ -5,6 +5,7 @@ export vel_from_row, load_vels_from_csv, group_vels_by_fix_mov
 using ..Oiler: VelocityVectorSphere, PoleSphere, PoleCart, pole_cart_to_sphere
 
 using Logging
+import Base.Threads.@threads
 
 using CSV
 using ArchGDAL
@@ -207,11 +208,11 @@ function get_block_idx_for_points(point_df, block_df)
     point_geoms = point_df[:, :geometry]
     idxs = Array{Any}(missing, length(point_geoms))
 
-    for i_b in 1:size(block_df, 1)
+    @threads for i_b in 1:size(block_df, 1)
         block_geom = block_df[i_b, :geometry]
         block_fid = block_df[i_b, :fid]
         
-        for (i_p, pg) in enumerate(point_geoms)
+        @threads for (i_p, pg) in collect(enumerate(point_geoms))
             if AG.contains(block_geom, pg)
                 if !ismissing(idxs[i_p])
                     pfid = point_df[i_p, :fid]
@@ -228,9 +229,6 @@ end
 
 function get_block_idx_for_points(point_df, block_df, to_epsg)
 
-    # source_crs = AG.importEPSG(4326)
-    # target_crs = AG.importEPSG(to_epsg)
-
     point_geoms = point_df[:, :geometry]
     point_geoms_p = [AG.clone(p) for p in point_geoms]
     point_geoms_p = [AG.reproject(pg, 
@@ -239,7 +237,7 @@ function get_block_idx_for_points(point_df, block_df, to_epsg)
 
     idxs = Array{Any}(missing, length(point_geoms))
 
-    for i_b in 1:size(block_df, 1)
+    @threads for i_b in 1:size(block_df, 1)
         block_geom = block_df[i_b, :geometry]
 
         block_geom_p = AG.reproject(AG.clone(block_geom), 
@@ -248,7 +246,7 @@ function get_block_idx_for_points(point_df, block_df, to_epsg)
 
         block_fid = block_df[i_b, :fid]
         
-        for (i_p, pg) in enumerate(point_geoms_p)
+        @threads for (i_p, pg) in collect(enumerate(point_geoms_p))
             if AG.contains(block_geom_p, pg)
                 if !ismissing(idxs[i_p])
                     pfid = point_df[i_p, :fid]
