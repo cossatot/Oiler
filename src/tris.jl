@@ -113,15 +113,39 @@ function get_tri_strike_line(p1, p2, p3)
         strike_line = (p_med, [p_mid_other_leg[1], p_mid_other_leg[2], p_med[3]])
     end
 
-    # println(azimuth(strike_line[1][1], strike_line[1][2],
-    #                strike_line[2][1], strike_line[2][2]))
-
-    # p_low = sort([p1, p2, p3], by=x -> x[end])[1]
-
-    # print(cross(strike_line[2] - strike_line[1],
-    #            p_low - strike_line[1]))
-
     strike_line
+end
+
+
+"""
+    
+"""
+function tri_centroid_distance(tri1::Oiler.Tris.Tri, tri2::Oiler.Tris.Tri)
+    c1 = get_tri_center(tri1)
+    c2 = get_tri_center(tri2)
+    
+    c1_cart = point_sphere_to_cart(c1)
+    c2_cart = point_sphere_to_cart(c2)
+    
+    sqrt(sum((c1_cart - c2_cart).^2))
+end
+
+
+function check_tri_adjacence(tri1, tri2; n_common_pts::Int=1)
+    common_pts = 0
+    for pp in [tri1.p1, tri1.p2, tri1.p3]
+        for cc in [tri2.p1, tri2.p2, tri2.p3]
+            if all(pp->pp==first(cc), cc)
+                common_pts += 1
+            end
+        end
+    end
+
+    if common_pts < n_common_pts
+        return false
+    else
+        return true
+    end
 end
 
 

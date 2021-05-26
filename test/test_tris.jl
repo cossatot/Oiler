@@ -153,8 +153,39 @@ end
 
 
 
+function test_centroid_distance()
+    tri1 = Oiler.Tri([0., 0., -10.],
+                     [1.5, 1.5, -1.],
+                     [0., 3., -10.],
+                     0.,0.,"t1")
+
+    tri2 = Oiler.Tri([0., 3., -10.],
+                     [1.5, 1.5, -1.],
+                     [1.5, 4.5, -1.], 0., 0., "t2")
+
+    cd = Oiler.Tris.tri_centroid_distance(tri1, tri2)
+    @test isapprox(cd, 175.97231578969263)
+end
+
+
+function test_check_tri_adjacence_1()
+    tri1 = Oiler.Tri([0., 0., -10.],
+                     [1.5, 1.5, -1.],
+                     [0., 3., -10.],
+                     0.,0.,"t1")
+
+    tri2 = Oiler.Tri([0., 3., -10.],
+                     [1.5, 1.5, -1.],
+                     [1.5, 4.5, -1.], 0., 0., "t2")
+
+    @test Oiler.Tris.test_check_tri_adjacence(tri1, tri2) == true
+end
+
+
+
 
 @testset "test tris.jl" begin
     test_tri_merc_1()
     test_get_tri_strike_line_1()
+    test_centroid_distance()
 end
