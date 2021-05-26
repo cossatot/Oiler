@@ -3,10 +3,10 @@ module Geom
 export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
     angle_difference, rotate_velocity, rotate_xy_vec, oblique_merc
 
-import Statistics: mean
+import Statistics:mean
 import Proj4: Projection, transform
 
-using ..Oiler: EARTH_RAD_KM
+using ..Oiler:EARTH_RAD_KM
 using LinearAlgebra
 
 function azimuth(lon1::Float64, lat1::Float64,
@@ -92,6 +92,32 @@ function angle_difference(trend_1::Float64, trend_2::Float64; return_abs::Bool=t
 end
 
 
+function point_sphere_to_cart(lon, lat, depth; R=EARTH_RAD_KM)
+    r = R + depth
+
+    x = r * cosd(lat) * cosd(lon)
+    y = r * cosd(lat) * sind(lon)
+    z = r * sind(lat)
+    
+    [x, y, z]
+end
+
+
+function point_sphere_to_cart(pos; R=EARTH_RAD_KM)
+    lon = pos[1]
+    lat = pos[2]
+    depth = pos[3]
+    
+    r = R + depth
+
+    x = r * cosd(lat) * cosd(lon)
+    y = r * cosd(lat) * sind(lon)
+    z = r * sind(lat)
+    
+    [x, y, z]
+end
+
+
 function rotate_velocity(vx::Float64, vy::Float64, angle::Float64)
     Vp = [cos(angle) -sin(angle); sin(angle) cos(angle)] * [vx; vy]
 end
@@ -119,15 +145,20 @@ function rotate_xy_vec(x, y, alpha_rot)
 end
 
 
-function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
-    # correction for perfectly horizontal lines
-    if lat1 == lat2
+function get_oblique_merc(lon1, lat1, lon2, lat2)
+    # correction for perfectly horizontal lines or lat1 at zero
+    if (lat1 == lat2) || (lat1 == 0.)
         lat1 = lat1 + 1e-4
     end
 
-    wgs84 = Projection("+proj=longlat +datum=WGS84 +nodefs")
     init_str = "+proj=omerc +lat_1=$lat1 +lon_1=$lon1 +lat_2=$lat2 +lon_2=$lon2"
     omerc = Projection(init_str)
+end
+
+
+function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
+    wgs84 = Projection("+proj=longlat +datum=WGS84 +nodefs")
+    omerc = get_oblique_merc(lon1, lat1, lon2, lat2)
 
     xy = [transform(wgs84, omerc, [lon, lats[i]]) for (i, lon) in enumerate(lons)]
     x = [c[1] for c in xy]

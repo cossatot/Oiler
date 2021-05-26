@@ -5,11 +5,25 @@ using PyPlot
 
 using Oiler
 
+
+function test_get_tri_center()
+    tri = Oiler.Tris.Tri([0., 0., -10.],
+                    [1.5, 1.5, -1.],
+                    [0., 3., -10.],
+                    0.,0.,"")
+    center = Oiler.Tris.get_tri_center(tri)
+    tc_answer = [0.5000510776240583, 1.5001218561577172, -7.0]
+    @test isapprox(center, tc_answer)
+end
+
+
+
 function test_tri_merc_1()
 
-    tri = Oiler.Tri([81.36, 28.57, -0.],
+    tri = Oiler.Tris.Tri([81.36, 28.57, -0.],
                     [83.18, 29.05, -25.0],
-                    [83.68, 27.56, -0.]
+                    [83.68, 27.56, -0.],
+                    0.,0.,""
                     )
     
     lon_1 = (81.36 + 83.18 + 83.68) / 3.
@@ -17,18 +31,24 @@ function test_tri_merc_1()
 
     xp, yp = Oiler.Tris.tri_merc(tri, [lon_1], [lat_1])
 
-    @test isapprox(xp, [135018.41711149618, 0.0, 178067.76749487148, 
-                        226987.48383961705])
-    @test isapprox(yp, [2.8813557431270294e6, 2.9009189229907184e6,
-                        2.9542403022861904e6, 2.7895155119443485e6])
+    # @test isapprox(xp, [135018.41711149618, 0.0, 178067.76749487148, 
+    #                    226987.48383961705])
+    # @test isapprox(yp, [2.8813557431270294e6, 2.9009189229907184e6,
+    #                    2.9542403022861904e6, 2.7895155119443485e6])
+    xp_ans = [-4.399787063193057e6, -4.528173558463124e6, -4.343462673448272e6, -4.326825954910386e6]
+    yp_ans = [3.436665555981521e6, 3.483122001542546e6, 3.499694142114799e6, 3.3282431615781095e6]
+
+    @test isapprox(xp, xp_ans)
+    @test isapprox(yp, yp_ans)
 end
 
 
 function test_tri_strike_slip()
 
-    tri = Oiler.Tri([0., 0., -10.],
+    tri = Oiler.Tris.Tri([0., 0., -10.],
                     [1.5, 1.5, -1.],
-                    [0., 3., -10.])
+                    [0., 3., -10.],
+                    0.,0.,"")
 
     site_lon = [0.35]
     site_lat = [1.5]
@@ -79,7 +99,7 @@ end
 
 function test_calc_tri_effects_single_tri_1()
     
-    tri = Oiler.Tri([0., 0., -10.],
+    tri = Oiler.Tris.Tri([0., 0., -10.],
                     [1.5, 1.5, -1.],
                     [0., 3., -10.])
 
@@ -164,7 +184,7 @@ function test_centroid_distance()
                      [1.5, 4.5, -1.], 0., 0., "t2")
 
     cd = Oiler.Tris.tri_centroid_distance(tri1, tri2)
-    @test isapprox(cd, 175.97231578969263)
+    @test isapprox(cd, 175.67806244060736)
 end
 
 

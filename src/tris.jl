@@ -2,6 +2,8 @@ module Tris
 
 export Tri
 
+import Proj4: Projection, transform
+
 using LinearAlgebra
 
 using ..Oiler
@@ -43,6 +45,44 @@ end
 
 
 """
+    get_tri_center()
+Returns the centroid of the tri.
+"""
+function get_tri_center(tri::Oiler.Tris.Tri)
+    lon1 = tri.p1[1]
+    lat1 = tri.p1[2]
+    lon2 = tri.p2[1]
+    lat2 = tri.p2[2]
+    lon3 = tri.p3[1]
+    lat3 = tri.p3[2]
+    z1 = tri.p1[3]
+    z2 = tri.p2[3]
+    z3 = tri.p3[3]
+
+    lons = [lon1 lon2 lon3]
+    lats = [lat1 lat2 lat3]
+    zs = [z1 z2 z3]
+    
+    ps1, ps2 = get_tri_strike_line(tri.p1, tri.p2, tri.p3)
+    
+    wgs84 = Projection("+proj=longlat +datum=WGS84 +nodefs")
+    omerc = Oiler.Geom.get_oblique_merc(ps1[1], ps1[2], ps2[1], ps2[2])
+
+    xy = [transform(wgs84, omerc, [lon, lats[i]]) for (i, lon) in enumerate(lons)]
+    xs = [c[1] for c in xy]
+    ys = [c[2] for c in xy]
+
+    xc = sum(xs) / 3.
+    yc = sum(ys) / 3.
+    zc = sum(zs) / 3.
+
+    ll = transform(omerc, wgs84, [xc, yc])
+
+    [ll[1], ll[2], zc]
+end
+
+
+"""
     tri_merc()
 
 Performs a Mercator projection localized on the surface projection of the
@@ -65,10 +105,6 @@ function tri_merc(tri, lons, lats)
     lats_w_tri_pts = lats[:]
     append!(lons_w_tri_pts, [lon1 lon2 lon3])
     append!(lats_w_tri_pts, [lat1 lat2 lat3])
-
-    if lat1 == 0.
-        lat1 += 1e-4
-    end
 
     ps1, ps2 = get_tri_strike_line(tri.p1, tri.p2, tri.p3)
 
@@ -124,8 +160,8 @@ function tri_centroid_distance(tri1::Oiler.Tris.Tri, tri2::Oiler.Tris.Tri)
     c1 = get_tri_center(tri1)
     c2 = get_tri_center(tri2)
     
-    c1_cart = point_sphere_to_cart(c1)
-    c2_cart = point_sphere_to_cart(c2)
+    c1_cart = Oiler.Geom.point_sphere_to_cart(c1)
+    c2_cart = Oiler.Geom.point_sphere_to_cart(c2)
     
     sqrt(sum((c1_cart - c2_cart).^2))
 end
@@ -135,7 +171,7 @@ function check_tri_adjacence(tri1, tri2; n_common_pts::Int=1)
     common_pts = 0
     for pp in [tri1.p1, tri1.p2, tri1.p3]
         for cc in [tri2.p1, tri2.p2, tri2.p3]
-            if all(pp->pp==first(cc), cc)
+            if all(pp -> pp == first(cc), cc)
                 common_pts += 1
             end
         end
