@@ -142,27 +142,6 @@ function add_fault_locking_to_PvGb(faults::Array{Fault},
     @info "   calculating locking effects"
     @time locking_partials = Oiler.Elastic.calc_locking_effects(faults, vel_groups)
     
-    # The commented out code is a way of adding constraints to a sparse
-    # matrix.  It does not seem to work, though I don't know why--
-    # Sometimes the number of rows is less after the addition of more data.
-
-    # @info "   adding to PvGb"
-    # println(size(PvGb))
-    # PvGb_dict = Oiler.Utils.sparse_to_dict(PvGb)
-    # PvGb = [] # save some ram
-
-    # @time for ((row_idx, col_idx), partials) in locking_partials
-    #    for (i, rr) in enumerate(row_idx)
-    #        for (j, cc) in enumerate(col_idx)
-    #            if haskey(PvGb_dict, (rr, cc))
-    #                PvGb_dict[(rr, cc)] += partials[i,j]
-    #            else
-    #                PvGb_dict[(rr, cc)] = partials[i,j]
-    #            end
-    #        end
-    #    end
-    # end
-    # PvGb = Oiler.Utils.dict_to_sparse(PvGb_dict)
     @info "   adding to PvGb"
     PvGb = Matrix(PvGb)
     @time for (part_idx, partials) in locking_partials
