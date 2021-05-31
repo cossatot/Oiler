@@ -239,4 +239,5 @@ function arrange_tri_partials(due, dun, duv, sue, sun, suv; uv_zero=true)
     end
     out
 end
+
 end # module

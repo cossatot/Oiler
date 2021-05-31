@@ -13,7 +13,8 @@ using Oiler
     include("test_utils.jl")
     include("test_okada.jl")
     # include("test_tdisphs.jl")
-    include("test_elastic.jl") 
+    include("test_elastic.jl")
+    include("test_tris.jl")
     include("test_solver.jl")
 end
 

@@ -74,8 +74,6 @@ end
     https://www.mathworks.com/matlabcentral/answers/
     108835-how-to-get-only-linearly-independent-rows-
     in-a-matrix-or-to-remove-linear-dependency-b-w-rows-in-a-m
-
-
 """
 function lin_indep_cols(X; tol=1e-10)
     if ~(true) # supposed to check for all zeros here

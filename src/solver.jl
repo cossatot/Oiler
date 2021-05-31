@@ -152,14 +152,41 @@ function add_fault_locking_to_PvGb(faults::Array{Fault},
 end
 
 
-function add_tris_to_PvGb(tris, vel_groups, PvGb)
+function make_tri_regularization_matrix(tris; distance_weight=1e1)
+    tri_eqns = []
+    tri_adj_dict = Oiler.Tris.get_tri_adjacence_dict(tris)
+    tri_enum = Dict([tri.name => i for (i, tri) in enumerate(tris)])
+
+    for tri1 in tris
+        tri1_name = tri1.name
+        for tri2_name in tri_adj_dict[tri1.name]
+            tri2 = tris[tri_enum[tri2_name]]
+            t1_ind = 2 * tri_enum[tri1_name] - 1
+            t2_ind = 2 * tri_enum[tri2_name] - 1
+        
+            const_mat = zeros(2, 2 * size(tris, 1))
+            centroid_dist = Oiler.Tris.tri_centroid_distance(tri1, tri2)
+            const_mat[1,t1_ind] = distance_weight / centroid_dist
+            const_mat[2,t1_ind + 1] = distance_weight / centroid_dist
+            const_mat[1,t2_ind] = -distance_weight / centroid_dist
+            const_mat[2,t2_ind] = -distance_weight / centroid_dist
+            push!(tri_eqns, const_mat)
+        end
+    end
+    vcat(tri_eqns...)
+end
+
+
+function add_tris_to_PvGb(tris, vel_groups, vd)
+    PvGb = vd["PvGb"]
     gnss_vels = get_gnss_vels(vel_groups)
     gnss_lons = [vel["vel"].lon for vel in gnss_vels]
     gnss_lats = [vel["vel"].lat for vel in gnss_vels]
     gnss_idxs = [vel["idx"] for vel in gnss_vels]
     
+    tri_reg_matrix = make_tri_regularization_matrix(tris)
+    
     tri_effects = Oiler.Elastic.calc_tri_effects(tris, gnss_lons, gnss_lats)
-
     tri_eqn_matrix = zeros((size(PvGb)[1], size(tri_effects)[2]))
 
     for (i, vel_idx) in enumerate(gnss_idxs)
@@ -170,7 +197,13 @@ function add_tris_to_PvGb(tris, vel_groups, PvGb)
         tri_eqn_matrix[pvgb_row_idxs, :] = tri_effects[gnss_row_idxs, :]
     end
 
+    tri_reg_block = hcat(zeros(size(tri_reg_matrix, 1), size(PvGb, 2)), tri_reg_matrix)
     PvGb = hcat(PvGb, tri_eqn_matrix)
+    PvGb = vcat(PvGb, tri_reg_block)
+    vd["weights"] = vcat(vd["weights"], ones(size(tri_reg_matrix, 1)))
+    vd["Vc"] = vcat(vd["Vc"], zeros(size(tri_reg_matrix, 1)))
+    vd["PvGb"] = PvGb
+    vd
 end
 
 
@@ -258,7 +291,7 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
 
     if length(tris) > 0
         @info " doing tris"
-        @time vd["PvGb"] = add_tris_to_PvGb(tris, vel_groups, vd["PvGb"])
+        @time vd = add_tris_to_PvGb(tris, vel_groups, vd)
         @info " done doing tris"
     end
     
@@ -292,6 +325,7 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
         cm = build_constraint_matrices(cycles, basic_matrices["keys"])
         if length(tris) > 0
             cm = hcat(cm, zeros(size(cm)[1], length(tris) * 2))
+            cm = vcat(cm, zeros(size(PvGb, 1) - size(cm, 1), size(PvGb, 2)))
         end
     end
 

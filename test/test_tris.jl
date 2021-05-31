@@ -198,14 +198,109 @@ function test_check_tri_adjacence_1()
                      [1.5, 1.5, -1.],
                      [1.5, 4.5, -1.], 0., 0., "t2")
 
-    @test Oiler.Tris.test_check_tri_adjacence(tri1, tri2) == true
+    @test Oiler.Tris.check_tri_adjacence(tri1, tri2) == true
 end
 
+function test_get_tri_adjacence_dict()
+    p1 = [0., 0., 0.]
+    p2 = [1.5, 1.5, -10.]
+    p3 = [0., 3., 0.]
+    p4 = [1.5, 5.5, -10.]
+    p5 = [0., 7., 0.]
+    p6 = [1.5, 7., -10.]
+    p7 = [3., 7., -20.]
+    p8 = [3., 3., -20.]
+    p9 = [3., 0., -20.]
+    p10 = [1.5, 0., -10.]
 
+    tri1 = Oiler.Tri(p1, p2, p3, 0., 0., "t1")
+    tri2 = Oiler.Tri(p2, p3, p4, 0., 0., "t2")
+    tri3 = Oiler.Tri(p3, p4, p5, 0., 0., "t3")
+    tri4 = Oiler.Tri(p4, p5, p6, 0., 0., "t4")
+    tri5 = Oiler.Tri(p4, p6, p7, 0., 0., "t5")
+    tri6 = Oiler.Tri(p4, p7, p8, 0., 0., "t6")
+    tri7 = Oiler.Tri(p4, p2, p8, 0., 0., "t7")
+    tri8 = Oiler.Tri(p2, p8, p9, 0., 0., "t8")
+    tri9 = Oiler.Tri(p10, p2, p9, 0., 0., "t9")
+    tri10 = Oiler.Tri(p1, p2, p10, 0., 0., "t10")
 
+    tris = [tri1, tri2, tri3, tri4, tri5, tri6, tri7, tri8, tri9, tri10]
+
+    tri_adj_dict_2_pts_no_self_adj = Dict(
+        "t3"  => ["t2", "t4"],
+        "t7"  => ["t2", "t6", "t8"],
+        "t6"  => ["t5", "t7"],
+        "t5"  => ["t4", "t6"],
+        "t9"  => ["t8", "t10"],
+        "t10" => ["t1", "t9"],
+        "t2"  => ["t1", "t3", "t7"],
+        "t1"  => ["t2", "t10"],
+        "t4"  => ["t3", "t5"],
+        "t8"  => ["t7", "t9"]
+    )
+
+    tri_adj_dict_2_pts_self_adj = Dict(
+        "t3"  => ["t2","t3" ,  "t4"],
+        "t7"  => [ "t2", "t6", "t7" ,"t8"],
+        "t6"  => [ "t5", "t6" ,"t7"],
+        "t5"  => [ "t4", "t5" ,"t6"],
+        "t9"  => [ "t8","t9" , "t10"],
+        "t10" => ["t1", "t9","t10"],
+        "t2"  => [ "t1","t2" , "t3", "t7"],
+        "t1"  => ["t1" , "t2", "t10"],
+        "t4"  => ["t3", "t4" , "t5"],
+        "t8"  => [ "t7","t8" , "t9"]
+    )
+
+    tri_adj_dict_1_pt_no_self_adj = Dict(
+        "t3"  => ["t1", "t2", "t4", "t5", "t6", "t7"],
+        "t7"  => ["t1", "t2", "t3", "t4", "t5", "t6", "t8", "t9", "t10"],
+        "t6"  => ["t2", "t3", "t4", "t5", "t7", "t8"],
+        "t5"  => ["t2", "t3", "t4", "t6", "t7"],
+        "t9"  => ["t1", "t2", "t7", "t8", "t10"],
+        "t10" => ["t1", "t2", "t7", "t8", "t9"],
+        "t2"  => ["t1", "t3", "t4", "t5", "t6", "t7", "t8", "t9", "t10"],
+        "t1"  => ["t2", "t3", "t7", "t8", "t9", "t10"],
+        "t4"  => ["t2", "t3", "t5", "t6", "t7"],
+        "t8"  => ["t1", "t2", "t6", "t7", "t9", "t10"]
+    )
+
+    tri_adj_dict_1_pt_self_adj = Dict(
+        "t3"  => ["t1", "t2", "t3" ,"t4", "t5", "t6", "t7"],
+        "t7"  => ["t1", "t2", "t3", "t4", "t5", "t6", "t7" ,"t8", "t9", "t10"],
+        "t6"  => ["t2", "t3", "t4", "t5", "t6" ,"t7", "t8"],
+        "t5"  => ["t2", "t3", "t4","t5" , "t6", "t7"],
+        "t9"  => ["t1", "t2", "t7", "t8", "t9" ,"t10"],
+        "t10" => ["t1", "t2", "t7", "t8", "t9", "t10"],
+        "t2"  => ["t1", "t2" ,"t3", "t4", "t5", "t6", "t7", "t8", "t9", "t10"],
+        "t1"  => ["t1" ,"t2", "t3", "t7", "t8", "t9", "t10"],
+        "t4"  => ["t2", "t3","t4" , "t5", "t6", "t7"],
+        "t8"  => ["t1", "t2", "t6", "t7", "t8" ,"t9", "t10"]
+    )
+
+    tri_adj_dict_2_pts_no_self_adj_ = Oiler.Tris.get_tri_adjacence_dict(tris;
+        n_common_pts=2, self_adjacence=false)
+    
+    tri_adj_dict_2_pts_self_adj_ = Oiler.Tris.get_tri_adjacence_dict(tris;
+        n_common_pts=2, self_adjacence=true)
+    
+    tri_adj_dict_1_pt_no_self_adj_ = Oiler.Tris.get_tri_adjacence_dict(tris;
+        n_common_pts=1, self_adjacence=false)
+    
+    tri_adj_dict_1_pt_self_adj_ = Oiler.Tris.get_tri_adjacence_dict(tris;
+        n_common_pts=1, self_adjacence=true)
+    
+    @test tri_adj_dict_1_pt_no_self_adj == tri_adj_dict_1_pt_no_self_adj_
+    @test tri_adj_dict_1_pt_self_adj == tri_adj_dict_1_pt_self_adj_
+    @test tri_adj_dict_2_pts_no_self_adj == tri_adj_dict_2_pts_no_self_adj_
+    @test tri_adj_dict_2_pts_self_adj == tri_adj_dict_2_pts_self_adj_
+    
+end
 
 @testset "test tris.jl" begin
     test_tri_merc_1()
     test_get_tri_strike_line_1()
     test_centroid_distance()
+    test_get_tri_adjacence_dict()
+    test_check_tri_adjacence_1()
 end

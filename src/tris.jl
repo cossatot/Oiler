@@ -167,13 +167,42 @@ function tri_centroid_distance(tri1::Oiler.Tris.Tri, tri2::Oiler.Tris.Tri)
 end
 
 
-function check_tri_adjacence(tri1, tri2; n_common_pts::Int=1)
+"""
+    check_tri_adjacence()
+
+Checks to see if two tris are adjacent, i.e. sharing a single vertex or an
+edge.
+
+# Arguments
+    - `tri1`: An Oiler.Tris.Tri instance
+    - `tri2`: An Oiler.Tris.Tri instance
+    - `n_common_pts`: Number of points in common to define adjacence. Should be 
+      `1` (a single shared vertex means tris are adjacent) or `2` (a shared
+       edge is required for tri adjacence). Defaults to `2`.
+    - `self_adjacence`: A boolean to determine whether a tri can be adjacent
+       to itself, or another tri with the same geometry. Defaults to `false`.
+
+# Returns
+    - bool, `true` or `false`
+"""
+function check_tri_adjacence(tri1, tri2; n_common_pts::Int=2, 
+                             self_adjacence=false)
+    if (n_common_pts != 1) & (n_common_pts != 2)
+        throw(ArgumentError("$n_common_pts must be 1 or 2"))
+    end
+
     common_pts = 0
     for pp in [tri1.p1, tri1.p2, tri1.p3]
         for cc in [tri2.p1, tri2.p2, tri2.p3]
-            if all(pp -> pp == first(cc), cc)
+            if pp == cc
                 common_pts += 1
             end
+        end
+    end
+
+    if !self_adjacence
+        if common_pts == 3
+            return false
         end
     end
 
@@ -182,6 +211,22 @@ function check_tri_adjacence(tri1, tri2; n_common_pts::Int=1)
     else
         return true
     end
+end
+
+
+function get_tri_adjacence_dict(tris; n_common_pts=2, self_adjacence=false)
+    tri_adj_dict = Dict()
+    for t1 in tris
+        tri_adj_dict[t1.name] = []
+        for t2 in tris
+            if Oiler.Tris.check_tri_adjacence(t1, t2; 
+                                              n_common_pts=n_common_pts, 
+                                              self_adjacence=self_adjacence)
+                push!(tri_adj_dict[t1.name], t2.name)
+            end
+        end
+    end
+    tri_adj_dict
 end
 
 
