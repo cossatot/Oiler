@@ -152,7 +152,7 @@ function add_fault_locking_to_PvGb(faults::Array{Fault},
 end
 
 
-function make_tri_regularization_matrix(tris; distance_weight=1e1)
+function make_tri_regularization_matrix(tris; distance_weight=1e2)
     tri_eqns = []
     tri_adj_dict = Oiler.Tris.get_tri_adjacence_dict(tris)
     tri_enum = Dict([tri.name => i for (i, tri) in enumerate(tris)])
@@ -240,6 +240,7 @@ end
 
 function make_weighted_constrained_kkt_lls_matrices(PvGb, Vc, cm, weights; sparse_lhs::Bool=false)
     W = sparse(diagm(1 ./ weights))
+    # W = sparse(diagm(weights))
     p, q = size(cm)
     n = length(Vc)
     if sparse_lhs
@@ -261,11 +262,45 @@ function make_weighted_constrained_kkt_lls_matrices(PvGb, Vc, cm, weights; spars
 end
 
 
+function make_weighted_constrained_kkt_lls_matrices_symmetric(PvGb, Vc, cm, weights; sparse_lhs::Bool=false)
+    W = sparse(diagm(1 ./ weights))
+    # W = sparse(diagm(weights))
+    p, q = size(cm)
+    n = length(Vc)
+    if sparse_lhs
+        _zeros = spzeros
+    else
+        _zeros = zeros
+    end
+    # lhs = [PvGb         _zeros(n, p) W;
+    #       cm           _zeros(p, p) _zeros(p, n);
+    #       _zeros(q, q) cm'          PvGb']
+
+    lhs = [_zeros(p, p) _zeros(p, n) cm;
+           _zeros(n, p)  W           PvGb;
+           cm'           PvGb'       _zeros(q, q)]
+
+    rhs = [zeros(p); Vc; zeros(q)]
+
+    # rhs = [Vc; zeros(p); zeros(q)]
+
+    if sparse_lhs
+        return sparse(lhs), rhs
+    else
+        return lhs, rhs
+    end
+end
+
+
 function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights; 
-    sparse_lhs::Bool=false, method="kkt")
+    sparse_lhs::Bool=false, method="kkt_sym")
 
     if method == "kkt"
         return make_weighted_constrained_kkt_lls_matrices(PvGb, Vc, cm, weights;
+        # return make_weighted_constrained_kkt_lls_matrices_symmetric(PvGb, Vc, cm, weights;
+            sparse_lhs=sparse_lhs)
+    elseif method == "kkt_sym"
+        return make_weighted_constrained_kkt_lls_matrices_symmetric(PvGb, Vc, cm, weights;
             sparse_lhs=sparse_lhs)
     else
         throw(ArgumentError("contraint method not implemented"))
@@ -416,7 +451,8 @@ solves for Euler poles, fault/tri slip rates, and uncertainty.
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array=[], tris=[], weighted::Bool=true, regularize::Bool=false,
     l2_lambda::Float64=100.0, check_closures::Bool=true, sparse_lhs::Bool=false,
-    predict_vels::Bool=false, constraint_method="kkt", pred_se::Bool=false)
+    predict_vels::Bool=false, constraint_method="kkt_sym", pred_se::Bool=false,
+    factorization="lu")
 
     @info "setting up unconstrained matrices"
     @time block_inv_setup = set_up_block_inv_no_constraints(vel_groups;
@@ -438,18 +474,30 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     @info "LHS block size $lhs_size"
     @info "RHS size $rhs_size"
 
-    @info "LU factorization"
-    @time lu_lhs = lu(lhs)
-    @info "  dun"
-    # block_inv_setup["lu_lhs"] = lu_lhs
+    @info "$factorization factorization"
+    if factorization == "lu"
+        fact = lu
+    elseif factorization == "svd"
+        fact = svd
+    end
+    @time lhs_fact = fact(lhs)
+    
+    @info "  Done with factorization"
+
     @info "solving"
-    @time full_soln = lu_lhs \ rhs
+    @time full_soln = lhs_fact \ rhs
     
     nk = length(full_soln)
     np = length(block_inv_setup["keys"])
     nt = length(tris)
     
-    soln_idx = 1:np * 3 + nt * 2
+    soln_length = np * 3 + nt * 2
+    if constraint_method == "kkt_sym"
+        soln_idx = nk - soln_length + 1:nk
+    else
+        soln_idx = 1:soln_length
+    end
+
     soln = full_soln[soln_idx]
 
     poles = Dict()
@@ -484,7 +532,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             se_weights = ones(size(block_inv_setup["weights"]))
         end
         @info "Estimating solution uncertainties"
-        @time pole_var = get_soln_covariance_matrix(block_inv_setup, lu_lhs, results, 
+        @time pole_var = get_soln_covariance_matrix(block_inv_setup, lhs_fact, results, 
                                                     weighted)
     else
         pole_var = zeros(length(block_inv_setup["Vc"]), length(block_inv_setup["Vc"]))
@@ -549,7 +597,9 @@ function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, n_iters)
     p, q = size(cm)
     zvec = [zeros(p); zeros(q)]
 
-    vel_stds = 1 ./ sqrt.(weights)
+    # vel_stds = 1 ./ sqrt.(weights)
+    vel_stds = sqrt.(1 ./ weights)
+    # vel_stds = sqrt.(weights)
 
     # rng = MersenneTwister(69) # to be replaced via config later
 
@@ -557,8 +607,6 @@ function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, n_iters)
 
     stoch_poles = zeros((n_iters, n_pole_vars)) # we want each soln to be a row
     
-    # lu_lhs = lu(lhs)
-
     @threads for i in 1:n_iters
         Vc_stochastic = Vc + vel_stds .* rand_vel_noise[:,i]
         rhs = [Vc_stochastic; zvec]
@@ -572,7 +620,7 @@ function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, n_iters)
 end
 
 
-function get_soln_covariance_matrix(block_matrices, lu_lhs, results, 
+function get_soln_covariance_matrix(block_matrices, lhs_fact, results, 
                                     weighted=true)
 
     PvGb = block_matrices["PvGb"]
@@ -601,7 +649,7 @@ function get_soln_covariance_matrix(block_matrices, lu_lhs, results,
     elseif any(x -> x != 1., weights) & (length(cm) == 0)
         var_cov = make_WLS_cov(PvGb, weights)
     else
-        var_cov = make_CWLS_cov_iter(lu_lhs, weights, y_obs, cm,
+        var_cov = make_CWLS_cov_iter(lhs_fact, weights, y_obs, cm,
             p, 1000)
     end
 
