@@ -2,7 +2,9 @@ module IO
 
 export vel_from_row, load_vels_from_csv, group_vels_by_fix_mov
 
+using ..Oiler
 using ..Oiler: VelocityVectorSphere, PoleSphere, PoleCart, pole_cart_to_sphere
+
 
 using Logging
 import Base.Threads.@threads
@@ -11,6 +13,7 @@ using CSV
 using ArchGDAL
 using GeoFormatTypes
 using DataFrames: DataFrame, DataFrameRow
+using DataFramesMeta
 
 const AG = ArchGDAL
 
@@ -259,6 +262,205 @@ function get_block_idx_for_points(point_df, block_df, to_epsg)
     end
     idxs
 end
+
+
+
+
+
+function val_nothing_fix(vel; return_val=0.)
+    if vel == ""
+        return return_val
+    elseif isnothing(vel) | ismissing(vel)
+        return return_val
+    else
+        if typeof(vel) == String
+            return parse(Float64, vel)
+        else
+            return vel
+        end
+    end
+end
+
+
+function err_nothing_fix(err; return_val=1., weight=1.)
+    if err == ""
+        return return_val
+    elseif isnothing(err) | ismissing(err) | (err == 0.)
+        return return_val
+    else
+        if typeof(err) == String
+            err = parse(Float64, err) / weight
+            if iszero(err)
+                return return_val
+            else
+                return err
+            end
+        else
+            return err
+        end
+    end
+end
+
+
+function row_to_fault(row; name="", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
+        v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
+        v_default=0., e_default=5., usd_default=0., lsd_default=20.)
+
+    trace = Oiler.IO.get_coords_from_geom(row[:geometry])
+    if name in names(row)
+        _name = row[:name]
+    else
+        _name = name
+    end
+
+    Oiler.Fault(trace=trace,
+        dip_dir=row[dip_dir],
+        extension_rate=val_nothing_fix(row[v_ex], return_val=v_default),
+        extension_err=err_nothing_fix(row[e_ex], return_val=e_default),
+        dextral_rate=val_nothing_fix(row[v_rl], return_val=v_default),
+        dextral_err=err_nothing_fix(row[e_rl], return_val=e_default),
+        dip=row[dip],
+        name=_name,
+        hw=row[hw],
+        fw=row[fw],
+        usd=val_nothing_fix(row[usd], return_val=usd_default),
+        lsd=val_nothing_fix(row[lsd], return_val=lsd_default),
+        )
+end
+
+
+function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val=1., weight=1.)
+    fault_seg = slip_rate_row[:fault_seg]
+    fault_idx = fault_seg# parse(Int, fault_seg)
+    fault_row = @where(fault_df, :fid .== fault_idx)[1,:]
+    fault = row_to_fault(fault_row)
+
+    extension_rate = val_nothing_fix(slip_rate_row[:extension_rate])
+    extension_err = err_nothing_fix(slip_rate_row[:extension_err]; 
+        return_val=err_return_val, weight=weight)
+    dextral_rate = val_nothing_fix(slip_rate_row[:dextral_rate])
+    dextral_err = err_nothing_fix(slip_rate_row[:dextral_err]; 
+        return_val=err_return_val, weight=weight)
+
+    ve, vn = Oiler.Faults.fault_slip_rate_to_ve_vn(dextral_rate, 
+                                                   extension_rate,
+                                                   fault.strike)
+
+    ee, en, cen = Oiler.Faults.fault_slip_rate_err_to_ee_en(dextral_err, 
+                                                            extension_err,
+                                                            fault.strike)
+
+    pt = Oiler.IO.get_coords_from_geom(slip_rate_row[:geometry])
+    lon = pt[1]
+    lat = pt[2]
+    
+    VelocityVectorSphere(lon=lon, lat=lat, ve=ve, vn=vn, fix=fault.hw,
+                         ee=ee, en=en, cen=cen,
+                         mov=fault.fw, vel_type="fault", name=fault_seg) 
+end
+
+
+function make_geol_slip_rate_vel_vec(geol_slip_rate_df, fault_df;
+        err_return_val=1., weight=1.)
+    geol_slip_rate_vels = []
+    for i in 1:size(geol_slip_rate_df, 1)
+        slip_rate_row = geol_slip_rate_df[i,:]
+        if (slip_rate_row[:include] == true) | (slip_rate_row[:include] == "1")
+            push!(geol_slip_rate_vels, make_vel_from_slip_rate(slip_rate_row, 
+                                                               fault_df;
+                                                               err_return_val=err_return_val,
+                                                               weight=weight))
+        end
+    end
+
+    geol_slip_rate_vels = convert(Array{VelocityVectorSphere}, geol_slip_rate_vels)
+end
+
+
+function tri_from_feature(feat)
+    # TODO: add support for reading in rates
+    tri = Oiler.Tris.Tri(
+       p1=Float64.(feat["geometry"]["coordinates"][1][1]),
+       p2=Float64.(feat["geometry"]["coordinates"][1][2]),
+       p3=Float64.(feat["geometry"]["coordinates"][1][3]),
+       name=string(feat["properties"]["fid"])
+       )
+end
+
+
+function tris_from_geojson(tri_json)
+    tris = map(tri_from_feature, tri_json["features"])
+end
+
+
+function tri_to_feature(tri)
+
+    gj_feature = Dict(
+        "type" => "Feature",
+        "geometry" => Dict(
+            "type":"Polygon",
+            "coordinates" => [[p1, p2, p3, p1]]
+        ),
+        "properties" => Dict(
+            "dip_slip_rate" => round.(tri.dip_slip_rate, digits=3),
+            "dip_slip_err" => round.(tri.dip_slip_err, digits=3),
+            "strike_slip_rate" => round.(tri.strike_slip_rate, digits=3),
+            "strike_slip_err" => round.(tri.strike_slip_err, digits=3),
+            "cde" => round.(tri.cde, digits=3),
+            "fid" => tri.name,
+        )
+    )
+
+end
+
+function tris_to_geojson(tris; name="")
+    gj = Dict(
+        "type" => "FeatureCollection",
+        "name":name,
+        "features":[tri_to_feature(tri) for tri in tris],
+    )
+end
+
+
+function gnss_vel_from_row(row, block; ve=:ve, vn=:vn, ee=:ee, en=:en,
+                           fix="1111", name=:station)
+    pt = Oiler.IO.get_coords_from_geom(row[:geometry])
+    lon = pt[1]
+    lat = pt[2]
+    Oiler.VelocityVectorSphere(lon=lon, lat=lat, ve=row[ve],
+        vn=row[vn], ee=row[ee], en=row[en], name=row[name],
+        fix=fix, mov=string(block), vel_type="GNSS")
+end
+
+
+function make_vels_from_gnss_and_blocks(gnss_df, block_df; ve=:ve, vn=:vn, ee=:ee, en=:en,
+    fix="1111", name=:station, epsg=0)
+
+    if epsg != 0
+        block_idx = get_block_idx_for_points(gnss_df, block_df, epsg)
+    else
+        block_idx = get_block_idx_for_points(gnss_df, block_df)
+    end
+
+    gnss_vels = []
+
+    for (i, block) in enumerate(block_idx)
+        if !ismissing(block)
+            gv = gnss_vel_from_row(gnss_df[i,:], block; ve=ve, vn=vn, ee=ee,
+                    en=en, fix=fix, name=name)
+            push!(gnss_vels, gv)
+        end
+    end
+
+    gnss_vels = convert(Array{VelocityVectorSphere}, gnss_vels)
+end
+
+
+
+function write_faults_with_rates(faults, filename)
+end
+
+
 
 
 end

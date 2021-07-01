@@ -14,7 +14,10 @@ struct Tri
     p2::Array{Float64,1}
     p3::Array{Float64,1}
     dip_slip_rate::Float64
+    dip_slip_err::Float64
     strike_slip_rate::Float64
+    strike_slip_err::Float64
+    cds::Float64
     name::String
 end
 
@@ -24,7 +27,10 @@ function Tri(;
     p2::Array{Float64,1},
     p3::Array{Float64,1},
     dip_slip_rate::Float64=0.,
+    dip_slip_err::Float64=0.,
     strike_slip_rate::Float64=0.,
+    strike_slip_err::Float64=0.,
+    cds::Float64=0.,
     name::String=""
     )
 
@@ -36,11 +42,12 @@ function Tri(;
     end
 
     if Oiler.Geom.check_winding_order([p1, p2, p3, p1]) == 1
-        @warn "reversing tri"
+        # @warn "reversing tri"
         p1, p2, p3 = (p3, p2, p1)
     end
 
-    Tri(p1, p2, p3, dip_slip_rate, strike_slip_rate, name)
+    Tri(p1, p2, p3, dip_slip_rate, dip_slip_err, strike_slip_rate, 
+        strike_slip_err, cds, name)
 end
 
 
@@ -228,6 +235,14 @@ function get_tri_adjacence_dict(tris; n_common_pts=2, self_adjacence=false)
     end
     tri_adj_dict
 end
+
+
+function get_tri_total_rate(tri::Oiler.Tris.Tri)
+    ds = results["tri_slip_rates"][tri.name]["dip_slip"]
+    ss = results["tri_slip_rates"][tri.name]["strike_slip"]
+    total_rate = sqrt(ds^2 + ss^2)
+end
+
 
 
 end # module

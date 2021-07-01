@@ -451,7 +451,7 @@ solves for Euler poles, fault/tri slip rates, and uncertainty.
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array=[], tris=[], weighted::Bool=true, regularize::Bool=false,
     l2_lambda::Float64=100.0, check_closures::Bool=true, sparse_lhs::Bool=false,
-    predict_vels::Bool=false, constraint_method="kkt_sym", pred_se::Bool=false,
+    predict_vels::Bool=false, constraint_method="kkt", pred_se::Bool=false,
     factorization="lu")
 
     @info "setting up unconstrained matrices"
@@ -474,14 +474,13 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     @info "LHS block size $lhs_size"
     @info "RHS size $rhs_size"
 
-    @info "$factorization factorization"
+    @info uppercase(factorization) * " factorization"
     if factorization == "lu"
         fact = lu
     elseif factorization == "svd"
         fact = svd
     end
     @time lhs_fact = fact(lhs)
-    
     @info "  Done with factorization"
 
     @info "solving"
@@ -498,32 +497,13 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         soln_idx = 1:soln_length
     end
 
+    tri_soln_idx = (np * 3 + 1):(np * 3) + nt * 2
     soln = full_soln[soln_idx]
 
-    poles = Dict()
-    for (i, (fix, mov)) in enumerate(block_inv_setup["keys"])
-        poles[(fix, mov)] = PoleCart(x=soln[i * 3 - 2], 
-                                     y=soln[i * 3 - 1],
-                                     z=soln[i * 3],
-                                     fix=fix, mov=mov)
-    end
-    
-    tri_results = Dict()
-    if nt > 0
-        tri_soln = soln[(np * 3 + 1):end]
-
-        for (i, tri) in enumerate(tris)
-            ds_ind = i * 2 - 1
-            ss_ind = i * 2
-            tri_results[tri.name] = Dict()
-            tri_results[tri.name]["dip_slip"] = tri_soln[ds_ind]
-            tri_results[tri.name]["strike_slip"] = tri_soln[ss_ind]
-        end
-    end
-
     results = Dict()
-    results["poles"] = poles
-    results["tri_slip_rates"] = tri_results
+    results["poles"] = get_poles_from_soln(block_inv_setup["keys"], soln)
+    tri_soln = soln[tri_soln_idx]
+    results["tri_slip_rates"] = get_tri_rates(tri_soln, tris)
 
     if pred_se == true
         if weighted == true
@@ -532,36 +512,46 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             se_weights = ones(size(block_inv_setup["weights"]))
         end
         @info "Estimating solution uncertainties"
-        @time pole_var = get_soln_covariance_matrix(block_inv_setup, lhs_fact, results, 
-                                                    weighted)
-    else
-        pole_var = zeros(length(block_inv_setup["Vc"]), length(block_inv_setup["Vc"]))
-    end
-
-    for (i, (fix, mov)) in enumerate(block_inv_setup["keys"])
-        poles[(fix, mov)] = PoleCart(poles[(fix, mov)];
-                                     ex=sqrt(pole_var[i * 3 - 2, i * 3 - 2]), 
-                                     ey=sqrt(pole_var[i * 3 - 1, i * 3 - 1]),
-                                     ez=sqrt(pole_var[i * 3, i * 3]),
-                                     cxy=pole_var[i * 3 - 2, i * 3 - 1],
-                                     cxz=pole_var[i * 3 - 2, i * 3],
-                                     cyz=pole_var[i * 3 - 1, i * 3])
+        @time pole_var = get_soln_covariance_matrix(block_inv_setup, 
+                                                    lhs_fact, 
+                                                    results, 
+                                                    soln_idx,
+                                                    weighted,
+                                                    )
+        get_pole_uncertainties!(results["poles"], pole_var, 
+                                block_inv_setup["keys"])
+        get_tri_uncertainties!(pole_var, tris, results["tri_slip_rates"], 
+                               tri_soln_idx)
     end
 
     if predict_vels == true
         results["predicted_vels"] = predict_model_velocities(vel_groups, 
-            block_inv_setup, poles; tri_results=tri_results)
+            block_inv_setup, results["poles"]; 
+            tri_results=results["tri_slip_rates"])
         
-        results["predicted_slip_rates"] = predict_slip_rates(faults, poles)
+        results["predicted_slip_rates"] = predict_slip_rates(faults, 
+                                                             results["poles"])
     end
 
     if check_closures == true
-        closures = Oiler.Utils.check_vel_closures(poles)
+        closures = Oiler.Utils.check_vel_closures(results["poles"])
     end
 
     results
 end
 
+
+function get_poles_from_soln(vel_group_keys, soln)
+    poles = Dict()
+    for (i, (fix, mov)) in enumerate(vel_group_keys)
+        poles[(fix, mov)] = PoleCart(x=soln[i * 3 - 2], 
+                                     y=soln[i * 3 - 1],
+                                     z=soln[i * 3],
+                                     fix=fix, 
+                                     mov=mov)
+    end
+    poles
+end
 
 function diag_dot(A, B)
     out = dot.(eachrow(A), eachcol(B))
@@ -592,37 +582,34 @@ function make_CLS_cov(PvGb, cm)
     cov = J_inv * [I(n) zeros(n, nc); zeros(nc, n) zeros(nc, nc)] * J_inv'
 end
 
-function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, n_iters)
+
+function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, soln_idx, n_iters)
     @info "CWLS covariances through Monte Carlo techniques"
     p, q = size(cm)
     zvec = [zeros(p); zeros(q)]
 
-    # vel_stds = 1 ./ sqrt.(weights)
     vel_stds = sqrt.(1 ./ weights)
-    # vel_stds = sqrt.(weights)
 
     # rng = MersenneTwister(69) # to be replaced via config later
-
     rand_vel_noise = randn((length(Vc), n_iters))
 
     stoch_poles = zeros((n_iters, n_pole_vars)) # we want each soln to be a row
-    
+
     @threads for i in 1:n_iters
         Vc_stochastic = Vc + vel_stds .* rand_vel_noise[:,i]
         rhs = [Vc_stochastic; zvec]
 
 
         full_soln = lhs \ rhs
-        soln = full_soln[1:n_pole_vars]
+        soln = full_soln[soln_idx]
         stoch_poles[i,:] = soln'
     end
     var_cov = cov(stoch_poles; dims=1)
 end
 
 
-function get_soln_covariance_matrix(block_matrices, lhs_fact, results, 
+function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
                                     weighted=true)
-
     PvGb = block_matrices["PvGb"]
     cm = block_matrices["cm"]
     y_obs = block_matrices["Vc"]
@@ -633,12 +620,11 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results,
         weights = ones(length(block_matrices["weights"]))
     end
 
-
     y_pred = get_pred_solution(PvGb, block_matrices["keys"],
         results["poles"]; tri_results=results["tri_slip_rates"])
     
     n, p = size(PvGb)
-    
+
     e = y_pred .- y_obs
     MSE = 1 / (n - p) * e' * e
     RMSE_string = "RMSE: " * string(sqrt(MSE))
@@ -650,7 +636,7 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results,
         var_cov = make_WLS_cov(PvGb, weights)
     else
         var_cov = make_CWLS_cov_iter(lhs_fact, weights, y_obs, cm,
-            p, 1000)
+            p, soln_idx, 1000)
     end
 
     var = MSE * var_cov
@@ -663,6 +649,49 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results,
     var
 end
 
+
+function get_pole_uncertainties!(poles, pole_var, vel_group_keys)
+    for (i, (fix, mov)) in enumerate(vel_group_keys)
+        poles[(fix, mov)] = PoleCart(poles[(fix, mov)];
+                                     ex=sqrt(pole_var[i * 3 - 2, i * 3 - 2]), 
+                                     ey=sqrt(pole_var[i * 3 - 1, i * 3 - 1]),
+                                     ez=sqrt(pole_var[i * 3, i * 3]),
+                                     cxy=pole_var[i * 3 - 2, i * 3 - 1],
+                                     cxz=pole_var[i * 3 - 2, i * 3],
+                                     cyz=pole_var[i * 3 - 1, i * 3])
+    end
+end
+
+
+function get_tri_rates(tri_soln, tris)
+    tri_results = Dict()
+
+    if length(tris) > 0
+
+        for (i, tri) in enumerate(tris)
+            ds_ind = i * 2 - 1
+            ss_ind = i * 2
+            tri_results[tri.name] = Dict()
+            tri_results[tri.name]["dip_slip"] = tri_soln[ds_ind]
+            tri_results[tri.name]["strike_slip"] = tri_soln[ss_ind]
+        end
+    end
+    tri_results
+end
+
+
+function get_tri_uncertainties!(pole_var, tris, tri_results, tri_soln_idx)
+    tri_var = pole_var[tri_soln_idx, tri_soln_idx]
+    if length(tris) > 0
+        for (i, tri) in enumerate(tris)
+            ds_ind = i * 2 - 1
+            ss_ind = i * 2
+            tri_results[tri.name]["dip_slip_err"] = sqrt(tri_var[ds_ind, ds_ind])
+            tri_results[tri.name]["strike_slip_err"] = sqrt(tri_var[ss_ind, ss_ind])
+            tri_results[tri.name]["dsc"] = tri_var[ds_ind, ss_ind]
+        end
+    end
+end
 
 function predict_slip_rates(faults, poles)
     slip_rates = Oiler.Utils.get_fault_slip_rates_from_poles(
