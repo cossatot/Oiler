@@ -152,7 +152,7 @@ function add_fault_locking_to_PvGb(faults::Array{Fault},
 end
 
 
-function make_tri_regularization_matrix(tris; distance_weight=1e2)
+function make_tri_regularization_matrix(tris; distance_weight=1e3)
     tri_eqns = []
     tri_adj_dict = Oiler.Tris.get_tri_adjacence_dict(tris)
     tri_enum = Dict([tri.name => i for (i, tri) in enumerate(tris)])
@@ -479,6 +479,8 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         fact = lu
     elseif factorization == "svd"
         fact = svd
+        # ensure dense LHS
+        lhs = Matrix(lhs)
     end
     @time lhs_fact = fact(lhs)
     @info "  Done with factorization"
@@ -490,6 +492,10 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     np = length(block_inv_setup["keys"])
     nt = length(tris)
     
+    # println("nk: $nk")
+    # println("np: $np")
+    # println("nt: $nt")
+
     soln_length = np * 3 + nt * 2
     if constraint_method == "kkt_sym"
         soln_idx = nk - soln_length + 1:nk
@@ -499,6 +505,8 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 
     tri_soln_idx = (np * 3 + 1):(np * 3) + nt * 2
     soln = full_soln[soln_idx]
+    # println("soln_idx: ", soln_idx)
+    # println("tri_soln_idx: ", tri_soln_idx)
 
     results = Dict()
     results["poles"] = get_poles_from_soln(block_inv_setup["keys"], soln)
@@ -520,8 +528,10 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
                                                     )
         get_pole_uncertainties!(results["poles"], pole_var, 
                                 block_inv_setup["keys"])
-        get_tri_uncertainties!(pole_var, tris, results["tri_slip_rates"], 
-                               tri_soln_idx)
+        if nt > 0
+            get_tri_uncertainties!(pole_var, tris, results["tri_slip_rates"], 
+                                   tri_soln_idx)
+        end
     end
 
     if predict_vels == true
@@ -598,7 +608,6 @@ function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, soln_idx, n_iters
     @threads for i in 1:n_iters
         Vc_stochastic = Vc + vel_stds .* rand_vel_noise[:,i]
         rhs = [Vc_stochastic; zvec]
-
 
         full_soln = lhs \ rhs
         soln = full_soln[soln_idx]
@@ -693,6 +702,7 @@ function get_tri_uncertainties!(pole_var, tris, tri_results, tri_soln_idx)
     end
 end
 
+
 function predict_slip_rates(faults, poles)
     slip_rates = Oiler.Utils.get_fault_slip_rates_from_poles(
             faults, poles)
@@ -779,8 +789,6 @@ function calc_forward_velocities(vel_groups::Dict{Tuple{String,String},Array{Vel
     @warn "NOT FINISHED IMPLEMENTING"
 
 end
-
-    
 
 
 function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},

@@ -10,6 +10,7 @@ using Logging
 import Base.Threads.@threads
 
 using CSV
+using JSON
 using ArchGDAL
 using GeoFormatTypes
 using DataFrames: DataFrame, DataFrameRow
@@ -264,9 +265,6 @@ function get_block_idx_for_points(point_df, block_df, to_epsg)
 end
 
 
-
-
-
 function val_nothing_fix(vel; return_val=0.)
     if vel == ""
         return return_val
@@ -398,27 +396,93 @@ function tri_to_feature(tri)
     gj_feature = Dict(
         "type" => "Feature",
         "geometry" => Dict(
-            "type":"Polygon",
-            "coordinates" => [[p1, p2, p3, p1]]
+            "type" => "Polygon",
+            "coordinates" => [[tri.p1, tri.p2, tri.p3, tri.p1]]
         ),
         "properties" => Dict(
             "dip_slip_rate" => round.(tri.dip_slip_rate, digits=3),
             "dip_slip_err" => round.(tri.dip_slip_err, digits=3),
             "strike_slip_rate" => round.(tri.strike_slip_rate, digits=3),
             "strike_slip_err" => round.(tri.strike_slip_err, digits=3),
-            "cde" => round.(tri.cde, digits=3),
+            "cds" => round.(tri.cds, digits=3),
             "fid" => tri.name,
         )
     )
-
 end
 
 function tris_to_geojson(tris; name="")
     gj = Dict(
         "type" => "FeatureCollection",
-        "name":name,
-        "features":[tri_to_feature(tri) for tri in tris],
+        "name" => name,
+        "features" => [tri_to_feature(tri) for tri in tris],
     )
+end
+
+
+function make_tris_from_results(tris, results)
+    tri_rates = results["tri_slip_rates"]
+    tri_names = [tri.name for tri in tris]
+    tris_out = [Oiler.Tris.Tri(;
+                tris[i].p1, tris[i].p2, tris[i].p3,
+                dip_slip_rate=tri_rates[name]["dip_slip"],
+                strike_slip_rate=tri_rates[name]["strike_slip"],
+                dip_slip_err=tri_rates[name]["dip_slip_err"],
+                strike_slip_err=tri_rates[name]["strike_slip_err"],
+                cds=tri_rates[name]["dsc"],
+                name=name
+                ) for (i, name) in enumerate(tri_names)]
+end
+
+
+function write_tri_results_to_gj(tris, results, outfile; name="")
+    tris_out = make_tris_from_results(tris, results)
+    tri_gj = tris_to_geojson(tris_out; name=name)
+
+    open(outfile, "w") do f
+        JSON.print(f, tri_gj)
+    end
+end
+
+
+function faults_to_geojson(faults; name="")
+    gj = Dict(
+        "type" => "FeatureCollection",
+        "name" => name,
+        "features" => [fault_to_feature(fault) for fault in faults]
+    )
+end
+
+
+function fault_to_feature(fault)
+    gj_feature = Dict(
+        "type" => "Feature",
+        "geometry" => Dict(
+            "type" => "LineString",
+            "coordinates" => fault.trace'
+        ),
+        "properties" => Dict(
+            "dip_dir" => fault.dip_dir,
+            "extension_rate" => round(fault.extension_rate, digits=3),
+            "extension_err" => round(fault.extension_err, digits=3),
+            "dextral_rate" => round(fault.dextral_rate, digits=3),
+            "dextral_err" => round(fault.dextral_err, digits=3),
+            "cde" => round(fault.cde, digits=3),
+            "lsd" => fault.lsd,
+            "usd" => fault.usd,
+            "name" => fault.name,
+            "hw" => fault.hw,
+            "fw" => fault.fw
+        )
+    )
+end
+
+
+function write_fault_results_to_gj(results, outfile; name="")
+    fault_gj = faults_to_geojson(results["predicted_slip_rates"]; name=name)
+
+    open(outfile, "w") do f
+        JSON.print(f, fault_gj)
+    end
 end
 
 
@@ -454,13 +518,6 @@ function make_vels_from_gnss_and_blocks(gnss_df, block_df; ve=:ve, vn=:vn, ee=:e
 
     gnss_vels = convert(Array{VelocityVectorSphere}, gnss_vels)
 end
-
-
-
-function write_faults_with_rates(faults, filename)
-end
-
-
 
 
 end
