@@ -27,7 +27,7 @@ end
 tris = map(tri_from_geojson, tri_json["features"])
 
 # load vel points
-vels = CSV.read("./test_data/fake_na_ca/ca_na_fake_pts.csv")
+vels = CSV.read("./test_data/fake_na_ca/ca_na_fake_pts.csv", DataFrame)
 vlon = [vels[i,:].X for i in 1:size(vels, 1)]
 vlat = [vels[i,:].Y for i in 1:size(vels, 1)]
 
@@ -120,6 +120,8 @@ results = Oiler.solve_block_invs_from_vel_groups(vel_groups,
     # faults=faults, 
     faults=[ss1, ss2],
     tris=tris,
+    tri_distance_weight=0.1,
+    regularize_tris=false,
     weighted=true,
     predict_vels=true,
     pred_se=true)

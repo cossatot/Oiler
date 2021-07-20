@@ -152,7 +152,7 @@ function add_fault_locking_to_PvGb(faults::Array{Fault},
 end
 
 
-function make_tri_regularization_matrix(tris; distance_weight=1e3)
+function make_tri_regularization_matrix(tris, distance_weight)
     tri_eqns = []
     tri_adj_dict = Oiler.Tris.get_tri_adjacence_dict(tris)
     tri_enum = Dict([tri.name => i for (i, tri) in enumerate(tris)])
@@ -177,31 +177,74 @@ function make_tri_regularization_matrix(tris; distance_weight=1e3)
 end
 
 
-function add_tris_to_PvGb(tris, vel_groups, vd)
+function make_tri_prior_matrices(tris)
+    lhs = diagm(ones(2 * length(tris)))
+    vels = ones(2 * length(tris))
+    weights = ones(2 * length(tris))
+
+    for (i, tri) in enumerate(tris)
+        ds_ind = 2 * i - 1
+        ss_ind = 2 * i
+
+        vels[ds_ind] = tri.dip_slip_rate
+        weights[ds_ind] = weight_from_error(tri.dip_slip_err)
+        vels[ss_ind] = tri.strike_slip_rate
+        weights[ss_ind] = weight_from_error(tri.strike_slip_err)
+    end
+    (lhs, vels, weights)
+end
+
+
+function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true, 
+        distance_weight::Float64=10.)
+
+    nt = length(tris)
+
+    # Elastic locking effects on GNSS
     PvGb = vd["PvGb"]
+    PvGb_n_cols = size(PvGb, 2)
     gnss_vels = get_gnss_vels(vel_groups)
     gnss_lons = [vel["vel"].lon for vel in gnss_vels]
     gnss_lats = [vel["vel"].lat for vel in gnss_vels]
     gnss_idxs = [vel["idx"] for vel in gnss_vels]
     
-    tri_reg_matrix = make_tri_regularization_matrix(tris)
-    
     tri_effects = Oiler.Elastic.calc_tri_effects(tris, gnss_lons, gnss_lats)
-    tri_eqn_matrix = zeros((size(PvGb)[1], size(tri_effects)[2]))
+    tri_gnss_effects_matrix = zeros((size(PvGb)[1], size(tri_effects)[2]))
 
     for (i, vel_idx) in enumerate(gnss_idxs)
         i3 = i * 3
         gnss_row_idxs = i3 - 2:i3
         pvgb_row_idxs = vel_idx[1]
 
-        tri_eqn_matrix[pvgb_row_idxs, :] = tri_effects[gnss_row_idxs, :]
+        tri_gnss_effects_matrix[pvgb_row_idxs, :] = tri_effects[gnss_row_idxs, :]
+    end
+    PvGb = hcat(PvGb, tri_gnss_effects_matrix)
+
+    # Priors and regularization
+    tri_reg_matrix = zeros(0, nt * 2)
+    tri_reg_weights = zeros(0)
+    tri_reg_vels = zeros(0)
+
+    if regularize == true
+        distance_reg_matrix = make_tri_regularization_matrix(tris, distance_weight)
+        tri_reg_matrix = vcat(tri_reg_matrix, distance_reg_matrix)
+        tri_reg_weights = vcat(tri_reg_weights, ones(size(tri_reg_matrix, 1)))
+        tri_reg_vels = vcat(tri_reg_vels, zeros(size(tri_reg_matrix, 1)))
     end
 
-    tri_reg_block = hcat(zeros(size(tri_reg_matrix, 1), size(PvGb, 2)), tri_reg_matrix)
-    PvGb = hcat(PvGb, tri_eqn_matrix)
+    if priors == true
+        priors, prior_vels, prior_weights = make_tri_prior_matrices(tris)
+        tri_reg_matrix = vcat(tri_reg_matrix, priors)
+        tri_reg_vels = vcat(tri_reg_vels, prior_vels)
+        tri_reg_weights = vcat(tri_reg_weights, prior_weights)
+    end
+    
+    tri_reg_block = hcat(zeros(size(tri_reg_matrix, 1), PvGb_n_cols), tri_reg_matrix)
+    
     PvGb = vcat(PvGb, tri_reg_block)
-    vd["weights"] = vcat(vd["weights"], ones(size(tri_reg_matrix, 1)))
-    vd["Vc"] = vcat(vd["Vc"], zeros(size(tri_reg_matrix, 1)))
+
+    vd["weights"] = vcat(vd["weights"], tri_reg_weights)
+    vd["Vc"] = vcat(vd["Vc"], tri_reg_vels)
     vd["PvGb"] = PvGb
     vd
 end
@@ -309,7 +352,7 @@ end
 
 
 function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array=[], tris::Array=[])
+    faults::Array=[], tris::Array=[], regularize_tris=true, tri_priors=false, tri_distance_weight::Float64=10.)
 
     @info " making block inversion matrices"
     @time vd = make_block_inversion_matrices_from_vels(vel_groups)
@@ -326,7 +369,9 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
 
     if length(tris) > 0
         @info " doing tris"
-        @time vd = add_tris_to_PvGb(tris, vel_groups, vd)
+        @time vd = add_tris_to_PvGb(tris, vel_groups, vd; 
+            priors=tri_priors, regularize=regularize_tris,
+            distance_weight=tri_distance_weight)
         @info " done doing tris"
     end
     
@@ -337,11 +382,14 @@ end
 
 function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     basic_matrices::Dict=Dict(), faults::Array=[], tris::Array=[], weighted::Bool=true, 
-    regularize::Bool=false, l2_lambda::Float64=100.0, sparse_lhs::Bool=false,
+    regularize_tris::Bool=true, tri_priors::Bool=false,
+    tri_distance_weight::Float64=10., sparse_lhs::Bool=false,
     constraint_method="kkt")
 
     if basic_matrices == Dict()
-        basic_matrices = set_up_block_inv_no_constraints(vel_groups, faults=faults, tris=tris)
+        basic_matrices = set_up_block_inv_no_constraints(vel_groups; 
+            faults=faults, tris=tris, regularize_tris=regularize_tris,
+            tri_priors=tri_priors, tri_distance_weight=tri_distance_weight)
     end
 
     PvGb = basic_matrices["PvGb"]
@@ -362,17 +410,6 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
             cm = hcat(cm, zeros(size(cm)[1], length(tris) * 2))
             cm = vcat(cm, zeros(size(PvGb, 1) - size(cm, 1), size(PvGb, 2)))
         end
-    end
-
-    if regularize == true
-        @info "regularizing: l2_lambda = $l2_lambda"
-        n_vars = size(lhs, 2)
-        reg_matrix = sparse(1:n_vars, 1:n_vars, ones(n_vars)) .* l2_lambda
-
-        rhs_reg = zeros(n_vars)
-
-        lhs = [lhs; reg_matrix]
-        rhs = [rhs; rhs_reg]
     end
     
     if weighted == true
@@ -449,21 +486,28 @@ solves for Euler poles, fault/tri slip rates, and uncertainty.
 
 """
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array=[], tris=[], weighted::Bool=true, regularize::Bool=false,
-    l2_lambda::Float64=100.0, check_closures::Bool=true, sparse_lhs::Bool=false,
-    predict_vels::Bool=false, constraint_method="kkt", pred_se::Bool=false,
-    factorization="lu")
+    faults::Array=[], tris=[], weighted::Bool=true, 
+    regularize_tris::Bool=true,
+    tri_priors::Bool=false,
+    tri_distance_weight::Float64=10., check_closures::Bool=true,
+    sparse_lhs::Bool=false, predict_vels::Bool=false, constraint_method="kkt",
+    pred_se::Bool=false, factorization="lu")
 
     @info "setting up unconstrained matrices"
     @time block_inv_setup = set_up_block_inv_no_constraints(vel_groups;
             faults=faults,
+            regularize_tris=regularize_tris,
+            tri_priors=tri_priors,
+            tri_distance_weight=tri_distance_weight,
             tris=tris)
     @info "making constrained matrices"
     @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups;
             basic_matrices=block_inv_setup,
             weighted=weighted,
+            regularize_tris=regularize_tris,
+            tri_priors=tri_priors,
             tris=tris,
-            regularize=regularize, l2_lambda=l2_lambda,
+            tri_distance_weight=tri_distance_weight,
             sparse_lhs=sparse_lhs,
             constraint_method=constraint_method)
     
@@ -492,10 +536,6 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     np = length(block_inv_setup["keys"])
     nt = length(tris)
     
-    # println("nk: $nk")
-    # println("np: $np")
-    # println("nt: $nt")
-
     soln_length = np * 3 + nt * 2
     if constraint_method == "kkt_sym"
         soln_idx = nk - soln_length + 1:nk
@@ -505,8 +545,6 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 
     tri_soln_idx = (np * 3 + 1):(np * 3) + nt * 2
     soln = full_soln[soln_idx]
-    # println("soln_idx: ", soln_idx)
-    # println("tri_soln_idx: ", tri_soln_idx)
 
     results = Dict()
     results["poles"] = get_poles_from_soln(block_inv_setup["keys"], soln)

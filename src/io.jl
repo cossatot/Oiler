@@ -136,8 +136,23 @@ function poles_to_df(poles::Array{PoleCart,1};
 end
 
 
+function gis_vec_file_to_df(filename::AbstractString; 
+                            layername::AbstractString="")
+    dataset = AG.read(filename)
+    if layername == ""
+        layer = AG.getlayer(dataset, 0)
+    else
+        layer = AG.getlayer(dataset, layername)
+    end
 
-function gis_vec_file_to_df(filename::AbstractString; layername="")
+    dataframe = DataFrame(layer)
+    rename!(dataframe, "" => :geometry)
+
+    
+end
+
+
+function gis_vec_file_to_df_old(filename::AbstractString; layername="")
     dataset = AG.read(filename)
     if layername == ""
         layer = AG.getlayer(dataset, 0)
@@ -328,8 +343,16 @@ end
 
 
 function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val=1., weight=1.)
+    
+    fault_fid_type = typeof(fault_df[1,:fid])
+    
     fault_seg = slip_rate_row[:fault_seg]
-    fault_idx = fault_seg# parse(Int, fault_seg)
+    # fault_idx = fault_seg# parse(Int, fault_seg)
+    if fault_fid_type <: AbstractString
+        fault_idx = fault_seg
+    else
+        fault_idx = parse(fault_fid_type, fault_seg)
+    end
     fault_row = @where(fault_df, :fid .== fault_idx)[1,:]
     fault = row_to_fault(fault_row)
 
