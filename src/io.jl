@@ -400,7 +400,7 @@ end
 
 function tri_from_feature(feat)
     # TODO: add support for reading in rates
-    tri = Oiler.Tris.Tri(
+    tri = Oiler.Tris.Tri(;
        p1=Float64.(feat["geometry"]["coordinates"][1][1]),
        p2=Float64.(feat["geometry"]["coordinates"][1][2]),
        p3=Float64.(feat["geometry"]["coordinates"][1][3]),
@@ -506,6 +506,12 @@ function write_fault_results_to_gj(results, outfile; name="")
     open(outfile, "w") do f
         JSON.print(f, fault_gj)
     end
+end
+
+
+function write_gnss_vel_results_to_csv(results, vel_groups; name="")
+    pred_gnss_df = Oiler.Utils.get_gnss_results(results, vel_groups)
+    CSV.write(name, pred_gnss_df)
 end
 
 

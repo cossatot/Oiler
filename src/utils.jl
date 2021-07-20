@@ -605,4 +605,48 @@ function make_gnss_df_from_vel_groups(vel_groups)
 end
 
 
+function get_gnss_results(results, vel_groups)
+    pred_vels = [v["vel"] for v in get_gnss_vels(results["predicted_vels"])]
+    lons, lats = get_coords_from_vel_array(pred_vels)
+    pve = [v.ve for v in pred_vels]
+    pvn = [v.vn for v in pred_vels]
+    names = [v.name for v in pred_vels]
+
+    obs_vels = [v["vel"] for v in get_gnss_vels(vel_groups)]
+    ove = [v.ve for v in obs_vels]
+    ovn = [v.vn for v in obs_vels]
+
+    rve, rvn = ove - pve, ovn - pvn
+
+    pred_gnss_df = DataFrame()
+    pred_gnss_df.lon = lons
+    pred_gnss_df.lat = lats
+    pred_gnss_df.ve =  round.(pve, digits=3)
+    pred_gnss_df.vn =  round.(pvn, digits=3) 
+    pred_gnss_df.ee =  round.([v.ee for v in pred_vels], digits=3)
+    pred_gnss_df.en =  round.([v.en for v in pred_vels], digits=3)
+    pred_gnss_df.cen = round.([v.cen for v in pred_vels], digits=3)
+    pred_gnss_df.re =  round.(rve, digits=3)
+    pred_gnss_df.rn =  round.(rvn, digits=3)
+    pred_gnss_df.ree = round.(sqrt.(pred_gnss_df.ee.^2 + [v.ee^2 for v in obs_vels]),
+                              digits=3)
+    pred_gnss_df.ren = round.(sqrt.(pred_gnss_df.en.^2 + [v.en^2 for v in obs_vels]),
+                              digits=3)
+    pred_gnss_df.name = names
+    
+
+    pred_gnss_df
+end
+
+
+function get_block_centroids(blocks)
+end
+
+
+function get_block_centroid_velocities(blocks, results; ref_block="")
+
+
+end
+
+
 end # module
