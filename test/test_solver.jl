@@ -195,13 +195,84 @@ function test_make_block_PvGb_from_vel()
 
     vels = [
         Oiler.VelocityVectorSphere(lon=-13.98, lat=-52.17, ve=1., vn=1.,
-        ee=0., en=0.)]
+        ee=0., en=0., fix="ca", mov="na")]
 
+    vel_groups = Oiler.group_vels_by_fix_mov(vels)
+
+    Oiler.Solver.make_block_PvGb_from_vels(vel_groups)
+
+    pvgb = Oiler.Solver.make_block_PvGb_from_vels(vel_groups)
+
+    pvgb_ans = Dict("keys" => [("ca", "na")],
+                    "weights" => [1.0, 1.0, 1.0],
+                    "PvGb" => sparse([4.88298e9   -1.21565e9  3.90747e9;
+                    -1.53913e9   -6.18229e9  0.0;
+                    -1.19209e-7   0.0        0.0]))
+
+    @test sort(collect(keys(pvgb))) == sort(collect(keys(pvgb_ans)))
+    @test pvgb["weights"] == pvgb_ans["weights"]
+    @test isapprox(pvgb["PvGb"], pvgb_ans["PvGb"]; rtol=0.01)
+end
+
+function test_make_block_PvGb_from_vels()
+
+    pvgb = Oiler.Solver.make_block_PvGb_from_vels(vel_groups_1)
+
+    pvgb_ans = Dict("keys" => [("a", "c"), ("r", "a"), ("r", "c")],
+                    "weights" => [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                    "PvGb" => sparse(
+    [-5.55933e6 -67923.4 6.371e9 0.0 0.0 0.0 0.0 0.0 0.0;
+    7.78345e7 -6.37052e9 0.0 0.0 0.0 0.0 0.0 0.0 0.0;
+    0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0;
+    0.0 0.0 0.0 -5.5589e6 97030.9 6.371e9 0.0 0.0 0.0;
+    0.0 0.0 0.0 -1.11189e8 -6.37003e9 1.45519e-11 0.0 0.0 0.0;
+    0.0 0.0 0.0 1.45519e-11 0.0 -1.49012e-8 0.0 0.0 0.0;
+    0.0 0.0 0.0 0.0 0.0 6.371e9 0.0 0.0 0.0;
+    0.0 0.0 0.0 5.55975e6 -6.371e9 0.0 0.0 0.0 0.0;
+    0.0 0.0 0.0 0.0 0.0 -9.31323e-10 0.0 0.0 0.0;
+    0.0 0.0 0.0 0.0 0.0 0.0 -5.55924e6 -74715.4 6.371e9;
+    0.0 0.0 0.0 0.0 0.0 0.0 8.56175e7 -6.37042e9 0.0;
+    0.0 0.0 0.0 0.0 0.0 0.0 -1.45519e-11 0.0 0.0])
+    )
+
+    @test sort(collect(keys(pvgb))) == sort(collect(keys(pvgb_ans)))
+    @test pvgb["weights"] == pvgb_ans["weights"]
+    @test isapprox(pvgb["PvGb"], pvgb_ans["PvGb"]; rtol=0.01)
+
+end
+
+
+function test_make_block_inversion_matrices_from_vels()
+end
+
+
+function test_make_block_inv_rhs()
+end
+
+function test_make_block_inv_lhs_constraints()
+end
+
+function test_add_fault_locking_to_PvGb()
+end
+
+
+function test_make_tri_regularization_matrix()
+end
+
+function test_make_tri_prior_matrices()
 end
 
 
 function test_add_tris_to_PvGb()
 
+end
+
+function test_weight_inv_matrices()
+
+end
+
+
+function test_add_equality_constraints_kkt()
 end
 
 
@@ -262,6 +333,8 @@ function test_solver_strategies()
     # weighted (real weights)
     w_lhs, w_rhs = Oiler.Solver.weight_inv_matrices(PvGb, y_obs, y_w)
     m_w, b_w = w_lhs \ w_rhs
+    @test isapprox(m_w, 1.086484313142308)
+    @test isapprox(b_w, 1.1695147339514742)
     
     # weighted (equal weights, should be identical to OLS)
     w1_lhs, w1_rhs = Oiler.Solver.weight_inv_matrices(PvGb, y_obs, y_w1)
@@ -277,8 +350,11 @@ function test_solver_strategies()
     # constrained, weighted least squares (real weights)
     cw_lhs, cw_rhs = Oiler.Solver.make_weighted_constrained_lls_matrices(PvGb,
         y_obs, cm, y_w)
-    m_cw, b_cw, _, _, _, _, _, _ = cw_lhs \ cw_rhs
+    # m_cw, b_cw, _, _, _, _, _, _ = cw_lhs \ cw_rhs
+    _, _, _, _, _, _, m_cw, b_cw = cw_lhs \ cw_rhs
     @test isapprox(m_cw, b_cw)
+    @test isapprox(m_cw, m_w, atol=0.1)
+    @test isapprox(b_cw, b_w, atol=0.1)
     
     ## constrained, weighted least squares (zero constraints, should match WLS)
     ## fails w/ singular value exception
@@ -313,5 +389,12 @@ end
     test_build_weight_vector_from_vels_default_zero_weight()
     test_build_weight_vector_from_vels_equal_zero_weights()
     test_build_weight_vectors()
-    test_solver_strategies()
+    test_make_block_PvGb_from_vel()
+    test_make_block_PvGb_from_vels()
+    # test_add_tris_to_PvGb()
+    # test_solve_block_invs_from_vel_groups_1_vel()
+    # test_set_up_block_inv_w_constraints_1()
+    # test_set_up_block_inv_w_constraints_1_tri()
+
+    test_solver_strategies() 
 end
