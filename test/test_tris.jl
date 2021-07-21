@@ -1,5 +1,6 @@
 using Test
     
+# not a project dependency; uncomment below to do test_tri_strike_slip
 # using PyPlot
 
 
@@ -45,7 +46,7 @@ end
 
 function test_tri_strike_slip()
 
-    using PyPlot
+    # Use PyPlot for this
 
     tri = Oiler.Tris.Tri([0., 0., -10.],
                     [1.5, 1.5, -1.],
