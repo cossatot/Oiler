@@ -8,10 +8,11 @@ using Oiler
 
 
 function test_get_tri_center()
-    tri = Oiler.Tris.Tri([0., 0., -10.],
-                    [1.5, 1.5, -1.],
-                    [0., 3., -10.],
-                    0.,0.,"")
+    tri = Oiler.Tris.Tri(;
+                    p1=[0., 0., -10.],
+                    p2=[1.5, 1.5, -1.],
+                    p3=[0., 3., -10.],
+    )
     center = Oiler.Tris.get_tri_center(tri)
     tc_answer = [0.5000510776240583, 1.5001218561577172, -7.0]
     @test isapprox(center, tc_answer)
@@ -21,10 +22,10 @@ end
 
 function test_tri_merc_1()
 
-    tri = Oiler.Tris.Tri([81.36, 28.57, -0.],
-                    [83.18, 29.05, -25.0],
-                    [83.68, 27.56, -0.],
-                    0.,0.,""
+    tri = Oiler.Tris.Tri(;
+                    p1=[81.36, 28.57, -0.],
+                    p2=[83.18, 29.05, -25.0],
+                    p3=[83.68, 27.56, -0.],
                     )
     
     lon_1 = (81.36 + 83.18 + 83.68) / 3.
@@ -48,10 +49,11 @@ function test_tri_strike_slip()
 
     # Use PyPlot for this
 
-    tri = Oiler.Tris.Tri([0., 0., -10.],
-                    [1.5, 1.5, -1.],
-                    [0., 3., -10.],
-                    0.,0.,"")
+    tri = Oiler.Tris.Tri(;
+                    p1=[0., 0., -10.],
+                    p2=[1.5, 1.5, -1.],
+                    p3=[0., 3., -10.],
+    )
 
     site_lon = [0.35]
     site_lat = [1.5]
@@ -102,9 +104,9 @@ end
 
 function test_calc_tri_effects_single_tri_1()
     
-    tri = Oiler.Tris.Tri([0., 0., -10.],
-                    [1.5, 1.5, -1.],
-                    [0., 3., -10.])
+    tri = Oiler.Tris.Tri(p1=[0., 0., -10.],
+                    p2=[1.5, 1.5, -1.],
+                    p3=[0., 3., -10.])
 
     site_lons = [0.35, 0.25, -0.5]
     site_lats = [1.5, 1.1, 2.3]
@@ -139,13 +141,13 @@ end
 
 
 function test_calc_tri_effects_1()
-    tri1 = Oiler.Tri([0., 0., -10.],
-                     [1.5, 1.5, -1.],
-                     [0., 3., -10.])
+    tri1 = Oiler.Tri(p1=[0., 0., -10.],
+                     p2=[1.5, 1.5, -1.],
+                     p3=[0., 3., -10.])
 
-    tri2 = Oiler.Tri([0., 3., -10.],
-                     [1.5, 1.5, -1.],
-                     [1.5, 4.5, -1.])
+    tri2 = Oiler.Tri(p1=[0., 3., -10.],
+                     p2=[1.5, 1.5, -1.],
+                     p3=[1.5, 4.5, -1.])
 
     site_lons = [0.35, 0.25, -0.5]
     site_lats = [1.5, 1.1, 2.3]
@@ -177,14 +179,14 @@ end
 
 
 function test_centroid_distance()
-    tri1 = Oiler.Tri([0., 0., -10.],
-                     [1.5, 1.5, -1.],
-                     [0., 3., -10.],
-                     0.,0.,"t1")
+    tri1 = Oiler.Tri(p1=[0., 0., -10.],
+                     p2=[1.5, 1.5, -1.],
+                     p3=[0., 3., -10.],
+                     name="t1")
 
-    tri2 = Oiler.Tri([0., 3., -10.],
-                     [1.5, 1.5, -1.],
-                     [1.5, 4.5, -1.], 0., 0., "t2")
+    tri2 = Oiler.Tri(p1=[0., 3., -10.],
+                     p2=[1.5, 1.5, -1.],
+                     p3=[1.5, 4.5, -1.], name="t2")
 
     cd = Oiler.Tris.tri_centroid_distance(tri1, tri2)
     @test isapprox(cd, 175.67806244060736)
@@ -192,14 +194,14 @@ end
 
 
 function test_check_tri_adjacence_1()
-    tri1 = Oiler.Tri([0., 0., -10.],
-                     [1.5, 1.5, -1.],
-                     [0., 3., -10.],
-                     0.,0.,"t1")
+    tri1 = Oiler.Tri(p1=[0., 0., -10.],
+                     p2=[1.5, 1.5, -1.],
+                     p3=[0., 3., -10.],
+                     name="t1")
 
-    tri2 = Oiler.Tri([0., 3., -10.],
-                     [1.5, 1.5, -1.],
-                     [1.5, 4.5, -1.], 0., 0., "t2")
+    tri2 = Oiler.Tri(p1=[0., 3., -10.],
+                     p2=[1.5, 1.5, -1.],
+                     p3=[1.5, 4.5, -1.], name="t2")
 
     @test Oiler.Tris.check_tri_adjacence(tri1, tri2) == true
 end
@@ -216,16 +218,16 @@ function test_get_tri_adjacence_dict()
     p9 = [3., 0., -20.]
     p10 = [1.5, 0., -10.]
 
-    tri1 = Oiler.Tri(p1, p2, p3, 0., 0., "t1")
-    tri2 = Oiler.Tri(p2, p3, p4, 0., 0., "t2")
-    tri3 = Oiler.Tri(p3, p4, p5, 0., 0., "t3")
-    tri4 = Oiler.Tri(p4, p5, p6, 0., 0., "t4")
-    tri5 = Oiler.Tri(p4, p6, p7, 0., 0., "t5")
-    tri6 = Oiler.Tri(p4, p7, p8, 0., 0., "t6")
-    tri7 = Oiler.Tri(p4, p2, p8, 0., 0., "t7")
-    tri8 = Oiler.Tri(p2, p8, p9, 0., 0., "t8")
-    tri9 = Oiler.Tri(p10, p2, p9, 0., 0., "t9")
-    tri10 = Oiler.Tri(p1, p2, p10, 0., 0., "t10")
+    tri1 =  Oiler.Tri(p1=p1, p2=p2, p3=p3, name="t1")
+    tri2 =  Oiler.Tri(p1=p2, p2=p3, p3=p4, name="t2")
+    tri3 =  Oiler.Tri(p1=p3, p2=p4, p3=p5, name="t3")
+    tri4 =  Oiler.Tri(p1=p4, p2=p5, p3=p6, name="t4")
+    tri5 =  Oiler.Tri(p1=p4, p2=p6, p3=p7, name="t5")
+    tri6 =  Oiler.Tri(p1=p4, p2=p7, p3=p8, name="t6")
+    tri7 =  Oiler.Tri(p1=p4, p2=p2, p3=p8, name="t7")
+    tri8 =  Oiler.Tri(p1=p2, p2=p8, p3=p9, name="t8")
+    tri9 =  Oiler.Tri(p1=p10, p2=p2, p3=p9, name="t9")
+    tri10 = Oiler.Tri(p1=p1, p2=p2, p3=p10, name="t10")
 
     tris = [tri1, tri2, tri3, tri4, tri5, tri6, tri7, tri8, tri9, tri10]
 
