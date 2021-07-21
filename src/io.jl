@@ -146,9 +146,22 @@ function gis_vec_file_to_df(filename::AbstractString;
     end
 
     dataframe = DataFrame(layer)
-    rename!(dataframe, "" => :geometry)
-
     
+    if !("geometry" in names(dataframe))
+        rename!(dataframe, "" => :geometry)
+    end
+
+    if !("fid" in names(dataframe))
+        nfeat = AG.nfeature(layer)
+        fids = []
+        for nf in 1:nfeat
+            feature = AG.unsafe_nextfeature(layer)
+            push!(fids, AG.getfid(feature))
+        end
+        dataframe[!, "fid"] = fids
+    end
+
+    dataframe
 end
 
 

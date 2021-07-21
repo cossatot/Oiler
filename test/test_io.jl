@@ -4,6 +4,7 @@ using Oiler
 
 
 test_gpkg = "./test_data/io_test.gpkg"
+test_gj_blocks = "./test_data/io_test_blocks.geojson"
 
 function test_gis_vec_file_to_df_gpkg_faults()
     fault_df = Oiler.IO.gis_vec_file_to_df(test_gpkg;
@@ -24,12 +25,23 @@ function test_gis_vec_file_to_df_gpkg_gnss()
         layername="gnss_vels")
 end
 
-fault_df = Oiler.IO.gis_vec_file_to_df(test_gpkg; layername="faults")
-block_df = Oiler.IO.gis_vec_file_to_df(test_gpkg; layername="blocks")
-gnss_df = Oiler.IO.gis_vec_file_to_df(test_gpkg;layername="gnss_vels")
+function test_gis_vec_file_to_df_geojson_blocks()
+    block_df = Oiler.IO.gis_vec_file_to_df(test_gpkg;
+        layername="blocks")
+    @test size(block_df, 1) == 4
+end
 
+
+function load_geodataframes()
+    fault_df = Oiler.IO.gis_vec_file_to_df(test_gpkg; layername="faults")
+    block_df = Oiler.IO.gis_vec_file_to_df(test_gpkg; layername="blocks")
+    gnss_df = Oiler.IO.gis_vec_file_to_df(test_gpkg;layername="gnss_vels")
+
+    (fault_df, block_df, gnss_df)
+end
 
 function test_get_coords_from_geom_polyline()
+    fault_df, block_df, gnss_df = load_geodataframes()
     trace = Oiler.IO.get_coords_from_geom(fault_df[2, :geometry])
     trace_ans = [1.64901   2.2338;
                  1.81638   1.48824;
@@ -39,6 +51,7 @@ end
 
 
 function test_get_block_idx_for_points()
+    fault_df, block_df, gnss_df = load_geodataframes()
     bx = Oiler.IO.get_block_idx_for_points(gnss_df, block_df)
     @test ismissing(bx[1])
     @test bx[2] == 5
@@ -50,4 +63,5 @@ end
     test_get_coords_from_geom_polyline()
     test_gis_vec_file_to_df_gpkg_faults()
     test_get_block_idx_for_points()
+    test_gis_vec_file_to_df_geojson_blocks()
 end
