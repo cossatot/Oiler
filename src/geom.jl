@@ -42,7 +42,7 @@ function average_azimuth(lons::Array{Float64}, lats::Array{Float64})
         az = azimuth(lons[1], lats[1], lons[2], lats[2])
     else
         
-        azs = [azimuth(lons[1], lats[1], lons[2], lats[2]) for i in
+        azs = [azimuth(lons[i - 1], lats[i - 1], lons[i], lats[i]) for i in
             2:length(lats)]
         
         azs = [deg2rad(az) for az in azs]
@@ -61,6 +61,18 @@ function average_azimuth(lons::Array{Float64}, lats::Array{Float64})
     az
 end
         
+function check_duplicates(arr, name="")
+    for i in 1:size(arr, 1) - 1
+        if arr[i] == arr[i + 1]
+            @warn "duplicated consecutive values in $name"
+        end
+    end
+end
+
+
+function remove_duplicates(arr)
+end
+
 
 function az_to_angle(az::Float64)
     deg2rad(90. - az)

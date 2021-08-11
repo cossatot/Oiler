@@ -33,7 +33,7 @@ function test_average_azimuth()
                          -121.2073 36.75499];
     
     @test Oiler.average_azimuth(quien_sabe_coords[:,1], quien_sabe_coords[:,2]) ==
-    143.76672242262174
+    143.70450041501906
 end
 
 

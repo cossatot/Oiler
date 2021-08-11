@@ -103,8 +103,8 @@ function test_fault_to_vel_1()
 
     @test vel.lon == -121.28985450382699
     @test vel.lat == 36.84731110410578
-    @test vel.ve == -20.65077487870826
-    @test vel.vn == 28.258547324816824
+    @test vel.ve == -20.908201158796516
+    @test vel.vn == 28.06861457755441
     @test vel.vu == 0.0
     @test vel.ee == 0.0
     @test vel.en == 0.0
@@ -117,15 +117,15 @@ end
 
 
 function test_fault_to_vel_2()
-    qs_2 = Oiler.Fault(trace=quien_sabe_coords, dip=89., dip_dir="S",
+    qs_2 = Oiler.Fault(trace=quien_sabe_coords, dip=89., dip_dir="SW",
         name="Quien Sabe S dip", hw="hol", fw="gab", dextral_rate=35.)
 
     vel = Oiler.Faults.fault_to_vel(qs_2)
 
     @test vel.lon == -121.28985450382699
     @test vel.lat == 36.84731110410578
-    @test vel.ve == 20.68759886145484
-    @test vel.vn == -28.231600261896816
+    @test vel.ve == 20.718245578662074
+    @test vel.vn == -28.209117322990622
     @test vel.vu == 0.0
     @test vel.ee == 0.0
     @test vel.en == 0.0
@@ -145,8 +145,8 @@ function test_fault_to_vel_3()
 
     @test vel.lon == -121.28985450382699
     @test vel.lat == 36.84731110410578
-    @test vel.ve == 20.68759886145484
-    @test vel.vn == -28.231600261896816
+    @test vel.ve == 20.718245578662074
+    @test vel.vn == -28.209117322990622
     @test vel.vu == 0.0
     @test vel.ee == 0.0
     @test vel.en == 0.0

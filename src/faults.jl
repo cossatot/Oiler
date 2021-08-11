@@ -137,23 +137,22 @@ function Fault(; trace::Array{Float64,2}, dip::Float64,
     hw::String="",
     fw::String="")
 
+    trace_start = trace[1]
     if dip != 90.
         trace = check_right_hand_rule(trace, dip_dir)
     end
-
     strike = average_azimuth(trace[:,1], trace[:,2])
+    if trace[1] != trace_start
+        @warn "reversing $name trace"
+    end
 
-    # Fault(trace = trace, strike = strike, dip = dip, dip_dir = dip_dir, 
-    #    extension_rate = extension_rate, extension_err = extension_err, 
-    #    dextral_rate = dextral_rate, dextral_err = dextral_err, 
-    #    lsd = lsd, usd = usd, name = name, hw = hw, fw = fw)
     Fault(trace, strike, dip, dip_dir, 
         extension_rate, extension_err, 
         dextral_rate, dextral_err, cde,
         lsd, usd, name, hw, fw)
 end
 
-"""
+    """
     fault_to_vel(fault)
 Converts a `Fault` object into a `VelocityVectorSphere`.  
 
@@ -165,16 +164,16 @@ location of the `VelocityVectorSphere` is the middle of the fault trace.
 """
 function fault_to_vel(fault::Fault)
     ve, vn = fault_slip_rate_to_ve_vn(fault.dextral_rate, fault.extension_rate,
-        fault.strike)
-    
+    fault.strike)
+
     ee, en, cen = fault_slip_rate_err_to_ee_en(fault.dextral_err, fault.extension_err,
-        fault.strike; cde=fault.cde)
+    fault.strike; cde=fault.cde)
 
     vlon, vlat = get_midpoint(fault.trace)
 
     VelocityVectorSphere(lon=vlon, lat=vlat, ve=ve, vn=vn, 
-        fix=fault.hw, mov=fault.fw, name=fault.name, ee=ee, en=en, cen=cen,
-        vel_type="fault")
+    fix=fault.hw, mov=fault.fw, name=fault.name, ee=ee, en=en, cen=cen,
+    vel_type="fault")
 end
 
 
@@ -182,8 +181,8 @@ function fault_to_vel_point(fault::Fault)
     vlon, vlat = get_midpoint(fault.trace)
 
     return Dict("lon" => vlon, "lat" => vlat, 
-                "rl" => fault.dextral_rate, "ex" => fault.extension_rate,
-                "e_rl" => fault.dextral_err, "e_ex" => fault.extension_err)
+            "rl" => fault.dextral_rate, "ex" => fault.extension_rate,
+            "e_rl" => fault.dextral_err, "e_ex" => fault.extension_err)
 end
 
 
@@ -199,7 +198,7 @@ function get_midpoint_old(trace::Array{Float64,2})
     if iseven(n_pts)
         mid = n_pts ÷ 2
         return ((trace[mid, 1] + trace[mid + 1, 1]) / 2.,
-                (trace[mid, 2] + trace[mid + 1, 2]) / 2.)
+            (trace[mid, 2] + trace[mid + 1, 2]) / 2.)
     else
         mid = n_pts ÷ 2 + 1
         return (trace[mid, 1], trace[mid, 2])
@@ -209,7 +208,7 @@ end
 
 function check_right_hand_rule(trace::Array{Float64,2}, dip_dir::String; 
     reverse_angle_threshold::Float64=90.)
-    # Modified from the OQ-MBTK tools, (c) Global Earthquake Model Foundation
+# Modified from the OQ-MBTK tools, (c) Global Earthquake Model Foundation
 
     strike = average_azimuth(trace[:,1], trace[:,2])
 
