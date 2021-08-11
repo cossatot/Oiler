@@ -330,7 +330,7 @@ end
 
 function row_to_fault(row; name="", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
         v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
-        v_default=0., e_default=5., usd_default=0., lsd_default=20.)
+        v_default=0., e_default=5., usd_default=0., lsd_default=20., fid=:fid)
 
     trace = Oiler.IO.get_coords_from_geom(row[:geometry])
     if name in names(row)
@@ -351,6 +351,7 @@ function row_to_fault(row; name="", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
         fw=row[fw],
         usd=val_nothing_fix(row[usd], return_val=usd_default),
         lsd=val_nothing_fix(row[lsd], return_val=lsd_default),
+        fid=row[fid]
         )
 end
 
@@ -506,6 +507,7 @@ function fault_to_feature(fault)
             "lsd" => fault.lsd,
             "usd" => fault.usd,
             "name" => fault.name,
+            "fid" => fault.fid,
             "hw" => fault.hw,
             "fw" => fault.fw
         )
@@ -515,6 +517,12 @@ end
 
 function write_fault_results_to_gj(results, outfile; name="")
     fault_gj = faults_to_geojson(results["predicted_slip_rates"]; name=name)
+    
+    # for (prop_name, prop_array) in other_properties
+    #    for (i, feature) in enumerate(fault_gj["features"])
+    #        feature[i]["properties"][prop_name] = prop_array[i]
+    #    end
+    # end
 
     open(outfile, "w") do f
         JSON.print(f, fault_gj)

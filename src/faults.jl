@@ -81,6 +81,7 @@ struct Fault
     name::String
     hw::String
     fw::String
+    fid
 end
 
 
@@ -135,7 +136,8 @@ function Fault(; trace::Array{Float64,2}, dip::Float64,
     usd::Float64=0.,
     name::String="",
     hw::String="",
-    fw::String="")
+    fw::String="",
+    fid="")
 
     trace_start = trace[1]
     if dip != 90.
@@ -149,7 +151,7 @@ function Fault(; trace::Array{Float64,2}, dip::Float64,
     Fault(trace, strike, dip, dip_dir, 
         extension_rate, extension_err, 
         dextral_rate, dextral_err, cde,
-        lsd, usd, name, hw, fw)
+        lsd, usd, name, hw, fw, fid)
 end
 
     """
