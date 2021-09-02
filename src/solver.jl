@@ -60,6 +60,8 @@ end
 
 Returns either the inverse of the error, or `zero_err_weight` if the weight
 is zero. The latter defaults to 1e-10.
+
+Note: this is applicable for uncorrelated (independent) errors.
 """
 function weight_from_error(error::Float64; zero_err_weight::Float64=1e2)
     if error == 0.
@@ -83,11 +85,58 @@ end
 function
 build_weight_vectors(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
     weight_groups = Dict{Tuple{String,String},Array{Float64,1}}()
+    v_keys = sort(collect(Tuple(keys(vel_groups))))
 
     for (key, vels) in vel_groups
         weight_groups[key] = build_weight_vector_from_vels(vels)
     end
-    weight_groups
+    weight_vec = reduce(vcat, [weight_groups[key] for key in v_keys]) 
+    
+    if all(weight_vec .== weight_vec[1])
+        weight_vec = ones(size(weight_vec))
+    end
+
+    weight_vec
+end
+
+
+function var_cov_from_vel(vel::VelocityVectorSphere; zero_err_weight::Float64=1e2)
+
+    if vel.ee == 0.
+        e_var = zero_err_weight
+    else
+        e_var = vel.ee^2
+    end
+
+    if vel.en == 0.
+        n_var = zero_err_weight
+    else
+        n_var = vel.en^2
+    end
+
+    if vel.eu == 0.
+        u_var = zero_err_weight
+    else
+        u_var = vel.eu^2
+    end
+
+    [e_var vel.cen 0.; vel.cen n_var 0.; 0. 0. u_var]
+end
+
+
+function build_var_cov_matrix_from_vels(vels::Array{VelocityVectorSphere})
+    diagonalize_matrices([var_cov_from_vel(vel) for vel in vels])
+end
+
+
+function build_var_cov_weight_matrix(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
+    v_keys = sort(collect(Tuple(keys(vel_groups))))
+    weight_groups = Dict()
+
+    for (key, vels) in vel_groups
+        weight_groups[key] = build_var_cov_matrix_from_vels(vels)
+    end
+    diagonalize_matrices([weight_groups[key] for key in v_keys])
 end
 
 
@@ -97,12 +146,7 @@ function make_block_PvGb_from_vels(vel_groups::Dict{Tuple{String,String},Array{V
     big_PvGb = diagonalize_matrices([build_PvGb_from_vels(vel_groups[gr]) for gr
         in v_keys])
 
-    weights = build_weight_vectors(vel_groups)
-    weight_vec = reduce(vcat, [weights[key] for key in v_keys]) 
-
-    if all(weight_vec .== weight_vec[1])
-        weight_vec = ones(size(weight_vec))
-    end
+    weight_vec = build_weight_vectors(vel_groups)
     
     return Dict("PvGb" => big_PvGb, 
                 "keys" => v_keys,
@@ -243,7 +287,8 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
     
     PvGb = vcat(PvGb, tri_reg_block)
 
-    vd["weights"] = vcat(vd["weights"], tri_reg_weights)
+    vd["weights"] = vcat(vd["weights"], zeros(size(tri_reg_weights))) # maybe 1s?
+    vd["tri_weights"] = tri_reg_weights
     vd["Vc"] = vcat(vd["Vc"], tri_reg_vels)
     vd["PvGb"] = PvGb
     vd
@@ -282,8 +327,8 @@ end
 
 
 function make_weighted_constrained_kkt_lls_matrices(PvGb, Vc, cm, weights; sparse_lhs::Bool=false)
-    W = sparse(diagm(1 ./ weights))
-    # W = sparse(diagm(weights))
+    # W = sparse(diagm(1 ./ weights))
+    W = weights
     p, q = size(cm)
     n = length(Vc)
     if sparse_lhs
@@ -306,8 +351,9 @@ end
 
 
 function make_weighted_constrained_kkt_lls_matrices_symmetric(PvGb, Vc, cm, weights; sparse_lhs::Bool=false)
-    W = sparse(diagm(1 ./ weights))
-    # W = sparse(diagm(weights))
+    # W = sparse(diagm(1 ./ weights))
+    W = weights
+
     p, q = size(cm)
     n = length(Vc)
     if sparse_lhs
@@ -415,10 +461,18 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
     if weighted == true
         if cycles == Dict{Any,Any}()
             @info " Using weighted, non-constrained LLS"
+            @warn "does not currently use velocity covariances"
             lhs, rhs = weight_inv_matrices(PvGb, Vc, weights)
         else
             @info " Using weighted, constrained LLS"
             cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
+            weights = build_var_cov_weight_matrix(vel_groups)
+            
+            if length(tris) > 0
+                weights = diagonalize_matrices([weights, 
+                    diagm(basic_matrices["tri_weights"].^2)])
+            end
+
             lhs, rhs = make_weighted_constrained_lls_matrices(PvGb, Vc, cm, 
                 weights; sparse_lhs=sparse_lhs, method=constraint_method)
         end

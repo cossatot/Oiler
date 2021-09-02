@@ -186,9 +186,66 @@ function test_build_weight_vectors()
 
     vel_groups = Dict(("a", "b") => [vv, ww])
     weight = Oiler.Solver.build_weight_vectors(vel_groups)
-    weight_answer = Dict(("a", "b") => [1 / 9.; 0.25; 1.0e-4; 1.; 1.; 1.0e-4])
+    # weight_answer = Dict(("a", "b") => [1 / 9.; 0.25; 1.0e-4; 1.; 1.; 1.0e-4])
+    weight_answer = [1 / 9.; 0.25; 1.0e-4; 1.; 1.; 1.0e-4]
     @test weight == weight_answer
 end
+
+
+function test_var_cov_from_vel_1()
+    vel = Oiler.VelocityVectorSphere(lon=0., lat=0., ve=1., vn=1., 
+    en=2., ee=3., cen=0.5)
+
+    answer = [9.0 0.5 0.; 0.5 4.0 0.0; 0. 0. 1e2]
+
+    @test Oiler.Solver.var_cov_from_vel(vel) == answer
+end
+
+
+function test_build_var_cov_from_vels_1()
+    vv = Oiler.VelocityVectorSphere(lon=0., lat=0., ve=1., vn=1., 
+        en=2., ee=3., cen=0.5)
+    ww = Oiler.VelocityVectorSphere(lon=0., lat=0., ve=1., vn=1., 
+        en=1., ee=1.)
+
+    answer = sparse(
+        [9.0 0.5 0.0 0.0 0.0 0.0;
+         0.5 4.0 0.0 0.0 0.0 0.0;
+         0.0 0.0 1e2 0.0 0.0 0.0;
+         0.0 0.0 0.0 1.0 0.0 0.0;
+         0.0 0.0 0.0 0.0 1.0 0.0;
+         0.0 0.0 0.0 0.0 0.0 1e2]
+    )
+
+    var_cov_mat = Oiler.Solver.build_var_cov_matrix_from_vels([vv, ww])
+
+    @test var_cov_mat == answer
+
+end
+
+
+function test_build_var_cov_weight_matrix_1()
+    vv = Oiler.VelocityVectorSphere(lon=0., lat=0., ve=1., vn=1., 
+    en=2., ee=3., cen=0.5)
+    ww = Oiler.VelocityVectorSphere(lon=0., lat=0., ve=1., vn=1., 
+    en=1., ee=1.)
+
+    vel_groups = Dict(("a", "b") => [vv, ww])
+
+    vc_mat = Oiler.Solver.build_var_cov_weight_matrix(vel_groups)
+
+    answer = sparse(
+        [9.0 0.5 0.0 0.0 0.0 0.0;
+         0.5 4.0 0.0 0.0 0.0 0.0;
+         0.0 0.0 1e2 0.0 0.0 0.0;
+         0.0 0.0 0.0 1.0 0.0 0.0;
+         0.0 0.0 0.0 0.0 1.0 0.0;
+         0.0 0.0 0.0 0.0 0.0 1e2]
+    )
+
+    @test vc_mat == answer
+end
+
 
 
 function test_make_block_PvGb_from_vel()
@@ -319,7 +376,9 @@ function test_solver_strategies()
     y_obs = [0.3, 2.005, 2.98, 5.2,   5.]
     y_e =   [1.4, 0.1,   5.,   0.1,   0.1]
     y_w =   map(Oiler.Solver.weight_from_error, y_e)
+    y_w_mat = sparse(diagm(y_e.^2))
     y_w1 = ones(size(y_w))
+    y_w1_mat = sparse(diagm(ones(size(y_w))))
 
     cm = [1. -1.]
     cm0 = [0. 0.]
@@ -349,7 +408,7 @@ function test_solver_strategies()
 
     # constrained, weighted least squares (real weights)
     cw_lhs, cw_rhs = Oiler.Solver.make_weighted_constrained_lls_matrices(PvGb,
-        y_obs, cm, y_w)
+        y_obs, cm, y_w_mat)
     # m_cw, b_cw, _, _, _, _, _, _ = cw_lhs \ cw_rhs
     _, _, _, _, _, _, m_cw, b_cw = cw_lhs \ cw_rhs
     @test isapprox(m_cw, b_cw)
@@ -366,7 +425,7 @@ function test_solver_strategies()
 
     # KKT constrained, weighted least squares (equal weights, should match CLS)
     cw1_lhs, cw1_rhs = Oiler.Solver.make_weighted_constrained_kkt_lls_matrices(PvGb,
-        y_obs, cm, y_w1)
+        y_obs, cm, y_w1_mat)
     m_cw1, b_cw1, _, _, _, _, _, _ = cw1_lhs \ cw1_rhs
     # KKT constrained, weighted least squares (equal weights, should match CLS)
     @test isapprox(m_cw1, b_cw1)
@@ -389,6 +448,9 @@ end
     test_build_weight_vector_from_vels_default_zero_weight()
     test_build_weight_vector_from_vels_equal_zero_weights()
     test_build_weight_vectors()
+    test_var_cov_from_vel_1()
+    test_build_var_cov_from_vels_1()
+    test_build_var_cov_weight_matrix_1()
     test_make_block_PvGb_from_vel()
     test_make_block_PvGb_from_vels()
     # test_add_tris_to_PvGb()

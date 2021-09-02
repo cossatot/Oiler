@@ -13,7 +13,7 @@ using SparseArrays
 using LinearAlgebra
 
 
-function diagonalize_matrices(matrices)
+function diagonalize_matrices(matrices; sparse_output=true)
 
     rowz = [size(m, 1) for m in matrices]
     colz = [size(m, 2) for m in matrices]
@@ -21,7 +21,11 @@ function diagonalize_matrices(matrices)
     n_rows = sum(rowz)
     n_cols = sum(colz)
 
-    big_mat = spzeros(n_rows, n_cols)
+    if sparse_output == true
+        big_mat = spzeros(n_rows, n_cols)
+    else
+        big_mat = zeros(n_rows, n_cols)
+    end
 
     i_row = 1
     i_col = 1
