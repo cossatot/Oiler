@@ -19,6 +19,4 @@ makedocs(;
 
 deploydocs(
     repo="github.com/cossatot/Oiler.git",
-    target="build",
-    branch="gh-pages",
 )
