@@ -12,8 +12,9 @@ makedocs(;
         ),
     ],
     # repo="https://gitlab.com/cossatot/Oiler.jl/blob/{commit}{path}#L{line}",
-    sitename="Oiler.jl",
+    sitename="Oiler",
     authors="Richard Styron",
+    doctest=false,
 )
 
 
