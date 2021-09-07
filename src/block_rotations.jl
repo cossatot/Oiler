@@ -9,6 +9,13 @@ using ..Oiler: EARTH_RAD_MM, VelocityVectorSphere, PoleSphere, PoleCart,
         pole_sphere_to_cart, pole_cart_to_sphere
 
 
+```@meta
+DocTestSetup = quote
+    using Oiler.BlockRotations
+end
+```
+
+
 function build_Pv_deg(lon::Float64, lat::Float64)
     pex = -sind(lon)
     pey = cosd(lon)
@@ -89,7 +96,7 @@ pole.
 
 # Examples
 ```jldoctest
-julia> pg = build_PvGb_deg(0., 0.)
+julia> pg = build_PvGb_vel(0., 0.)
 3x3 Array{Float64,2}:
  0.0  -6.371e6  0.0
  0.0   0.0      6.371e6

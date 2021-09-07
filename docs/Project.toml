@@ -1,2 +1,3 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+Oiler = "49e5455c-a1cf-11e9-2ebe-d9aa356e4b82"
