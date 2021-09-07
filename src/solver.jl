@@ -15,6 +15,7 @@ using DataFrames
 using SuiteSparse
 using SparseArrays
 using LinearAlgebra
+using Distributions
 import Base.Threads.@threads
 
 LinearAlgebra.BLAS.set_num_threads(Threads.nthreads())
@@ -467,6 +468,7 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
             @info " Using weighted, constrained LLS"
             cm = cm[Oiler.Utils.lin_indep_rows(cm), :]
             weights = build_var_cov_weight_matrix(vel_groups)
+            basic_matrices["var_cov_matrix"] = weights
             
             if length(tris) > 0
                 weights = diagonalize_matrices([weights, 
@@ -690,15 +692,22 @@ function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, soln_idx, n_iters
     p, q = size(cm)
     zvec = [zeros(p); zeros(q)]
 
-    vel_stds = sqrt.(1 ./ weights)
+    # vel_stds = sqrt.(1 ./ weights)
 
     # rng = MersenneTwister(69) # to be replaced via config later
-    rand_vel_noise = randn((length(Vc), n_iters))
+    # rand_vel_noise = randn((length(Vc), n_iters))
+
+    # this works but is a bit RAM intensive
+    vel_stds = rand(Distributions.MvNormal(Matrix(weights)), n_iters)
+    
+    n_remaining = length(Vc) - size(weights, 1) 
+    zeros_remaining = zeros(n_remaining)
 
     stoch_poles = zeros((n_iters, n_pole_vars)) # we want each soln to be a row
 
     @threads for i in 1:n_iters
-        Vc_stochastic = Vc + vel_stds .* rand_vel_noise[:,i]
+        # Vc_stochastic = Vc + vel_stds .* rand_vel_noise[:,i]
+        Vc_stochastic = Vc + vcat(vel_stds[:, i], zeros_remaining)
         rhs = [Vc_stochastic; zvec]
 
         full_soln = lhs \ rhs
@@ -736,7 +745,8 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
     elseif any(x -> x != 1., weights) & (length(cm) == 0)
         var_cov = make_WLS_cov(PvGb, weights)
     else
-        var_cov = make_CWLS_cov_iter(lhs_fact, weights, y_obs, cm,
+        var_cov = make_CWLS_cov_iter(lhs_fact, 
+            block_matrices["var_cov_matrix"], y_obs, cm,
             p, soln_idx, 1000)
     end
 
