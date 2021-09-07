@@ -15,3 +15,8 @@ makedocs(;
     sitename="Oiler.jl",
     authors="Richard Styron",
 )
+
+
+deploydocs(
+    repo="github.com/cossatot/Oiler.git",
+)
