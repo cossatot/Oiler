@@ -1,8 +1,8 @@
 # Oiler
 
 
-[![Build
-Status](https://travis-ci.com/cossatot/Oiler.svg?branch=master)](https://travis-ci.com/cossatot/Oiler)
+[![Run tests](https://github.com/cossatot/Oiler/actions/workflows/test.yml/badge.svg)](https://github.com/cossatot/Oiler/actions/workflows/test.yml)
+
 
 [![Coverage Status](https://coveralls.io/repos/github/cossatot/Oiler/badge.svg?branch=master)](https://coveralls.io/github/cossatot/Oiler?branch=master)
 
