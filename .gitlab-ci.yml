@@ -14,7 +14,7 @@ pages:
       Pkg.instantiate();
       include("docs/makedocs.jl");'
     - mkdir -p public
-    - mv docs/build public
+    - mv docs/build/* public
   artifacts:
     paths:
       - public
