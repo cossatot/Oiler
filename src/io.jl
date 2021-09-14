@@ -328,7 +328,7 @@ function err_nothing_fix(err; return_val=1., weight=1.)
 end
 
 
-function row_to_fault(row; name="", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
+function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
         v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
         v_default=0., e_default=5., usd_default=0., lsd_default=20., fid=:fid)
 
@@ -336,7 +336,7 @@ function row_to_fault(row; name="", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
     if name in names(row)
         _name = row[:name]
     else
-        _name = name
+        _name = ""
     end
 
     Oiler.Fault(trace=trace,
@@ -356,7 +356,115 @@ function row_to_fault(row; name="", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
 end
 
 
-function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val=1., weight=1.)
+function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v_ex, 
+                                e_ex=:e_ex, v_rl=:v_rl, e_rl=:e_rl, dip=:dip,
+                                hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
+                                v_default=0., e_default=5., usd_default=0.,
+                                lsd_default=20., fid=:fid, fid_drop=:fid_drop)
+
+    faults = []
+    for i in 1:size(fault_df, 1)
+        # try
+        push!(faults, Oiler.IO.row_to_fault(fault_df[i,:]; 
+                                                name=name, 
+                                                dip_dir=dip_dir,
+                                                v_ex=v_ex, 
+                                                e_ex=e_ex,
+                                                v_rl=v_rl, 
+                                                e_rl=e_rl,
+                                                dip=dip, 
+                                                hw=hw, 
+                                                fw=fw,
+                                                usd=usd, 
+                                                lsd=lsd,
+                                                v_default=v_default, 
+                                                e_default=e_default,
+                                                usd_default=usd_default, 
+                                                lsd_default=lsd_default,
+                                                fid=fid) ) 
+        # catch
+        #    warn_msg = "Problem with $fault_df[i,:]"
+        #    @warn warn_msg 
+        # end 
+    end
+    faults = [f for f in faults if f.fw != ""]
+    faults = [f for f in faults if f.hw != ""]
+    faults = [f for f in faults if f.fid != fid_drop]
+
+    faults
+end
+
+
+function make_vels_from_faults(faults)
+    fault_vels = reduce(vcat, map(Oiler.fault_to_vels, faults))
+    fault_vels
+end
+
+
+
+function process_faults_from_gis_files(fault_files... ; 
+        layernames=[],
+        name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
+        v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
+        v_default=0., e_default=5., usd_default=0., lsd_default=20., fid=:fid,
+        fid_drop=:fid_drop )
+
+
+    if length(fault_files) == 1
+        if length(layernames) == 0
+            fault_df = gis_vec_file_to_df(fault_files[1])
+        else
+            fault_df = gis_vec_file_to_df(fault_files[1]; 
+                                          layername=layernames[1])
+        end
+    else
+        if length(layernames) == 0
+            fault_df = vcat([gis_vec_file_to_df(file) 
+                         for file in fault_files]...)
+        else
+            fault_df = vcat([gis_vec_file_to_df(file; layername=layernames[i]) 
+                         for (i, file) in enumerate(fault_files)]...)
+        end
+    end
+
+    dropmissing!(fault_df, :hw)
+    dropmissing!(fault_df, :fw)
+
+    fault_df = filter(row -> !(row.hw == ""), fault_df)
+    fault_df = filter(row -> !(row.fw == ""), fault_df)
+
+    faults = process_faults_from_df(fault_df; name=name, 
+                                    dip_dir=dip_dir,
+                                    v_ex=v_ex, 
+                                    e_ex=e_ex,
+                                    v_rl=v_rl, 
+                                    e_rl=e_rl,
+                                    dip=dip, 
+                                    hw=hw, 
+                                    fw=fw,
+                                    usd=usd, 
+                                    lsd=lsd,
+                                    v_default=v_default, 
+                                    e_default=e_default,
+                                    usd_default=usd_default, 
+                                    lsd_default=lsd_default,
+                                    fid=fid,
+                                    fid_drop=fid_drop)
+
+    fault_vels = make_vels_from_faults(faults)
+
+    fault_df, faults, fault_vels
+
+end
+
+
+function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val=1., 
+                                 weight=1., name="name", dip_dir=:dip_dir, 
+                                 v_ex=:v_ex, e_ex=:e_ex,
+                                 v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, 
+                                 fw=:fw, usd=:usd, lsd=:lsd,
+                                 v_default=0., e_default=5., usd_default=0., 
+                                 lsd_default=20., fid=:fid)
     
     fault_fid_type = typeof(fault_df[1,:fid])
     
@@ -368,7 +476,23 @@ function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val=1., wei
         fault_idx = parse(fault_fid_type, fault_seg)
     end
     fault_row = @where(fault_df, :fid .== fault_idx)[1,:]
-    fault = row_to_fault(fault_row)
+    fault = row_to_fault(fault_row;
+                         name=name, 
+                         dip_dir=dip_dir,
+                         v_ex=v_ex, 
+                         e_ex=e_ex,
+                         v_rl=v_rl, 
+                         e_rl=e_rl,
+                         dip=dip, 
+                         hw=hw, 
+                         fw=fw,
+                         usd=usd, 
+                         lsd=lsd,
+                         v_default=v_default, 
+                         e_default=e_default,
+                         usd_default=usd_default, 
+                         lsd_default=lsd_default,
+                         fid=fid)
 
     extension_rate = val_nothing_fix(slip_rate_row[:extension_rate])
     extension_err = err_nothing_fix(slip_rate_row[:extension_err]; 
@@ -395,16 +519,44 @@ function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val=1., wei
 end
 
 
-function make_geol_slip_rate_vel_vec(geol_slip_rate_df, fault_df;
-        err_return_val=1., weight=1.)
+function make_geol_slip_rate_vels(geol_slip_rate_df, fault_df;
+        err_return_val=1., weight=1., name="name", dip_dir=:dip_dir, 
+        v_ex=:v_ex, e_ex=:e_ex,
+        v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, 
+        fw=:fw, usd=:usd, lsd=:lsd,
+        v_default=0., e_default=5., usd_default=0., 
+        lsd_default=20., fid=:fid)
+
     geol_slip_rate_vels = []
     for i in 1:size(geol_slip_rate_df, 1)
         slip_rate_row = geol_slip_rate_df[i,:]
         if (slip_rate_row[:include] == true) | (slip_rate_row[:include] == "1")
-            push!(geol_slip_rate_vels, make_vel_from_slip_rate(slip_rate_row, 
+            try
+                push!(geol_slip_rate_vels, make_vel_from_slip_rate(slip_rate_row, 
                                                                fault_df;
                                                                err_return_val=err_return_val,
-                                                               weight=weight))
+                                                               weight=weight,
+                                                               name=name, 
+                                                               dip_dir=dip_dir,
+                                                               v_ex=v_ex, 
+                                                               e_ex=e_ex,
+                                                               v_rl=v_rl, 
+                                                               e_rl=e_rl,
+                                                               dip=dip, 
+                                                               hw=hw, 
+                                                               fw=fw,
+                                                               usd=usd, 
+                                                               lsd=lsd,
+                                                               v_default=v_default, 
+                                                               e_default=e_default,
+                                                               usd_default=usd_default, 
+                                                               lsd_default=lsd_default,
+                                                               fid=fid
+                                                               ))
+            catch
+                warn_msg = "Can't process $slip_rate_row[:fault_seg]"
+                @warn warn_msg
+            end
         end
     end
 
