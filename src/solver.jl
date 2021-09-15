@@ -581,6 +581,8 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         fact = svd
         # ensure dense LHS
         lhs = Matrix(lhs)
+    elseif factorization == "qr"
+        fact = qr
     end
     @time lhs_fact = fact(lhs)
     @info "  Done with factorization"
