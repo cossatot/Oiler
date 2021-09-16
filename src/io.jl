@@ -447,7 +447,6 @@ end
 
 function get_faults_bounding_blocks!(fault_df, block_df)
     block_fids = string.(block_df[:,:fid])
-    println(block_fids)
     fault_idxs = falses(size(fault_df, 1))
     for i in 1:length(fault_idxs)
         println(fault_df[i, :hw], " ", fault_df[i, :fw])
@@ -455,7 +454,6 @@ function get_faults_bounding_blocks!(fault_df, block_df)
             fault_idxs[i] = true
         end
     end
-    println(fault_idxs)
     fault_df = fault_df[fault_idxs,:]
 end
 
