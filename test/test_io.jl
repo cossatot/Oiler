@@ -210,6 +210,62 @@ function test_process_faults_from_gis_files_onefile()
 end
 
 
+function test_get_blocks_in_bounds()
+    block_df = Oiler.IO.gis_vec_file_to_df(test_gpkg; layername="blocks")
+    bound_df = Oiler.IO.gis_vec_file_to_df(test_gpkg; layername="boundary")
+    
+    block_df = Oiler.IO.get_blocks_in_bounds!(block_df, bound_df)
+
+    @test block_df[:,:fid] == [1,3,5]
+end
+
+
+function test_process_faults_from_gis_files_w_bounds()
+
+    block_df = Oiler.IO.gis_vec_file_to_df(test_gpkg; layername="blocks")
+    bound_df = Oiler.IO.gis_vec_file_to_df(test_gpkg; layername="boundary")
+    block_df = Oiler.IO.get_blocks_in_bounds!(block_df, bound_df)
+
+    fault_df, faults, fault_vels = Oiler.IO.process_faults_from_gis_files(
+        test_gpkg; layernames=["faults"], block_df=block_df,
+        subset_in_bounds=true)
+
+    fault_ans_1 = Oiler.Fault(;trace=[0.49262599938633844 0.7071696809078425; 
+        0.6397098710932747 1.7367567828563972],
+        dip=60.,
+        dip_dir="E",
+        extension_rate=0.,
+        extension_err=1.,
+        dextral_rate=0.,
+        dextral_err=1.,
+        lsd=20.,
+        usd=0.,
+        name="f1",
+        hw="3",
+        fw="5",
+        fid=1
+        )
+
+    fault_ans_3 = Oiler.Fault(;trace=[0.9288057568620807 1.2904333100905214; 
+        0.6397098710932747 1.7367567828563972],
+        dip=89.,
+        dip_dir="E",
+        extension_rate=0.,
+        extension_err=5.,
+        dextral_rate=0.,
+        dextral_err=5.,
+        lsd=20.,
+        usd=0.,
+        name="",
+        hw="1",
+        fw="3",
+        fid=4
+        )
+
+    @test struct_equals(faults[1], fault_ans_1)
+    @test struct_equals(faults[2], fault_ans_3)
+end
+
 function test_make_vels_from_faults()
     fault_df = Oiler.IO.gis_vec_file_to_df(test_gpkg; layername="faults")
     faults = Oiler.IO.process_faults_from_df(fault_df)
@@ -316,7 +372,9 @@ end
     # load_geodataframes
     test_row_to_fault()
     test_process_faults_from_df()
+    test_get_blocks_in_bounds()
     test_process_faults_from_gis_files_onefile()
+    test_process_faults_from_gis_files_w_bounds()
     test_make_vels_from_faults()
     test_make_vel_from_slip_rate()
     test_make_geol_slip_rate_vels()

@@ -402,14 +402,8 @@ end
 
 
 
-function process_faults_from_gis_files(fault_files... ; 
-        layernames=[],
-        name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
-        v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
-        v_default=0., e_default=5., usd_default=0., lsd_default=20., fid=:fid,
-        fid_drop=:fid_drop )
-
-
+function load_faults_from_gis_files(fault_files... ; layernames=[])
+    
     if length(fault_files) == 1
         if length(layernames) == 0
             fault_df = gis_vec_file_to_df(fault_files[1])
@@ -425,6 +419,59 @@ function process_faults_from_gis_files(fault_files... ;
             fault_df = vcat([gis_vec_file_to_df(file; layername=layernames[i]) 
                          for (i, file) in enumerate(fault_files)]...)
         end
+    end
+    fault_df
+end
+
+
+function get_blocks_in_bounds!(block_df, bound_df)
+    bound = bound_df[1,:geometry]
+    block_geoms = block_df[:,:geometry]
+    block_idxs = falses(length(block_geoms))
+    for (i, block_geom) in enumerate(block_geoms)
+        if AG.intersects(bound, block_geom)
+            block_idxs[i] = true
+        end
+    end
+    block_df[block_idxs,:]
+end
+
+
+function get_blocks_and_faults_in_bounds!(block_df, fault_df, bound_df)
+    block_df = get_blocks_in_bounds!(block_df, bound_df)
+    fault_df = get_faults_bounding_blocks!(fault_df, block_df)
+
+    block_df, fault_df
+end
+
+
+function get_faults_bounding_blocks!(fault_df, block_df)
+    block_fids = string.(block_df[:,:fid])
+    println(block_fids)
+    fault_idxs = falses(size(fault_df, 1))
+    for i in 1:length(fault_idxs)
+        println(fault_df[i, :hw], " ", fault_df[i, :fw])
+        if (fault_df[i, :hw] in block_fids) & (fault_df[i,:fw] in block_fids)
+            fault_idxs[i] = true
+        end
+    end
+    println(fault_idxs)
+    fault_df = fault_df[fault_idxs,:]
+end
+
+
+function process_faults_from_gis_files(fault_files... ; 
+        layernames=[],
+        name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
+        v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
+        v_default=0., e_default=5., usd_default=0., lsd_default=20., fid=:fid,
+        fid_drop=:fid_drop, block_df=:block_df,
+        subset_in_bounds=false)
+    
+    fault_df = load_faults_from_gis_files(fault_files ...; layernames)
+    
+    if subset_in_bounds == true
+        fault_df = get_faults_bounding_blocks!(fault_df, block_df)
     end
 
     dropmissing!(fault_df, :hw)
