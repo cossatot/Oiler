@@ -3,8 +3,7 @@
 
 [![Run tests](https://github.com/cossatot/Oiler/actions/workflows/test.yml/badge.svg)](https://github.com/cossatot/Oiler/actions/workflows/test.yml)
 
-[![Docs](https://img.shields.io/badge/Docs-less%20than%20thorough-blue)](https://img.shields.io/badge/Docs-less%20than%20thorough-blue)
-
+[![Docs](https://img.shields.io/badge/Docs-less%20than%20thorough-blue)](https://cossatot.gitlab.io/oiler/)
 
 *Note: This project is still in rapid development and not sufficiently tested
 for use by those other than me.*
