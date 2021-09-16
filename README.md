@@ -3,8 +3,8 @@
 
 [![Run tests](https://github.com/cossatot/Oiler/actions/workflows/test.yml/badge.svg)](https://github.com/cossatot/Oiler/actions/workflows/test.yml)
 
+[![Docs](https://img.shields.io/badge/Docs-less%20than%20thorough-blue)](https://img.shields.io/badge/Docs-less%20than%20thorough-blue)
 
-[![Coverage Status](https://coveralls.io/repos/github/cossatot/Oiler/badge.svg?branch=master)](https://coveralls.io/github/cossatot/Oiler?branch=master)
 
 *Note: This project is still in rapid development and not sufficiently tested
 for use by those other than me.*
