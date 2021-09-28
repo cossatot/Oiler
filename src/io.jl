@@ -424,9 +424,22 @@ function load_faults_from_gis_files(fault_files... ; layernames=[])
 end
 
 
-function get_blocks_in_bounds!(block_df, bound_df)
-    bound = bound_df[1,:geometry]
-    block_geoms = block_df[:,:geometry]
+function get_blocks_in_bounds!(block_df, bound_df; epsg=0)
+    bound_orig = bound_df[1,:geometry]
+    block_geoms_orig = block_df[:,:geometry]
+
+    if epsg != 0
+        bound = AG.reproject(AG.clone(bound_orig), 
+            ProjString("+proj=longlat +datum=WGS84 +no_defs"), EPSG(epsg))
+        block_geoms = [AG.reproject(AG.clone(g), 
+                                    ProjString("+proj=longlat +datum=WGS84 +no_defs"), 
+                                    EPSG(epsg))
+                       for g in block_geoms_orig]
+    else
+        bound = bound_orig
+        block_geoms = block_geoms_orig
+    end
+
     block_idxs = falses(length(block_geoms))
     for (i, block_geom) in enumerate(block_geoms)
         if AG.intersects(bound, block_geom)
@@ -449,7 +462,6 @@ function get_faults_bounding_blocks!(fault_df, block_df)
     block_fids = string.(block_df[:,:fid])
     fault_idxs = falses(size(fault_df, 1))
     for i in 1:length(fault_idxs)
-        println(fault_df[i, :hw], " ", fault_df[i, :fw])
         if (fault_df[i, :hw] in block_fids) & (fault_df[i,:fw] in block_fids)
             fault_idxs[i] = true
         end
@@ -570,7 +582,8 @@ function make_geol_slip_rate_vels(geol_slip_rate_df, fault_df;
         v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, 
         fw=:fw, usd=:usd, lsd=:lsd,
         v_default=0., e_default=5., usd_default=0., 
-        lsd_default=20., fid=:fid)
+        lsd_default=20., fid=:fid,
+        warn=false)
 
     geol_slip_rate_vels = []
     for i in 1:size(geol_slip_rate_df, 1)
@@ -600,13 +613,69 @@ function make_geol_slip_rate_vels(geol_slip_rate_df, fault_df;
                                                                ))
             catch
                 warn_msg = "Can't process $slip_rate_row[:fault_seg]"
-                @warn warn_msg
+                if warn
+                    @warn warn_msg
+                end
             end
         end
     end
 
     geol_slip_rate_vels = convert(Array{VelocityVectorSphere}, geol_slip_rate_vels)
 end
+
+
+function make_geol_slip_rate_vels!(geol_slip_rate_df, fault_df;
+        err_return_val=1., weight=1., name="name", dip_dir=:dip_dir, 
+        v_ex=:v_ex, e_ex=:e_ex,
+        v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, 
+        fw=:fw, usd=:usd, lsd=:lsd,
+        v_default=0., e_default=5., usd_default=0., 
+        lsd_default=20., fid=:fid,
+        warn=false)
+
+    geol_slip_rate_vels = []
+    geol_slip_rate_keeps = falses(size(geol_slip_rate_df, 1))
+    for i in 1:size(geol_slip_rate_df, 1)
+        slip_rate_row = geol_slip_rate_df[i,:]
+        if (slip_rate_row[:include] == true) | (slip_rate_row[:include] == "1")
+            try
+                push!(geol_slip_rate_vels, make_vel_from_slip_rate(slip_rate_row, 
+                                                               fault_df;
+                                                               err_return_val=err_return_val,
+                                                               weight=weight,
+                                                               name=name, 
+                                                               dip_dir=dip_dir,
+                                                               v_ex=v_ex, 
+                                                               e_ex=e_ex,
+                                                               v_rl=v_rl, 
+                                                               e_rl=e_rl,
+                                                               dip=dip, 
+                                                               hw=hw, 
+                                                               fw=fw,
+                                                               usd=usd, 
+                                                               lsd=lsd,
+                                                               v_default=v_default, 
+                                                               e_default=e_default,
+                                                               usd_default=usd_default, 
+                                                               lsd_default=lsd_default,
+                                                               fid=fid
+                                                               ))
+                geol_slip_rate_keeps[i] = true
+            catch
+                warn_msg = "Can't process $slip_rate_row[:fault_seg]"
+                if warn
+                    @warn warn_msg
+                end
+            end
+        end
+    end
+
+    geol_slip_rate_df = geol_slip_rate_df[geol_slip_rate_keeps,:]
+    geol_slip_rate_vels = convert(Array{VelocityVectorSphere}, geol_slip_rate_vels)
+    geol_slip_rate_df, geol_slip_rate_vels
+end
+
+
 
 
 function tri_from_feature(feat)
