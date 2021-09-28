@@ -620,6 +620,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
                                                     lhs_fact, 
                                                     results, 
                                                     soln_idx,
+                                                    constraint_method,
                                                     weighted,
                                                     )
         get_pole_uncertainties!(results["poles"], pole_var, 
@@ -689,10 +690,10 @@ function make_CLS_cov(PvGb, cm)
 end
 
 
-function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, soln_idx, n_iters)
+function make_CWLS_cov_iter(lhs, var_cov_matrix, Vc, cm, n_pole_vars, soln_idx, 
+        n_iters, constraint_method)
     @info "CWLS covariances through Monte Carlo techniques"
     p, q = size(cm)
-    zvec = [zeros(p); zeros(q)]
 
     # vel_stds = sqrt.(1 ./ weights)
 
@@ -700,9 +701,9 @@ function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, soln_idx, n_iters
     # rand_vel_noise = randn((length(Vc), n_iters))
 
     # this works but is a bit RAM intensive
-    vel_stds = rand(Distributions.MvNormal(Matrix(weights)), n_iters)
+    vel_stds = rand(Distributions.MvNormal(Matrix(var_cov_matrix)), n_iters)
     
-    n_remaining = length(Vc) - size(weights, 1) 
+    n_remaining = length(Vc) - size(var_cov_matrix, 1) 
     zeros_remaining = zeros(n_remaining)
 
     stoch_poles = zeros((n_iters, n_pole_vars)) # we want each soln to be a row
@@ -710,7 +711,11 @@ function make_CWLS_cov_iter(lhs, weights, Vc, cm, n_pole_vars, soln_idx, n_iters
     @threads for i in 1:n_iters
         # Vc_stochastic = Vc + vel_stds .* rand_vel_noise[:,i]
         Vc_stochastic = Vc + vcat(vel_stds[:, i], zeros_remaining)
-        rhs = [Vc_stochastic; zvec]
+        if constraint_method == "kkt_sym"
+            rhs = [zeros(p); Vc_stochastic; zeros(q)]
+        else
+            rhs = [Vc_stochastic; zeros(p); zeros(q)]
+        end
 
         full_soln = lhs \ rhs
         soln = full_soln[soln_idx]
@@ -721,7 +726,7 @@ end
 
 
 function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
-                                    weighted=true)
+                                    constraint_method, weighted=true)
     PvGb = block_matrices["PvGb"]
     cm = block_matrices["cm"]
     y_obs = block_matrices["Vc"]
@@ -749,7 +754,7 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
     else
         var_cov = make_CWLS_cov_iter(lhs_fact, 
             block_matrices["var_cov_matrix"], y_obs, cm,
-            p, soln_idx, 1000)
+            p, soln_idx, 1000, constraint_method)
     end
 
     var = MSE * var_cov
