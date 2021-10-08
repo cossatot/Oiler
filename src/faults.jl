@@ -145,7 +145,7 @@ function Fault(; trace::Array{Float64,2}, dip::Float64,
     end
     strike = average_azimuth(trace[:,1], trace[:,2])
     if trace[1] != trace_start
-        @warn "reversing $name trace"
+        @warn "reversing $fid trace"
     end
 
     Fault(trace, strike, dip, dip_dir, 

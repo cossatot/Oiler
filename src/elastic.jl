@@ -165,6 +165,13 @@ of tris. Only horizontal components are returned.
 """
 function calc_tri_effects(tris, gnss_lons, gnss_lats)
 
+    #due_alloc = zeros(length(gnss_lons))
+    #dun_alloc = zeros(length(gnss_lons))
+    #duv_alloc = zeros(length(gnss_lons))
+    #sue_alloc = zeros(length(gnss_lons))
+    #sun_alloc = zeros(length(gnss_lons))
+    #suv_alloc = zeros(length(gnss_lons))
+
     tri_gnss_partials = hcat( collect(
         [arrange_tri_partials(
             calc_tri_effects_single_tri(tri, gnss_lons, gnss_lats)...)
@@ -184,7 +191,8 @@ function calc_tri_effects_single_tri(tri, lons, lats)
 end
 
 
-function calc_tri_slip(tri, lons, lats; ss_slip=0., ds_slip=0., ts_slip=0.)
+function calc_tri_slip(tri, lons, lats; ss_slip=0., ds_slip=0., ts_slip=0.,
+                       floor=0.001)
 
     # project coordinates of tri and sites
     x_proj, y_proj = Oiler.Tris.tri_merc(tri, lons, lats)
@@ -207,10 +215,18 @@ function calc_tri_slip(tri, lons, lats; ss_slip=0., ds_slip=0., ts_slip=0.)
     # dip slip component
     due, dun, duv = Oiler.TD.TDdispHS(x_gnss, y_gnss, z_gnss, tri_p1, tri_p2, 
                                      tri_p3, 0., ds_slip)
+    due[due .< abs(ds_slip * floor)] .= 0.
+    dun[dun .< abs(ds_slip * floor)] .= 0.
+    duv[duv .< abs(ds_slip * floor)] .= 0.
     
     # strike_slip_component
     sue, sun, suv = Oiler.TD.TDdispHS(x_gnss, y_gnss, z_gnss, tri_p1, tri_p2, 
                                      tri_p3, ss_slip, 0.)
+    
+    sue[sue .< abs(ss_slip * floor)] .= 0.
+    sun[sun .< abs(ss_slip * floor)] .= 0.
+    suv[suv .< abs(ss_slip * floor)] .= 0.
+    
     due', dun', duv', sue', sun', suv'
 end
 
@@ -220,7 +236,7 @@ function arrange_tri_partials(due, dun, duv, sue, sun, suv; uv_zero=true)
 
     if uv_zero == true
         duv = zeros(size(duv))
-        suv = zeros(size(duv))
+        suv = zeros(size(suv))
     end
 
     out = zeros(n_vels * 3, 2)

@@ -79,7 +79,16 @@ function az_to_angle(az::Float64)
 end
 
 function angle_to_az(angle::Float64)
-    -(rad2deg(angle) - 90.)
+    az = -(rad2deg(angle) - 90.)
+
+    while az < 0
+        az += 360.
+    end
+        
+    while az > 360.
+        az -= 360.
+    end
+    az
 end
 
 """
@@ -379,6 +388,24 @@ function check_winding_order(coords)
 end
 
 
+function strike_dip_from_3_pts(pt1, pt2, pt3)
+    A = [pt1[1] pt1[2] 1.;
+         pt2[1] pt2[2] 1.;
+         pt3[1] pt3[2] 1.]
+
+    zvec = [-pt1[3], -pt2[3], -pt3[3]]
+
+    mx, my, z0 = A \ zvec
+
+    dip = atand(sqrt(mx^2 + my^2))
+    dip_dir = atan(my, mx)
+    strike_angle = dip_dir + pi / 2.
+    # strike_angle = dip_dir
+    strike = angle_to_az(strike_angle)
+
+    strike, dip
+
+end
 
 
 end # module

@@ -2,9 +2,10 @@ module Tris
 
 export Tri
 
-import Proj4: Projection, transform
-
+using Setfield
 using LinearAlgebra
+
+import Proj4: Projection, transform
 
 using ..Oiler
 
@@ -18,7 +19,11 @@ struct Tri
     strike_slip_rate::Float64
     strike_slip_err::Float64
     cds::Float64
+    dip_locking_frac::Float64
+    strike_locking_frac::Float64
     name::String
+    hw::String
+    fw::String
 end
 
 
@@ -31,7 +36,11 @@ function Tri(;
     strike_slip_rate::Float64=0.,
     strike_slip_err::Float64=0.,
     cds::Float64=0.,
-    name::String=""
+    dip_locking_frac::Float64=0.,
+    strike_locking_frac::Float64=0.,
+    name::String="",
+    hw::String="",
+    fw::String=""
     )
 
     for z in [p1[3] p2[3] p3[3]]
@@ -47,7 +56,8 @@ function Tri(;
     end
 
     Tri(p1, p2, p3, dip_slip_rate, dip_slip_err, strike_slip_rate, 
-        strike_slip_err, cds, name)
+        strike_slip_err, cds, dip_locking_frac, strike_locking_frac, name, hw, 
+        fw)
 end
 
 
@@ -160,6 +170,48 @@ function get_tri_strike_line(p1, p2, p3)
 end
 
 
+
+function get_tri_strike_line(tri::Tri)
+    get_tri_strike_line(tri.p1, tri.p2, tri.p3)
+end
+
+
+function get_tri_strike_dip(tri::Tri)
+    proj_x, proj_y = tri_merc(tri, [], [])
+    xp1 = [proj_x[1] proj_y[1] tri.p1[3] * 1000]
+    xp2 = [proj_x[2] proj_y[2] tri.p2[3] * 1000]
+    xp3 = [proj_x[3] proj_y[3] tri.p3[3] * 1000]
+
+    strike, dip = Oiler.Geom.strike_dip_from_3_pts(xp1, xp2, xp3)
+end
+
+
+function get_tri_rate_from_pole(tri::Tri, pole)
+    center = Oiler.Tris.get_tri_center(tri)
+    pred_vel = Oiler.BlockRotations.predict_block_vel(center[1], center[2], pole)
+
+    strike, dip = get_tri_strike_dip(tri)
+
+    v_rl, v_ex = Oiler.Faults.ve_vn_to_fault_slip_rate(pred_vel.ve, pred_vel.vn, 
+                                                       strike)
+    
+    if (pred_vel.ee == 0.) & (pred_vel.en == 0.)
+        e_rl, e_ex, cde = 0., 0., 0.
+    else
+        e_rl, e_ex, cde = Oiler.Faults.ee_en_to_fault_slip_rate_err(pred_vel.ee, 
+                                                  pred_vel.en, strike; 
+                                                  cen=pred_vel.cen)
+    end
+    strike_slip_rate = v_rl
+    strike_slip_err = e_rl
+    dip_slip_rate = -v_ex
+    dip_slip_err = e_ex
+    cds = cde # maybe backwards?
+
+    dip_slip_rate, dip_slip_err, strike_slip_rate, strike_slip_err, cds
+end
+
+    
 """
     
 """
@@ -236,12 +288,25 @@ function get_tri_adjacence_dict(tris; n_common_pts=2, self_adjacence=false)
     tri_adj_dict
 end
 
+# useless without results
+# function get_tri_total_rate(tri::Oiler.Tris.Tri)
+#    ds = results["tri_slip_rates"][tri.name]["dip_slip"]
+#    ss = results["tri_slip_rates"][tri.name]["strike_slip"]
+#    total_rate = sqrt(ds^2 + ss^2)
+# end
 
-function get_tri_total_rate(tri::Oiler.Tris.Tri)
-    ds = results["tri_slip_rates"][tri.name]["dip_slip"]
-    ss = results["tri_slip_rates"][tri.name]["strike_slip"]
-    total_rate = sqrt(ds^2 + ss^2)
+
+function get_tri_hanging_wall(tri::Tri, block_df; epsg=4326, set=true)
+    hw = Oiler.IO.get_block_idx_for_point(get_tri_center(tri), block_df, 
+                                          epsg=epsg)
+    if set
+        tri = @set tri.hw = hw
+        return tri
+    else
+        return hw
+    end
 end
+
 
 
 

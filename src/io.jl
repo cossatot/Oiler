@@ -293,6 +293,64 @@ function get_block_idx_for_points(point_df, block_df, to_epsg)
 end
 
 
+# function get_block_idx_for_point_list(point_list, block_df; epsg=4326)
+#   point_geoms = map(p->AG.createpoint(p[1],p[2]), point_list)
+#
+#   if epsg != 4326
+#       point_geoms = map(x->AG.reproject(x,
+#                           ProjString("+proj=longlat +datum=WGS84 +no_defs"), 
+#                           EPSG(epsg)),
+#                   point_geoms)
+#   end
+#
+#   idxs = Array{Any}(missing, length(point_geoms))
+#
+#   for i_b in 1:size(block_df, 1)
+#       block_geom = AG.clone(block_df[i_b, :geometry])
+#       if epsg != 4326
+#           block_geom = AG.reproject(block_geom, 
+#               ProjString("+proj=longlat +datum=WGS84 +no_defs"), EPSG(epsg))
+#       end
+#
+#       block_fid = block_df[i_b, :fid]
+#
+#       for (i_p, pg) in point_geoms
+#           if AG.contains(block_geom, pg)
+#               idxs[i_p] = block_fid
+#           end
+#       end
+#   end
+#   idxs
+# end
+
+
+function get_block_idx_for_point(point, block_df; epsg=4326)
+    point_geom = AG.createpoint(point[1], point[2])
+
+    if epsg != 4326
+        point_geom = AG.reproject(point_geom, 
+            ProjString("+proj=longlat +datum=WGS84 +no_defs"), EPSG(epsg))
+    end
+
+    idx = missing
+
+    for i_b in 1:size(block_df, 1)
+        block_geom = AG.clone(block_df[i_b, :geometry])
+        if epsg != 4326
+            block_geom = AG.reproject(block_geom, 
+                ProjString("+proj=longlat +datum=WGS84 +no_defs"), EPSG(epsg))
+        end
+
+        block_fid = block_df[i_b, :fid]
+
+        if AG.contains(block_geom, point_geom)
+            idx = block_fid
+        end
+    end
+    idx
+end
+
+
 function val_nothing_fix(vel; return_val=0.)
     if vel == ""
         return return_val
@@ -414,10 +472,12 @@ function load_faults_from_gis_files(fault_files... ; layernames=[])
     else
         if length(layernames) == 0
             fault_df = vcat([gis_vec_file_to_df(file) 
-                         for file in fault_files]...)
+                         for file in fault_files]...;
+                           cols=:union)
         else
             fault_df = vcat([gis_vec_file_to_df(file; layername=layernames[i]) 
-                         for (i, file) in enumerate(fault_files)]...)
+                         for (i, file) in enumerate(fault_files)]...;
+                            cols=:union)
         end
     end
     fault_df
@@ -558,11 +618,11 @@ function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val=1.,
     dextral_err = err_nothing_fix(slip_rate_row[:dextral_err]; 
         return_val=err_return_val, weight=weight)
 
-    ve, vn = Oiler.Faults.fault_slip_rate_to_ve_vn(dextral_rate, 
+    ve, vn = Oiler.Faults.fault_slip_rate_to_ve_vn(dextral_rate / weight, 
                                                    extension_rate,
                                                    fault.strike)
 
-    ee, en, cen = Oiler.Faults.fault_slip_rate_err_to_ee_en(dextral_err, 
+    ee, en, cen = Oiler.Faults.fault_slip_rate_err_to_ee_en(dextral_err / weight, 
                                                             extension_err,
                                                             fault.strike)
 
@@ -679,12 +739,19 @@ end
 
 
 function tri_from_feature(feat)
-    # TODO: add support for reading in rates
+    props = feat["properties"]
+    kps = keys(props)
+    if "fw" in kps
+        fw = string(props["fw"])
+    else fw = ""
+    end
+
     tri = Oiler.Tris.Tri(;
        p1=Float64.(feat["geometry"]["coordinates"][1][1]),
        p2=Float64.(feat["geometry"]["coordinates"][1][2]),
        p3=Float64.(feat["geometry"]["coordinates"][1][3]),
-       name=string(feat["properties"]["fid"])
+       name=string(feat["properties"]["fid"]),
+       fw=fw
        )
 end
 
@@ -707,8 +774,12 @@ function tri_to_feature(tri)
             "dip_slip_err" => round.(tri.dip_slip_err, digits=3),
             "strike_slip_rate" => round.(tri.strike_slip_rate, digits=3),
             "strike_slip_err" => round.(tri.strike_slip_err, digits=3),
+            "dip_locking_frac" => round.(tri.dip_locking_frac, digits=3),
+            "strike_locking_frac" => round.(tri.strike_locking_frac, digits=3),
             "cds" => round.(tri.cds, digits=3),
             "fid" => tri.name,
+            "hw" => tri.hw,
+            "fw" => tri.fw
         )
     )
 end
@@ -732,7 +803,12 @@ function make_tris_from_results(tris, results)
                 dip_slip_err=tri_rates[name]["dip_slip_err"],
                 strike_slip_err=tri_rates[name]["strike_slip_err"],
                 cds=tri_rates[name]["dsc"],
-                name=name
+                dip_locking_frac=tris[i].dip_locking_frac,
+                strike_locking_frac=tris[i].strike_locking_frac,
+                name=name,
+                hw=tris[i].hw,
+                fw=tris[i].fw,
+
                 ) for (i, name) in enumerate(tri_names)]
 end
 
@@ -784,12 +860,6 @@ end
 function write_fault_results_to_gj(results, outfile; name="")
     fault_gj = faults_to_geojson(results["predicted_slip_rates"]; name=name)
     
-    # for (prop_name, prop_array) in other_properties
-    #    for (i, feature) in enumerate(fault_gj["features"])
-    #        feature[i]["properties"][prop_name] = prop_array[i]
-    #    end
-    # end
-
     open(outfile, "w") do f
         JSON.print(f, fault_gj)
     end
@@ -797,7 +867,7 @@ end
 
 
 function write_gnss_vel_results_to_csv(results, vel_groups; name="")
-    pred_gnss_df = Oiler.Utils.get_gnss_results(results, vel_groups)
+    pred_gnss_df = Oiler.ResultsAnalysis.get_gnss_results(results, vel_groups)
     CSV.write(name, pred_gnss_df)
 end
 
@@ -835,5 +905,31 @@ function make_vels_from_gnss_and_blocks(gnss_df, block_df; ve=:ve, vn=:vn, ee=:e
     gnss_vels = convert(Array{VelocityVectorSphere}, gnss_vels)
 end
 
+
+function write_solution_poles(outfile, results, block_df, pole_fix;
+                              convert_to_sphere=true)
+    pole_arr = collect(values(results["poles"]))
+    pole_arr = [pole for pole in pole_arr if typeof(pole) == Oiler.PoleCart]
+
+    rel_poles = [Oiler.Utils.get_path_euler_pole(pole_arr, pole_fix,
+                                                string(block_df[i, :fid]))
+                for i in 1:size(block_df, 1)]
+
+    CSV.write(outfile, Oiler.IO.poles_to_df(rel_poles, 
+                                            convert_to_sphere=convert_to_sphere))
+end
+
+
+function write_results_stats(results, outfile; description=nothing)
+    rs = results["stats_info"]
+
+    if !(isnothing(description))
+        rs["description"] = description
+    end
+
+    open(outfile, "w") do f
+        JSON.print(f, rs)
+    end
+end
 
 end

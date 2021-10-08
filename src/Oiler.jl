@@ -4,6 +4,9 @@ include("constants.jl")
 using .Constants: EARTH_RAD_KM, EARTH_RAD_MM
 export EARTH_RAD_KM, EARTH_RAD_MM
 
+include("stats.jl")
+using .Stats
+
 include("poles.jl")
 using .RotationPoles:  PoleCart, PoleSphere, add_poles, add_poles, subtract_poles,
     pole_cart_to_sphere, pole_sphere_to_cart
@@ -43,7 +46,7 @@ export predict_vels_from_poles, find_vel_cycles, diagonalize_matrices,
     get_gnss_vels, get_coords_from_vel_array
 
 include("okada.jl")
-using .Okada: okada
+using .Okada:okada
 export okada
 
 include("tdisphs.jl")
@@ -53,8 +56,11 @@ include("tris.jl")
 using .Tris
 
 include("elastic.jl")
-using .Elastic: fault_to_okada
+using .Elastic:fault_to_okada
 export fault_to_okada
+
+include("results_analysis.jl")
+using .ResultsAnalysis
 
 include("solver.jl")
 using .Solver: make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
@@ -64,4 +70,7 @@ export make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
     predict_vels_from_poles, solve_for_block_poles_iterative, find_vel_cycles,
     make_block_inversion_matrices_from_vels
 
+
+include("plots.jl")
+using .Plots
 end  # module

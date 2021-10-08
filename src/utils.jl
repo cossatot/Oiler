@@ -468,8 +468,7 @@ function check_vel_closures(poles; tol=1e-5)
 end
 
 
-
-function get_fault_slip_rates_from_poles(faults, poles)
+function get_fault_slip_rates_from_poles(faults, poles; use_path=false)
     rates = []
     for fault in faults
         fault_key = (fault.fw, fault.hw)
@@ -480,13 +479,23 @@ function get_fault_slip_rates_from_poles(faults, poles)
             pole = poles[reverse(fault_key)]
             push!(rates, Oiler.Faults.get_fault_slip_rate_from_pole(fault, pole))
         else
-            @warn "No pole found for $fault_key"
-            push!(rates, (NaN, NaN))
+            if use_path
+                try
+                    pole = get_path_euler_pole(poles, fault.fw, fault.hw)
+                    push!(rates, Oiler.Faults.get_fault_slip_rate_from_pole(
+                                                                  fault, pole))
+                catch
+                    @warn "Can't make pole for $fault_key"
+                    push!(rates, (NaN, NaN))
+                end
+            else
+                @warn "No pole found for $fault_key"
+                push!(rates, (NaN, NaN))
+            end
         end
     end
     rates
 end
-
 
 
 function group_faults(faults, vel_group_keys)
@@ -537,7 +546,6 @@ function get_fault_vels(vel_groups)
     end # for
     faults
 end
-
 
 
 """
@@ -592,11 +600,13 @@ function make_df_from_vel_array(vels)
     lons, lats = get_coords_from_vel_array(vels)
     vel_df = DataFrame(lon=lons, lat=lats)
 
-    vel_df.ve = [v.ve for v in vels]
-    vel_df.vn = [v.vn for v in vels]
     vel_df.name = [v.name for v in vels]
     vel_df.fix = [v.fix for v in vels]
     vel_df.mov = [v.mov for v in vels]
+    vel_df.ve = [v.ve for v in vels]
+    vel_df.vn = [v.vn for v in vels]
+    vel_df.ee = [v.ee for v in vels]
+    vel_df.en = [v.en for v in vels]
 
     vel_df
 end
@@ -608,39 +618,6 @@ function make_gnss_df_from_vel_groups(vel_groups)
     make_df_from_vel_array(vels)
 end
 
-
-function get_gnss_results(results, vel_groups)
-    pred_vels = [v["vel"] for v in get_gnss_vels(results["predicted_vels"])]
-    lons, lats = get_coords_from_vel_array(pred_vels)
-    pve = [v.ve for v in pred_vels]
-    pvn = [v.vn for v in pred_vels]
-    names = [v.name for v in pred_vels]
-
-    obs_vels = [v["vel"] for v in get_gnss_vels(vel_groups)]
-    ove = [v.ve for v in obs_vels]
-    ovn = [v.vn for v in obs_vels]
-
-    rve, rvn = ove - pve, ovn - pvn
-
-    pred_gnss_df = DataFrame()
-    pred_gnss_df.lon = lons
-    pred_gnss_df.lat = lats
-    pred_gnss_df.ve =  round.(pve, digits=3)
-    pred_gnss_df.vn =  round.(pvn, digits=3) 
-    pred_gnss_df.ee =  round.([v.ee for v in pred_vels], digits=3)
-    pred_gnss_df.en =  round.([v.en for v in pred_vels], digits=3)
-    pred_gnss_df.cen = round.([v.cen for v in pred_vels], digits=3)
-    pred_gnss_df.re =  round.(rve, digits=3)
-    pred_gnss_df.rn =  round.(rvn, digits=3)
-    pred_gnss_df.ree = round.(sqrt.(pred_gnss_df.ee.^2 + [v.ee^2 for v in obs_vels]),
-                              digits=3)
-    pred_gnss_df.ren = round.(sqrt.(pred_gnss_df.en.^2 + [v.en^2 for v in obs_vels]),
-                              digits=3)
-    pred_gnss_df.name = names
-    
-
-    pred_gnss_df
-end
 
 
 function get_block_centroids(blocks)

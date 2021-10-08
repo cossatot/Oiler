@@ -143,6 +143,44 @@ function test_check_winding_order_array_arrays_1()
 end
 
 
+function test_strike_dip_from_3_pts()
+    pt1 = [0., 0., 0.]
+    pt2 = [0., 1., 0.]
+    pt3 = [1., 0.5, -1.]
+
+    strike_1, dip_1 = Oiler.Geom.strike_dip_from_3_pts(pt1, pt2, pt3)
+    @test strike_1 == 0.
+    @test dip_1 == 45.
+
+    pt4 = [0.5, 0.5, 0.]
+    pt5 = [1., 0., -1.]
+
+    strike_2, dip_2 = Oiler.Geom.strike_dip_from_3_pts(pt1, pt4, pt5)
+    @test strike_2 == 45.
+    @test isapprox(dip_2,  54.735610317245346)
+
+    pt6 = [-1., -1., 0.]
+    pt7 = [0., -1., -1.]
+
+    strike_3, dip_3 = Oiler.Geom.strike_dip_from_3_pts(pt1, pt6, pt7)
+    @test strike_3 == 45.
+    @test isapprox(dip_3,  54.735610317245346)
+
+    pt8 = [0., -1., 1.]
+    strike_4, dip_4 = Oiler.Geom.strike_dip_from_3_pts(pt1, pt6, pt8)
+    @test strike_4 == 225.
+    @test isapprox(dip_4,  54.735610317245346)
+
+    pt9 = [0., 0.5, -1.]
+    strike_5, dip_5 = Oiler.Geom.strike_dip_from_3_pts(pt1, pt2, pt9)
+    # fails due to SingularException.  Could add a fix?
+    # @test strike_5 == 0.
+    # @test dip_5 == 90.
+
+end
+
+
+
 @testset "test geom.jl" begin
     test_gc_dist()
     test_azimuth_1()
@@ -159,6 +197,7 @@ end
     test_break_polyline_equal_1()
     test_break_polyline_equal_2()
     test_break_polyline_equal_3()
+    test_strike_dip_from_3_pts()
 
 end
 

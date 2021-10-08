@@ -431,7 +431,7 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
     basic_matrices::Dict=Dict(), faults::Array=[], tris::Array=[], weighted::Bool=true, 
     regularize_tris::Bool=true, tri_priors::Bool=false,
     tri_distance_weight::Float64=10., sparse_lhs::Bool=false,
-    constraint_method="kkt")
+    constraint_method="kkt_sym")
 
     if basic_matrices == Dict()
         basic_matrices = set_up_block_inv_no_constraints(vel_groups; 
@@ -546,7 +546,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     regularize_tris::Bool=true,
     tri_priors::Bool=false,
     tri_distance_weight::Float64=10., check_closures::Bool=true,
-    sparse_lhs::Bool=false, predict_vels::Bool=false, constraint_method="kkt",
+    sparse_lhs::Bool=false, predict_vels::Bool=false, constraint_method="kkt_sym",
     pred_se::Bool=false, factorization="lu")
 
     @info "setting up unconstrained matrices"
@@ -603,11 +603,21 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 
     tri_soln_idx = (np * 3 + 1):(np * 3) + nt * 2
     soln = full_soln[soln_idx]
+    tri_soln = soln[tri_soln_idx]
 
     results = Dict()
     results["poles"] = get_poles_from_soln(block_inv_setup["keys"], soln)
-    tri_soln = soln[tri_soln_idx]
     results["tri_slip_rates"] = get_tri_rates(tri_soln, tris)
+
+    results["stats_info"] = Dict{Any,Any}(
+        "RMSE" => Oiler.ResultsAnalysis.calc_RMSE_from_G(block_inv_setup, results)
+        )
+    RMSE_string = "RMSE: " * string(results["stats_info"]["RMSE"])
+    @info RMSE_string
+    results["stats_info"]["n_obs"], results["stats_info"]["n_params"] = size(
+        block_inv_setup["PvGb"]
+    )
+        
 
     if pred_se == true
         if weighted == true
@@ -632,16 +642,17 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     end
 
     if predict_vels == true
-        results["predicted_vels"] = predict_model_velocities(vel_groups, 
+        results["predicted_vels"] = Oiler.ResultsAnalysis.predict_model_velocities(
+            vel_groups, 
             block_inv_setup, results["poles"]; 
             tri_results=results["tri_slip_rates"])
         
-        results["predicted_slip_rates"] = predict_slip_rates(faults, 
-                                                             results["poles"])
+        results["predicted_slip_rates"] = Oiler.ResultsAnalysis.predict_slip_rates(
+            faults, results["poles"])
     end
 
     if check_closures == true
-        closures = Oiler.Utils.check_vel_closures(results["poles"])
+        closures = Oiler.Utils.check_vel_closures(results["poles"]; tol=1e-4)
     end
 
     results
@@ -730,22 +741,13 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
     PvGb = block_matrices["PvGb"]
     cm = block_matrices["cm"]
     y_obs = block_matrices["Vc"]
+    n, p = size(PvGb)
 
     if weighted == true
         weights = block_matrices["weights"]
     else
         weights = ones(length(block_matrices["weights"]))
     end
-
-    y_pred = get_pred_solution(PvGb, block_matrices["keys"],
-        results["poles"]; tri_results=results["tri_slip_rates"])
-    
-    n, p = size(PvGb)
-
-    e = y_pred .- y_obs
-    MSE = 1 / (n - p) * e' * e
-    RMSE_string = "RMSE: " * string(sqrt(MSE))
-    @info RMSE_string
 
     if all(x -> x == 1., weights) & (length(cm) == 0)
         var_cov = make_OLS_cov(PvGb)
@@ -757,8 +759,9 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
             p, soln_idx, 1000, constraint_method)
     end
 
-    var = MSE * var_cov
+    var = results["stats_info"]["RMSE"]^2 * var_cov
     standard_error_vec = sqrt.(diag(var))
+
 
     SE_string = "mean standard error: " * string(
         sum(standard_error_vec) / length(standard_error_vec))
@@ -811,84 +814,6 @@ function get_tri_uncertainties!(pole_var, tris, tri_results, tri_soln_idx)
     end
 end
 
-
-function predict_slip_rates(faults, poles)
-    slip_rates = Oiler.Utils.get_fault_slip_rates_from_poles(
-            faults, poles)
-
-    new_faults = []
-
-    for (i, fault) in enumerate(faults)
-        push!(new_faults, 
-              Fault(
-                  fault.trace,
-                  fault.strike,
-                  fault.dip,
-                  fault.dip_dir,
-                  slip_rates[i][2],
-                  slip_rates[i][4], # fault.extension_err,
-                  slip_rates[i][1],
-                  slip_rates[i][3], # fault.dextral_err,
-                  slip_rates[i][5], # fault.cde,
-                  fault.lsd,
-                  fault.usd,
-                  fault.name,
-                  fault.hw,
-                  fault.fw,
-                  fault.fid
-              )
-        )
-    end
-    new_faults
-end
-
-
-function get_pred_solution(PvGb, keys, poles; tri_results=Dict())
-    
-    soln_vec = [[poles[k].x poles[k].y poles[k].z] 
-                 for k in keys]
-    soln_vec = [(soln_vec...)...]
-    
-    if length(tri_results) > 0
-        tri_soln = [[tri["dip_slip"] tri["strike_slip"]] 
-                    for tri in values(tri_results)]
-        tri_soln = [(tri_soln...)...]
-        append!(soln_vec, tri_soln)
-    end
-
-    # multiply for pred vels
-    pred_vel_vec = PvGb * soln_vec
-end
-
-
-function predict_model_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
-    block_matrices, poles; tri_results=Dict())
-    
-    pred_vel_vec = get_pred_solution(block_matrices["PvGb"], block_matrices["keys"],
-        poles; tri_results)
-
-    # loop through vels, make new vels for each w/ predicted output
-    # return in some form or fashion (pred_vel_groups?)
-    pred_vels = Dict()
-
-    counter = 1
-    for pole_key in block_matrices["keys"]
-        pred_vels[pole_key] = []# 
-
-        for vel in vel_groups[pole_key]
-            ve = pred_vel_vec[counter]
-            counter += 1
-            vn = pred_vel_vec[counter]
-            counter += 1
-            vu = pred_vel_vec[counter]
-            counter += 1
-
-            push!(pred_vels[pole_key], VelocityVectorSphere(vel, ve=ve, vn=vn))
-        end
-        convert(Array{VelocityVectorSphere}, pred_vels[pole_key])
-    end
-    pred_vels
-end
 
 
 function calc_forward_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},

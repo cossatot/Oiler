@@ -1,7 +1,6 @@
 using Test
     
-# not a project dependency; uncomment below to do test_tri_strike_slip
-# using PyPlot
+using PyPlot
 
 
 using Oiler
@@ -42,6 +41,25 @@ function test_tri_merc_1()
 
     @test isapprox(xp, xp_ans)
     @test isapprox(yp, yp_ans)
+end
+
+
+function test_get_tri_strike_dip()
+    pt1 = [0., 0., 0.]
+    pt2 = [0., 1., 0.]
+    pt3 = [1., 0.5, -110.]
+    tri_1 = Oiler.Tris.Tri(p1=pt1, p2=pt2, p3=pt3)
+    strike_1, dip_1 = Oiler.Tris.get_tri_strike_dip(tri_1)
+    @test strike_1 == 0.
+    @test isapprox(dip_1, 44.65803022775554)
+
+    pt4 = [0.5, 0.5, 0.]
+    pt5 = [1., 0., -110.]
+    
+    tri_2 = Oiler.Tris.Tri(p1=pt1, p2=pt4, p3=pt5)
+    strike_2, dip_2 = Oiler.Tris.get_tri_strike_dip(tri_2)
+    @test isapprox(strike_2, 45.19132722116258)
+    @test isapprox(dip_2, 54.50372439999114)
 end
 
 
@@ -304,6 +322,7 @@ end
 
 @testset "test tris.jl" begin
     test_tri_merc_1()
+    test_get_tri_strike_dip()
     test_get_tri_strike_line_1()
     test_centroid_distance()
     test_get_tri_adjacence_dict()
