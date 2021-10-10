@@ -73,4 +73,8 @@ export make_block_PvGb_from_vels, solve_block_invs_from_vel_groups,
 
 include("plots.jl")
 using .Plots
+
+include("write_web_viewer.jl")
+using .WebViewer
+
 end  # module

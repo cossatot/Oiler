@@ -934,10 +934,12 @@ end
 
 
 function row_to_feature(row; coord_digits=5)
-    feat = JSON.parse(AG.toJSON(row[:geometry], 
+    feat = Dict{Any,Any}()
+    feat["type"] = "Feature"
+    feat["geometry"] = JSON.parse(AG.toJSON(row[:geometry], 
                                 COORDINATE_PRECISION=coord_digits))
     feat["properties"] = Dict()
-    for field in names(feat)
+    for field in names(row)
         if field != "geometry"
             feat["properties"][field] = row[field]
         end
@@ -948,7 +950,7 @@ end
 
 function features_to_geojson(feature_df; name="", coord_digits=5)
     gj = Dict("type" => "FeatureCollection", 
-              features => [row_to_feature(feature_df[i,:]; coord_digits=coord_digits)
+              "features" => [row_to_feature(feature_df[i,:]; coord_digits=coord_digits)
                            for i in 1:size(feature_df, 1)])
     if name != ""
         gj["name"] = name
@@ -962,6 +964,6 @@ function write_block_df(block_df, outfile; name="", coord_digits=5)
     open(outfile, "w") do f
         JSON.print(f, gj)
     end
-
+end
 
 end # module
