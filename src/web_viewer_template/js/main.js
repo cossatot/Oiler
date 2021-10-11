@@ -66,11 +66,11 @@
             d3.csv(poles_path)
         ]).then(
             function (data) {
-                data[0].features.forEach(function (d, i) {
-                    d.geometry.coordinates.forEach(function (ring) {
-                        ring.reverse();
-                    });
-                });
+                // data[0].features.forEach(function (d, i) {
+                //     d.geometry.coordinates.forEach(function (ring) {
+                //         ring.reverse();
+                //     });
+                // });
 
                 var poles = data[1].reduce(function (obj, x) {
                     obj[x.mov] = x;

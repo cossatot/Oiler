@@ -8,7 +8,7 @@ using ..Oiler
 function write_web_viewer(;results, block_df, directory::AbstractString, ref_pole,
      block_filename::AbstractString="blocks.geojson", 
      pole_filename::AbstractString="poles.csv",
-     time_min=-5., time_max=5., time_step=0.5)
+     time_min=-5., time_max=5., time_step=0.25)
 
     template_file = joinpath(@__DIR__, "web_viewer_template", "web_viewer_template.html")
     blockrot_file = joinpath(@__DIR__, "web_viewer_template", "js", "blockrotations.js")

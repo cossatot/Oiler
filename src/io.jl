@@ -933,11 +933,32 @@ function write_results_stats(results, outfile; description=nothing)
 end
 
 
-function row_to_feature(row; coord_digits=5)
+function row_to_feature(row; coord_digits=5, simplify=true,
+    check_poly_winding_order=false, epsg=3995)
+
+    if check_poly_winding_order
+        gg = AG.clone(row[:geometry])
+        gg = AG.reproject(gg, ProjString("+proj=longlat +datum=WGS84 +no_defs"), 
+                          EPSG(epsg))
+        
+        coords = get_coords_from_geom(AG.getgeom(gg, 0))
+        if Oiler.Geom.check_winding_order(coords) == 1
+            reverse_poly = true
+        else
+            reverse_poly = false
+        end
+    else
+        reverse_poly = false
+    end
+
     feat = Dict{Any,Any}()
     feat["type"] = "Feature"
-    feat["geometry"] = JSON.parse(AG.toJSON(row[:geometry], 
-                                COORDINATE_PRECISION=coord_digits))
+    feat["geometry"] = JSON.parse(AG.toJSON(AG.simplifypreservetopology(
+                                            row[:geometry], 1e-4),
+                                  COORDINATE_PRECISION=coord_digits))
+    if reverse_poly
+        reverse!(feat["geometry"]["coordinates"][1])
+    end
     feat["properties"] = Dict()
     for field in names(row)
         if field != "geometry"
@@ -948,19 +969,26 @@ function row_to_feature(row; coord_digits=5)
 end
 
 
-function features_to_geojson(feature_df; name="", coord_digits=5)
+function features_to_geojson(feature_df; name="", coord_digits=5, 
+                             check_poly_winding_order=false, epsg=3995)
+
     gj = Dict("type" => "FeatureCollection", 
-              "features" => [row_to_feature(feature_df[i,:]; coord_digits=coord_digits)
+              "features" => [row_to_feature(feature_df[i,:]; 
+                                coord_digits=coord_digits,
+                                check_poly_winding_order=check_poly_winding_order,
+                                epsg=epsg)
                            for i in 1:size(feature_df, 1)])
     if name != ""
         gj["name"] = name
     end
+
     gj
 end
 
 
 function write_block_df(block_df, outfile; name="", coord_digits=5)
-    gj = features_to_geojson(block_df; name=name, coord_digits=coord_digits)
+    gj = features_to_geojson(block_df; name=name, coord_digits=coord_digits,
+                             check_poly_winding_order=true)
     open(outfile, "w") do f
         JSON.print(f, gj)
     end
