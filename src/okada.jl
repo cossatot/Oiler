@@ -35,7 +35,7 @@ Ported from 'okada_partials.m' by Meade and Loveless.
 """
 function okada(fault::Dict, strike_disp::Float64, dip_disp::Float64, 
     tensile_disp::Float64, xs::Array{Float64}, ys::Array{Float64}, 
-    Pr::Float64=0.25, floor=0.001)
+    Pr::Float64=0.25; floor=1e-5)
     
     # unpack dict and convert variable names, all inherited from Blocks
     xf = fault["ofx"]
@@ -146,10 +146,10 @@ function okada(fault::Dict, strike_disp::Float64, dip_disp::Float64,
 
     # replace very small values with 0. to preserve sparsity
     tot_disp = sqrt(U1^2 + U2^2 + U3^2)
-    for vv in (uxstot, uystot, uzstot, uxdtot, 
-               uydtot, uzdtot, uxttot, uyttot, uzttot)
-        vv[vv .< abs(floor * tot_disp)] .= 0.
-    end
+    #for vv in (uxstot, uystot, uzstot, uxdtot, 
+    #           uydtot, uzdtot, uxttot, uyttot, uzttot)
+    #    vv[vv .< abs(floor * tot_disp)] .= 0.
+    #end
 
     uxstot, uystot, uzstot, uxdtot, uydtot, uzdtot, uxttot, uyttot, uzttot
 end

@@ -61,7 +61,7 @@ function calc_locking_effects_per_fault(fault::Fault, lons, lats)
 
     # calc Okada partials
     elastic_partials = distribute_partials(okada(D, 1., 1., 1.,   
-        xg, yg))
+        xg, yg; floor=0.))
 
     # build rotation and transformation matrices
     Pf = Oiler.Faults.build_velocity_projection_matrix(fault.strike, fault.dip)
