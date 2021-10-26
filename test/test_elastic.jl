@@ -13,7 +13,8 @@ function test_calc_locking_effects_per_fault_1()
     lons = [-81.739]
     lats = [12.527]
 
-    pp = Oiler.Elastic.calc_locking_effects_per_fault(ff, lons, lats)[1]
+    pp = Oiler.Elastic.calc_locking_effects_per_fault(ff, lons, lats; 
+            elastic_floor=0.)[1]
 
     # no good way of verifying this right now; doesn't match Meade and Loveless
     # because of the oblique mercator projections are different
@@ -36,7 +37,8 @@ function test_calc_locking_effects_segmented_fault_1()
     lons = [-81.739]
     lats = [12.527]
 
-    pp = Oiler.Elastic.calc_locking_effects_segmented_fault(ff, lons, lats)[1]
+    pp = Oiler.Elastic.calc_locking_effects_segmented_fault(ff, lons, lats; 
+            elastic_floor=0.)[1]
 
     # no good way of verifying this right now; doesn't match Meade and Loveless
     # because of the oblique mercator projections are different
@@ -59,7 +61,7 @@ function test_calc_locking_effects_1()
 
     vel_groups = Oiler.IO.group_vels_by_fix_mov(vels)
 
-    le = Oiler.Elastic.calc_locking_effects([ff], vel_groups)
+    le = Oiler.Elastic.calc_locking_effects([ff], vel_groups; elastic_floor=0.)
 
     @test isapprox(le[4:6, 1:3], [1.11344e8   1.0689e9    4.68748e9;
                         -5.3601e9   -8.55279e8  -3.39197e8;

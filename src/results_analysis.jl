@@ -58,10 +58,7 @@ function get_geol_pred_slip_rates(geol_slip_rate_vels, fault_df, results;
     pred_geol_slip_rates = []
     for (i, rate) in enumerate(geol_slip_rate_vels)
         fault_idx = rate.name
-        fault_row = @subset(fault_df, :fid .== fault_idx)[1,:]
-        if size(fault_row, 1) == 0
-            println(fault_idx)
-        end
+        fault_row = @where(fault_df, :fid .== fault_idx)[1,:]
         fault = Oiler.IO.row_to_fault(fault_row; lsd=lsd,
                                                  usd=usd)
         

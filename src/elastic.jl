@@ -45,7 +45,8 @@ function fault_to_okada(fault::Fault, sx1::Float64, sy1::Float64,
 end
 
 
-function calc_locking_effects_per_fault(fault::Fault, lons, lats)
+function calc_locking_effects_per_fault(fault::Fault, lons, lats; 
+                                        elastic_floor=1e-4)
 
     # project fault and velocity coordinates
     n_gnss = length(lons)
@@ -61,7 +62,7 @@ function calc_locking_effects_per_fault(fault::Fault, lons, lats)
 
     # calc Okada partials
     elastic_partials = distribute_partials(okada(D, 1., 1., 1.,   
-        xg, yg; floor=0.))
+        xg, yg; floor=elastic_floor))
 
     # build rotation and transformation matrices
     Pf = Oiler.Faults.build_velocity_projection_matrix(fault.strike, fault.dip)
@@ -76,7 +77,8 @@ function calc_locking_effects_per_fault(fault::Fault, lons, lats)
 end
 
 
-function calc_locking_effects_segmented_fault(fault::Fault, lons, lats)
+function calc_locking_effects_segmented_fault(fault::Fault, lons, lats;
+                                              elastic_floor=1e-4)
     # may have some problems w/ dip dir for highly curved faults
     trace = fault.trace
     simp_trace = Oiler.Geom.simplify_polyline(trace, 0.2)
@@ -89,7 +91,7 @@ function calc_locking_effects_segmented_fault(fault::Fault, lons, lats)
                 dip=fault.dip, 
                 dip_dir=fault.dip_dir,
                 lsd=fault.lsd, usd=fault.usd), 
-            lons, lats)
+            lons, lats; elastic_floor=elastic_floor)
         push!(parts, part)
     end
     sum(parts)
@@ -117,7 +119,7 @@ function make_partials_matrix(partials, i::Integer)
 end
 
 
-function calc_locking_effects(faults, vel_groups)
+function calc_locking_effects(faults, vel_groups; elastic_floor=1e-4)
 
     gnss_vels = get_gnss_vels(vel_groups)
     gnss_lons = [vel["vel"].lon for vel in gnss_vels]
@@ -133,7 +135,8 @@ function calc_locking_effects(faults, vel_groups)
     @threads for vg in vg_keys
         if haskey(fault_groups, vg)
             locking_partial_groups[vg] = sum([
-                calc_locking_effects_segmented_fault(fault, gnss_lons, gnss_lats)
+                calc_locking_effects_segmented_fault(fault, gnss_lons, gnss_lats,
+                    elastic_floor=elastic_floor)
                 for fault in fault_groups[vg]
             ])
         else
@@ -163,7 +166,7 @@ Calculates unit strike and dip slip on all GNSS velocities for all tris.
 Returns an Mx2T matrix, where M is the number of sites and T is the number
 of tris. Only horizontal components are returned.
 """
-function calc_tri_effects(tris, gnss_lons, gnss_lats)
+function calc_tri_effects(tris, gnss_lons, gnss_lats; elastic_floor=1e-4)
 
     #due_alloc = zeros(length(gnss_lons))
     #dun_alloc = zeros(length(gnss_lons))
@@ -174,14 +177,15 @@ function calc_tri_effects(tris, gnss_lons, gnss_lats)
 
     tri_gnss_partials = hcat( collect(
         [arrange_tri_partials(
-            calc_tri_effects_single_tri(tri, gnss_lons, gnss_lats)...)
+            calc_tri_effects_single_tri(tri, gnss_lons, gnss_lats;
+                elastic_floor=elastic_floor)...)
          for tri in tris]
     )...)
 
 end
 
 
-function calc_tri_effects_single_tri(tri, lons, lats)
+function calc_tri_effects_single_tri(tri, lons, lats; elastic_floor=1e-4)
     
     ss_slip = 1.# e-3 # mm
     ds_slip = 1.# e-3 # mm
@@ -192,7 +196,7 @@ end
 
 
 function calc_tri_slip(tri, lons, lats; ss_slip=0., ds_slip=0., ts_slip=0.,
-                       floor=0.001)
+                       floor=1e-4)
 
     # project coordinates of tri and sites
     x_proj, y_proj = Oiler.Tris.tri_merc(tri, lons, lats)
@@ -215,17 +219,17 @@ function calc_tri_slip(tri, lons, lats; ss_slip=0., ds_slip=0., ts_slip=0.,
     # dip slip component
     due, dun, duv = Oiler.TD.TDdispHS(x_gnss, y_gnss, z_gnss, tri_p1, tri_p2, 
                                      tri_p3, 0., ds_slip)
-    due[due .< abs(ds_slip * floor)] .= 0.
-    dun[dun .< abs(ds_slip * floor)] .= 0.
-    duv[duv .< abs(ds_slip * floor)] .= 0.
+    due[abs.(due) .< abs(ds_slip * floor)] .= 0.
+    dun[abs.(dun) .< abs(ds_slip * floor)] .= 0.
+    duv[abs.(duv) .< abs(ds_slip * floor)] .= 0.
     
     # strike_slip_component
     sue, sun, suv = Oiler.TD.TDdispHS(x_gnss, y_gnss, z_gnss, tri_p1, tri_p2, 
                                      tri_p3, ss_slip, 0.)
     
-    sue[sue .< abs(ss_slip * floor)] .= 0.
-    sun[sun .< abs(ss_slip * floor)] .= 0.
-    suv[suv .< abs(ss_slip * floor)] .= 0.
+    sue[abs.(sue) .< abs(ss_slip * floor)] .= 0.
+    sun[abs.(sun) .< abs(ss_slip * floor)] .= 0.
+    suv[abs.(suv) .< abs(ss_slip * floor)] .= 0.
     
     due', dun', duv', sue', sun', suv'
 end

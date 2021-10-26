@@ -182,10 +182,11 @@ end
 
 function add_fault_locking_to_PvGb(faults::Array{Fault}, 
     vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
-    PvGb::SparseMatrixCSC{Float64,Int64})
+    PvGb::SparseMatrixCSC{Float64,Int64}; elastic_floor=1e-4)
 
     @info "   calculating locking effects"
-    @time locking_partials = Oiler.Elastic.calc_locking_effects(faults, vel_groups)
+    @time locking_partials = Oiler.Elastic.calc_locking_effects(faults, vel_groups;
+        elastic_floor=elastic_floor)
     
     @info "   adding to PvGb"
     PvGb = Matrix(PvGb)
@@ -241,7 +242,7 @@ end
 
 
 function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true, 
-        distance_weight::Float64=10.)
+        distance_weight::Float64=10., elastic_floor=1e-4)
 
     nt = length(tris)
 
@@ -253,7 +254,8 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
     gnss_lats = [vel["vel"].lat for vel in gnss_vels]
     gnss_idxs = [vel["idx"] for vel in gnss_vels]
     
-    tri_effects = Oiler.Elastic.calc_tri_effects(tris, gnss_lons, gnss_lats)
+    tri_effects = Oiler.Elastic.calc_tri_effects(tris, gnss_lons, gnss_lats;
+        elastic_floor=elastic_floor)
     tri_gnss_effects_matrix = zeros((size(PvGb)[1], size(tri_effects)[2]))
 
     for (i, vel_idx) in enumerate(gnss_idxs)
@@ -352,7 +354,6 @@ end
 
 
 function make_weighted_constrained_kkt_lls_matrices_symmetric(PvGb, Vc, cm, weights; sparse_lhs::Bool=false)
-    # W = sparse(diagm(1 ./ weights))
     W = weights
 
     p, q = size(cm)
@@ -362,17 +363,12 @@ function make_weighted_constrained_kkt_lls_matrices_symmetric(PvGb, Vc, cm, weig
     else
         _zeros = zeros
     end
-    # lhs = [PvGb         _zeros(n, p) W;
-    #       cm           _zeros(p, p) _zeros(p, n);
-    #       _zeros(q, q) cm'          PvGb']
 
     lhs = [_zeros(p, p) _zeros(p, n) cm;
            _zeros(n, p)  W           PvGb;
            cm'           PvGb'       _zeros(q, q)]
 
     rhs = [zeros(p); Vc; zeros(q)]
-
-    # rhs = [Vc; zeros(p); zeros(q)]
 
     if sparse_lhs
         return sparse(lhs), rhs
@@ -387,7 +383,6 @@ function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights;
 
     if method == "kkt"
         return make_weighted_constrained_kkt_lls_matrices(PvGb, Vc, cm, weights;
-        # return make_weighted_constrained_kkt_lls_matrices_symmetric(PvGb, Vc, cm, weights;
             sparse_lhs=sparse_lhs)
     elseif method == "kkt_sym"
         return make_weighted_constrained_kkt_lls_matrices_symmetric(PvGb, Vc, cm, weights;
@@ -399,7 +394,8 @@ end
 
 
 function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array=[], tris::Array=[], regularize_tris=true, tri_priors=false, tri_distance_weight::Float64=10.)
+    faults::Array=[], tris::Array=[], regularize_tris=true, tri_priors=false, tri_distance_weight::Float64=10.,
+    elastic_floor=1e-4)
 
     @info " making block inversion matrices"
     @time vd = make_block_inversion_matrices_from_vels(vel_groups)
@@ -409,7 +405,8 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
 
     if length(faults) > 0
         @info " doing locking"
-        vd["PvGb"] = add_fault_locking_to_PvGb(faults, vel_groups, vd["PvGb"])
+        vd["PvGb"] = add_fault_locking_to_PvGb(faults, vel_groups, vd["PvGb"];
+            elastic_floor=elastic_floor)
         @info " done doing locking"
 
     end
@@ -418,7 +415,8 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
         @info " doing tris"
         @time vd = add_tris_to_PvGb(tris, vel_groups, vd; 
             priors=tri_priors, regularize=regularize_tris,
-            distance_weight=tri_distance_weight)
+            distance_weight=tri_distance_weight,
+            elastic_floor=elastic_floor)
         @info " done doing tris"
     end
     
@@ -429,6 +427,7 @@ end
 
 function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     basic_matrices::Dict=Dict(), faults::Array=[], tris::Array=[], weighted::Bool=true, 
+    elastic_floor=1e-4,
     regularize_tris::Bool=true, tri_priors::Bool=false,
     tri_distance_weight::Float64=10., sparse_lhs::Bool=false,
     constraint_method="kkt_sym")
@@ -436,7 +435,8 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
     if basic_matrices == Dict()
         basic_matrices = set_up_block_inv_no_constraints(vel_groups; 
             faults=faults, tris=tris, regularize_tris=regularize_tris,
-            tri_priors=tri_priors, tri_distance_weight=tri_distance_weight)
+            tri_priors=tri_priors, tri_distance_weight=tri_distance_weight,
+            elastic_floor=elastic_floor)
     end
 
     PvGb = basic_matrices["PvGb"]
@@ -544,7 +544,7 @@ solves for Euler poles, fault/tri slip rates, and uncertainty.
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array=[], tris=[], weighted::Bool=true, 
     regularize_tris::Bool=true,
-    tri_priors::Bool=false,
+    tri_priors::Bool=false, elastic_floor=1e-4,
     tri_distance_weight::Float64=10., check_closures::Bool=true,
     sparse_lhs::Bool=false, predict_vels::Bool=false, constraint_method="kkt_sym",
     pred_se::Bool=false, factorization="lu")
@@ -555,6 +555,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             regularize_tris=regularize_tris,
             tri_priors=tri_priors,
             tri_distance_weight=tri_distance_weight,
+            elastic_floor=elastic_floor,
             tris=tris)
     @info "making constrained matrices"
     @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups;
@@ -564,6 +565,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             tri_priors=tri_priors,
             tris=tris,
             tri_distance_weight=tri_distance_weight,
+            elastic_floor=elastic_floor,
             sparse_lhs=sparse_lhs,
             constraint_method=constraint_method)
     
