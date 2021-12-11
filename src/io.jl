@@ -793,16 +793,25 @@ function tris_to_geojson(tris; name="")
 end
 
 
-function make_tris_from_results(tris, results)
+function make_tris_from_results(tris, results; default_no_err=0.)
     tri_rates = results["tri_slip_rates"]
     tri_names = [tri.name for tri in tris]
+
+    function default_return(tri_rate, param; default_val=default_no_err)
+        if haskey(tri_rate, param)
+            return tri_rate[param]
+        else
+            return default_val
+        end
+    end
+
     tris_out = [Oiler.Tris.Tri(;
                 tris[i].p1, tris[i].p2, tris[i].p3,
                 dip_slip_rate=tri_rates[name]["dip_slip"],
                 strike_slip_rate=tri_rates[name]["strike_slip"],
-                dip_slip_err=tri_rates[name]["dip_slip_err"],
-                strike_slip_err=tri_rates[name]["strike_slip_err"],
-                cds=tri_rates[name]["dsc"],
+                dip_slip_err=default_return(tri_rates[name], "dip_slip_err"),
+                strike_slip_err=default_return(tri_rates[name], "strike_slip_err"),
+                cds=default_return(tri_rates[name], "dsc"),
                 dip_locking_frac=tris[i].dip_locking_frac,
                 strike_locking_frac=tris[i].strike_locking_frac,
                 name=name,
@@ -911,9 +920,24 @@ function write_solution_poles(outfile, results, block_df, pole_fix;
     pole_arr = collect(values(results["poles"]))
     pole_arr = [pole for pole in pole_arr if typeof(pole) == Oiler.PoleCart]
 
-    rel_poles = [Oiler.Utils.get_path_euler_pole(pole_arr, pole_fix,
-                                                string(block_df[i, :fid]))
-                for i in 1:size(block_df, 1)]
+    #rel_poles = [Oiler.Utils.get_path_euler_pole(pole_arr, pole_fix,
+    #                                            string(block_df[i, :fid]))
+    #            for i in 1:size(block_df, 1)]
+
+    rel_poles = []
+    for i in 1:size(block_df, 1)
+        try
+            pole = Oiler.Utils.get_path_euler_pole(pole_arr, pole_fix,
+                                                   string(block_df[i, :fid]))
+            push!(rel_poles, pole)
+        catch
+            mov = string(block_df[i, :fid])
+            warn_msg = "can't get pole ($pole_fix, $mov) [$i]"
+            @warn warn_msg
+        end
+    end
+
+    rel_poles = convert(Array{Oiler.PoleCart}, rel_poles)
 
     CSV.write(outfile, Oiler.IO.poles_to_df(rel_poles, 
                                             convert_to_sphere=convert_to_sphere))

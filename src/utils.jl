@@ -1,11 +1,11 @@
 module Utils
 
-export predict_vels_from_poles, find_vel_cycles, diagonalize_matrices, 
+export predict_vels_from_poles, find_vel_cycles, diagonalize_matrices,
     get_gnss_vels, get_coords_from_vel_array
 
 using ..Oiler
 using ..Oiler: VelocityVectorSphere, PoleCart, PoleSphere, build_PvGb_from_vels,
-        build_vel_column_from_vels, add_poles, pole_sphere_to_cart
+    build_vel_column_from_vels, add_poles, pole_sphere_to_cart
 
 using Logging
 using DataFrames
@@ -13,7 +13,7 @@ using SparseArrays
 using LinearAlgebra
 
 
-function diagonalize_matrices(matrices; sparse_output=true)
+function diagonalize_matrices(matrices; sparse_output = true)
 
     rowz = [size(m, 1) for m in matrices]
     colz = [size(m, 2) for m in matrices]
@@ -79,9 +79,9 @@ end
     108835-how-to-get-only-linearly-independent-rows-
     in-a-matrix-or-to-remove-linear-dependency-b-w-rows-in-a-m
 """
-function lin_indep_cols(X; tol=1e-10)
+function lin_indep_cols(X; tol = 1e-10)
     if ~(true) # supposed to check for all zeros here
-        idx = [];
+        idx = []
     else
         Xm = Matrix(X)
 
@@ -103,8 +103,8 @@ function lin_indep_cols(X; tol=1e-10)
 end
 
 
-function lin_indep_rows(X; tol=1e-10)
-    lin_indep_cols(X'; tol=tol)
+function lin_indep_rows(X; tol = 1e-10)
+    lin_indep_cols(X'; tol = tol)
 end
 
 
@@ -215,7 +215,7 @@ function make_ugraph_from_digraph(digraph::Dict)
 end
 
 
-function find_tricycles(graph::Dict; reduce::Bool=true)
+function find_tricycles(graph::Dict; reduce::Bool = true)
 
     all_tris = []
 
@@ -254,7 +254,7 @@ function find_tricycles(graph::Dict; reduce::Bool=true)
             end
         end
         return unique_tris
-    else 
+    else
         return all_tris
     end
 end
@@ -264,12 +264,12 @@ function get_cycle_inds(vel_group_keys, cycle_tup)
 
     v_ind = findall(x -> x == cycle_tup, vel_group_keys)
     if v_ind != []
-        res = Dict("ind" => v_ind[1], "val" => 1.)
+        res = Dict("ind" => v_ind[1], "val" => 1.0)
     else
         cycle_tup = Base.reverse(cycle_tup)
         v_ind = findall(x -> x == (cycle_tup), vel_group_keys)
         if v_ind != []
-            res = Dict("ind" => v_ind[1], "val" => -1.)
+            res = Dict("ind" => v_ind[1], "val" => -1.0)
         else
             println("v apparently not in cycle")
         end
@@ -286,7 +286,7 @@ function find_vel_cycles(vel_group_keys)
 
     for (i, tri) in enumerate(tricycles)
         cycle_inds[i] = Dict()
-        for ctup in [(tri[1], tri[2]),(tri[2], tri[3]),(tri[3], tri[1])]
+        for ctup in [(tri[1], tri[2]), (tri[2], tri[3]), (tri[3], tri[1])]
             cycle_inds[i][ctup] = get_cycle_inds(vel_group_keys, ctup)
         end
     end
@@ -298,7 +298,7 @@ end
     flat(x)
 Flattens nested arrays of arrays
 """
-flat(x, y=vcat(x...)) = x == y ? x : flat(y)
+flat(x, y = vcat(x...)) = x == y ? x : flat(y)
 
 
 """
@@ -320,7 +320,7 @@ strategy.
 Array of vertices representing the shortest path in order from `start` to 
 `stop`.
 """
-function find_shortest_path(graph::Dict{String,Array{String}}, 
+function find_shortest_path(graph::Dict{String,Array{String}},
     start::String, stop::String)
 
     dist = Dict{String,Any}(start => [start])
@@ -343,9 +343,9 @@ function get_pole_path(poles::Array{PoleCart}, path::Array{String})
     steps = length(path) - 1
     pole_path = Array{PoleCart,1}(undef, steps)
 
-    for i in 1:steps
+    for i = 1:steps
         place = path[i]
-        next = path[i + 1]
+        next = path[i+1]
 
         for pole in poles
             if pole.fix == place && pole.mov == next
@@ -360,10 +360,10 @@ end
 
 
 function get_path_euler_pole(poles::Array{PoleCart,1}, fix::String,
-mov::String)
-    
+    mov::String)
+
     if fix == mov
-        final_pole = PoleCart(x=0., y=0., z=0., fix=fix, mov=mov)
+        final_pole = PoleCart(x = 0.0, y = 0.0, z = 0.0, fix = fix, mov = mov)
 
     elseif length([p for p in poles if (p.fix == fix) & (p.mov == mov)]) == 1
         final_pole = [p for p in poles if (p.fix == fix) & (p.mov == mov)][1]
@@ -371,7 +371,7 @@ mov::String)
     elseif length([p for p in poles if (p.fix == mov) & (p.mov == fix)]) == 1
         final_pole = [p for p in poles if (p.fix == fix) & (p.mov == mov)][1]
         final_pole = -final_pole
-    
+
     else
         vel_dg = make_digraph_from_poles(poles)
         vel_ug = make_ugraph_from_digraph(vel_dg)
@@ -405,8 +405,8 @@ function predict_vels_from_poles(block_things::Dict{String,AbstractArray},
 
     @warn "predict_vels_from_poles  has no error propagation"
     pole_list = [get_path_euler_pole(poles, fix, mov) for (fix, mov) in
-    block_things["keys"]]
-    
+                 block_things["keys"]]
+
     pole_vec = reduce(vcat, [[p.x; p.y; p.z] for p in pole_list])
 
     V_pred = block_things["PvGb"] * pole_vec
@@ -438,7 +438,7 @@ function get_vel_vec_from_pole(vel::VelocityVectorSphere, pole::PoleSphere)
 end
 
 
-function check_vel_closures(poles; tol=1e-5)
+function check_vel_closures(poles; tol = 1e-5)
     v_keys = sort(collect(Tuple(keys(poles))))
     block_digraph = make_digraph_from_tuples(v_keys)
     block_ugraph = make_ugraph_from_digraph(block_digraph)
@@ -468,7 +468,7 @@ function check_vel_closures(poles; tol=1e-5)
 end
 
 
-function get_fault_slip_rates_from_poles(faults, poles; use_path=false)
+function get_fault_slip_rates_from_poles(faults, poles; use_path = false)
     rates = []
     for fault in faults
         fault_key = (fault.fw, fault.hw)
@@ -483,7 +483,7 @@ function get_fault_slip_rates_from_poles(faults, poles; use_path=false)
                 try
                     pole = get_path_euler_pole(poles, fault.fw, fault.hw)
                     push!(rates, Oiler.Faults.get_fault_slip_rate_from_pole(
-                                                                  fault, pole))
+                        fault, pole))
                 catch
                     @warn "Can't make pole for $fault_key"
                     push!(rates, (NaN, NaN))
@@ -536,7 +536,7 @@ function get_fault_vels(vel_groups)
             row_set_num += 1
             if vel.vel_type == "fault"
                 row_idx = 3 * (row_set_num - 1) + 1
-                vel_idx = [row_idx:row_idx + 2, col_idx:col_idx + 2]
+                vel_idx = [row_idx:row_idx+2, col_idx:col_idx+2]
                 vd = Dict()
                 vd["fault"] = vel
                 vd["idx"] = vel_idx
@@ -571,7 +571,7 @@ function get_gnss_vels(vel_groups)
             row_set_num += 1
             if vel.vel_type == "GNSS"
                 row_idx = 3 * (row_set_num - 1) + 1
-                vel_idx = [row_idx:row_idx + 2, col_idx:col_idx + 2]
+                vel_idx = [row_idx:row_idx+2, col_idx:col_idx+2]
                 vd = Dict()
                 vd["vel"] = vel
                 vd["idx"] = vel_idx
@@ -598,7 +598,7 @@ end
 
 function make_df_from_vel_array(vels)
     lons, lats = get_coords_from_vel_array(vels)
-    vel_df = DataFrame(lon=lons, lat=lats)
+    vel_df = DataFrame(lon = lons, lat = lats)
 
     vel_df.name = [v.name for v in vels]
     vel_df.fix = [v.fix for v in vels]
@@ -620,11 +620,10 @@ end
 
 
 
-function get_block_centroids(blocks)
-end
+function get_block_centroids(blocks) end
 
 
-function get_block_centroid_velocities(blocks, results; ref_block="")
+function get_block_centroid_velocities(blocks, results; ref_block = "")
 
 
 end
