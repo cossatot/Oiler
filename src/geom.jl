@@ -3,14 +3,14 @@ module Geom
 export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
     angle_difference, rotate_velocity, rotate_xy_vec, oblique_merc
 
-import Statistics:mean
+import Statistics: mean
 import Proj4: Projection, transform
 
-using ..Oiler:EARTH_RAD_KM
+using ..Oiler: EARTH_RAD_KM
 using LinearAlgebra
 
 function azimuth(lon1::Float64, lat1::Float64,
-                 lon2::Float64, lat2::Float64)
+    lon2::Float64, lat2::Float64)
 
     dlon = lon2 - lon1
     y = sind(dlon) * cosd(lat2)
@@ -21,18 +21,19 @@ end
 
 
 function gc_distance(lon1::Float64, lat1::Float64,
-                 lon2::Float64, lat2::Float64, R=EARTH_RAD_KM)
+    lon2::Float64, lat2::Float64, R = EARTH_RAD_KM)
 
     lon1 = deg2rad(lon1)
     lat1 = deg2rad(lat1)
     lon2 = deg2rad(lon2)
     lat2 = deg2rad(lat2)
 
-    distance = asin(sqrt(sin((lat1 - lat2) / 2.)^2.
-        + cos(lat1) * cos(lat2)
-        * sin((lon1 - lon2) / 2.)^2.))
+    distance = asin(sqrt(sin((lat1 - lat2) / 2.0)^2.0
+                         +
+                         cos(lat1) * cos(lat2)
+                         * sin((lon1 - lon2) / 2.0)^2.0))
 
-    distance * 2. * R 
+    distance * 2.0 * R
 end
 
 
@@ -41,52 +42,51 @@ function average_azimuth(lons::Array{Float64}, lats::Array{Float64})
     if length(lons) == 2
         az = azimuth(lons[1], lats[1], lons[2], lats[2])
     else
-        
-        azs = [azimuth(lons[i - 1], lats[i - 1], lons[i], lats[i]) for i in
-            2:length(lats)]
-        
+
+        azs = [azimuth(lons[i-1], lats[i-1], lons[i], lats[i]) for i =
+               2:length(lats)]
+
         azs = [deg2rad(az) for az in azs]
 
-        dists = [gc_distance(lons[1], lats[1], lons[i], lats[i]) for i in
-            2:length(lats)]
+        dists = [gc_distance(lons[i-1], lats[i-1], lons[i], lats[i]) for i =
+                 2:length(lats)]
 
         avg_x = mean(dists .* [sin(az) for az in azs])
         avg_y = mean(dists .* [cos(az) for az in azs])
 
         az = rad2deg(atan(avg_x, avg_y))
-        if az < 0.
-            az += 360.
+        if az < 0.0
+            az += 360.0
         end
     end
     az
 end
-        
-function check_duplicates(arr, name="")
-    for i in 1:size(arr, 1) - 1
-        if arr[i] == arr[i + 1]
+
+function check_duplicates(arr, name = "")
+    for i = 1:size(arr, 1)-1
+        if arr[i] == arr[i+1]
             @warn "duplicated consecutive values in $name"
         end
     end
 end
 
 
-function remove_duplicates(arr)
-end
+function remove_duplicates(arr) end
 
 
 function az_to_angle(az::Float64)
-    deg2rad(90. - az)
+    deg2rad(90.0 - az)
 end
 
 function angle_to_az(angle::Float64)
-    az = -(rad2deg(angle) - 90.)
+    az = -(rad2deg(angle) - 90.0)
 
     while az < 0
-        az += 360.
+        az += 360.0
     end
-        
-    while az > 360.
-        az -= 360.
+
+    while az > 360.0
+        az -= 360.0
     end
     az
 end
@@ -95,15 +95,15 @@ end
     angle_difference(trend_1, trend_2)
 Calculates the difference between to angles, azimuths or trends, in degrees.
 """
-function angle_difference(trend_1::Float64, trend_2::Float64; return_abs::Bool=true)
+function angle_difference(trend_1::Float64, trend_2::Float64; return_abs::Bool = true)
 
     difference = trend_2 - trend_1
 
-    while difference < -180.
-        difference += 360.
+    while difference < -180.0
+        difference += 360.0
     end
-    while difference > 180.
-        difference -= 360.
+    while difference > 180.0
+        difference -= 360.0
     end
 
     if return_abs == true
@@ -113,28 +113,28 @@ function angle_difference(trend_1::Float64, trend_2::Float64; return_abs::Bool=t
 end
 
 
-function point_sphere_to_cart(lon, lat, depth; R=EARTH_RAD_KM)
+function point_sphere_to_cart(lon, lat, depth; R = EARTH_RAD_KM)
     r = R + depth
 
     x = r * cosd(lat) * cosd(lon)
     y = r * cosd(lat) * sind(lon)
     z = r * sind(lat)
-    
+
     [x, y, z]
 end
 
 
-function point_sphere_to_cart(pos; R=EARTH_RAD_KM)
+function point_sphere_to_cart(pos; R = EARTH_RAD_KM)
     lon = pos[1]
     lat = pos[2]
     depth = pos[3]
-    
+
     r = R + depth
 
     x = r * cosd(lat) * cosd(lon)
     y = r * cosd(lat) * sind(lon)
     z = r * sind(lat)
-    
+
     [x, y, z]
 end
 
@@ -144,14 +144,14 @@ function rotate_velocity(vx::Float64, vy::Float64, angle::Float64)
 end
 
 
-function rotate_velocity_err(ex, ey, angle; cov=0.)
-    
+function rotate_velocity_err(ex, ey, angle; cov = 0.0)
+
     R = [cos(angle) -sin(angle); sin(angle) cos(angle)]
 
     M = [ex^2 cov; cov ey^2]
-    
+
     var = R * M * R'
-    err = [sqrt(var[1,1]), sqrt(var[2,2]), var[1,2]]
+    err = [sqrt(var[1, 1]), sqrt(var[2, 2]), var[1, 2]]
 end
 
 """
@@ -168,7 +168,7 @@ end
 
 function get_oblique_merc(lon1, lat1, lon2, lat2)
     # correction for perfectly horizontal lines or lat1 at zero
-    if (lat1 == lat2) || (lat1 == 0.)
+    if (lat1 == lat2) || (lat1 == 0.0)
         lat1 = lat1 + 1e-4
     end
 
@@ -184,7 +184,7 @@ function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
     xy = [transform(wgs84, omerc, [lon, lats[i]]) for (i, lon) in enumerate(lons)]
     x = [c[1] for c in xy]
     y = [c[2] for c in xy]
-    
+
     (x, y)
 end
 
@@ -198,11 +198,11 @@ away from another point at a specified (initial) bearing.
 Formula from https://www.movable-type.co.uk/scripts/latlong.html
 """
 function terminal_coords_from_bearing_dist(lon1, lat1, bearing, dist)
-    ang_dist = dist /  EARTH_RAD_KM
+    ang_dist = dist / EARTH_RAD_KM
 
     lat2 = asind(sind(lat1) * cos(ang_dist) + cosd(lat1) * sin(ang_dist) * cosd(bearing))
-    lon2 = lon1 + atand( sind(bearing) * sin(ang_dist) * cosd(lat1),
-                         cos(ang_dist) - sind(lat1) * sind(lat2))
+    lon2 = lon1 + atand(sind(bearing) * sin(ang_dist) * cosd(lat1),
+        cos(ang_dist) - sind(lat1) * sind(lat2))
     lon2, lat2
 end
 
@@ -210,10 +210,10 @@ end
 function polyline_seg_lengths(polyline::Array{Float64,2})
     n_segs = size(polyline, 1) - 1
     seg_lengths = Array{Float64}(undef, n_segs)
-    
-    for i in 1:n_segs
-        seg_lengths[i] = gc_distance(polyline[i,1], polyline[i,2],
-            polyline[i + 1,1], polyline[i + 1,2])
+
+    for i = 1:n_segs
+        seg_lengths[i] = gc_distance(polyline[i, 1], polyline[i, 2],
+            polyline[i+1, 1], polyline[i+1, 2])
     end
     seg_lengths
 end
@@ -255,23 +255,23 @@ as the argument.
 function sample_polyline(polyline::Array{Float64,2}, dists)
     seg_lengths = polyline_seg_lengths(polyline)
     n_segs = length(seg_lengths)
-    cum_lengths = vcat(0., cumsum(seg_lengths))
+    cum_lengths = vcat(0.0, cumsum(seg_lengths))
 
     new_pts = Array{Float64,2}[]
-    
-    for dist in dists[dists .> 0]
-        last_smaller_idx = size(cum_lengths[cum_lengths .< dist], 1) 
+
+    for dist in dists[dists.>0]
+        last_smaller_idx = size(cum_lengths[cum_lengths.<dist], 1)
         if last_smaller_idx <= n_segs
             start_lon, start_lat = polyline[last_smaller_idx, :]
-            end_lon, end_lat = polyline[last_smaller_idx + 1, :]
+            end_lon, end_lat = polyline[last_smaller_idx+1, :]
             seg_az = azimuth(start_lon, start_lat, end_lon, end_lat)
             remain_dist = dist - cum_lengths[last_smaller_idx]
-            
+
             new_lon, new_lat = terminal_coords_from_bearing_dist(start_lon,
                 start_lat, seg_az, remain_dist)
 
             push!(new_pts, [new_lon new_lat])
-         # elseif ??
+            # elseif ??
         end
     end
     vcat(new_pts)
@@ -288,8 +288,8 @@ function simplify_polyline(polyline, min_dist)
     n = size(polyline)[1]
     index = n * 1
 
-    for i in 1:n
-        d = point_line_distance(polyline[i,:], polyline[1,:], polyline[n,:])
+    for i = 1:n
+        d = point_line_distance(polyline[i, :], polyline[1, :], polyline[n, :])
 
         if d > dmax
             index = i
@@ -298,12 +298,12 @@ function simplify_polyline(polyline, min_dist)
     end
 
     if dmax > min_dist
-        r1 = simplify_polyline(polyline[1:index,:], min_dist)
-        r2 = simplify_polyline(polyline[index:n,:], min_dist)
+        r1 = simplify_polyline(polyline[1:index, :], min_dist)
+        r2 = simplify_polyline(polyline[index:n, :], min_dist)
 
-        simp_line = [r1[1:end - 1,:]; r2]
+        simp_line = [r1[1:end-1, :]; r2]
     else
-        simp_line = [polyline[1:1,:]; polyline[n:n,:]]
+        simp_line = [polyline[1:1, :]; polyline[n:n, :]]
     end
     simp_line
 end
@@ -329,35 +329,35 @@ end
 
 function break_polyline_equal(polyline, n_segs)
     segment_lengths = polyline_seg_lengths(polyline)
-    vertex_cum_dists = vcat(0., cumsum(segment_lengths))
+    vertex_cum_dists = vcat(0.0, cumsum(segment_lengths))
     poly_length = vertex_cum_dists[end]
 
     new_polylines = []
     if n_segs > 1
         seg_length = poly_length / n_segs
         cum_lengths = seg_length .* collect(1:n_segs)
-        break_dists = cum_lengths[1:end - 1]
+        break_dists = cum_lengths[1:end-1]
 
         break_coords = sample_polyline(polyline, break_dists)
-        break_idxs = [length(vertex_cum_dists[vertex_cum_dists .< break_dist])
-            for break_dist in break_dists]
+        break_idxs = [length(vertex_cum_dists[vertex_cum_dists.<break_dist])
+                      for break_dist in break_dists]
 
-        for n_seg in 1:n_segs
+        for n_seg = 1:n_segs
             if n_seg == 1
                 start_idx = 1
                 stop_idx = break_idxs[1]
-                seg_trace = vcat(polyline[start_idx:stop_idx, :], 
-                                 break_coords[1])
+                seg_trace = vcat(polyline[start_idx:stop_idx, :],
+                    break_coords[1])
             elseif (n_seg > 1) & (n_seg < n_segs)
-                start_idx = break_idxs[n_seg - 1] + 1
+                start_idx = break_idxs[n_seg-1] + 1
                 stop_idx = break_idxs[n_seg]
-                seg_trace = vcat(break_coords[n_seg - 1], 
-                                 polyline[start_idx:stop_idx, :],
-                                 break_coords[n_seg])
+                seg_trace = vcat(break_coords[n_seg-1],
+                    polyline[start_idx:stop_idx, :],
+                    break_coords[n_seg])
             else
-                start_idx = break_idxs[n_seg - 1] + 1
-                seg_trace = vcat(break_coords[n_seg - 1],
-                                 polyline[start_idx:end,:])
+                start_idx = break_idxs[n_seg-1] + 1
+                seg_trace = vcat(break_coords[n_seg-1],
+                    polyline[start_idx:end, :])
             end # if
             push!(new_polylines, seg_trace)
         end # for n_seg
@@ -374,7 +374,7 @@ function check_winding_order(coords::Array{Float64,2})
         (p2[1] - p1[1]) * (p2[2] + p1[2])
     end
 
-    Int(sign(sum([fun(coords[i,:], coords[i - 1,:]) for i in 2:size(coords, 1)])))
+    Int(sign(sum([fun(coords[i, :], coords[i-1, :]) for i = 2:size(coords, 1)])))
 end
 
 
@@ -384,14 +384,14 @@ function check_winding_order(coords)
         (p2[1] - p1[1]) * (p2[2] + p1[2])
     end
 
-    Int(sign(sum([fun(coords[i], coords[i - 1]) for i in 2:size(coords, 1)])))
+    Int(sign(sum([fun(coords[i], coords[i-1]) for i = 2:size(coords, 1)])))
 end
 
 
 function strike_dip_from_3_pts(pt1, pt2, pt3)
-    A = [pt1[1] pt1[2] 1.;
-         pt2[1] pt2[2] 1.;
-         pt3[1] pt3[2] 1.]
+    A = [pt1[1] pt1[2] 1.0
+        pt2[1] pt2[2] 1.0
+        pt3[1] pt3[2] 1.0]
 
     zvec = [-pt1[3], -pt2[3], -pt3[3]]
 
@@ -399,7 +399,7 @@ function strike_dip_from_3_pts(pt1, pt2, pt3)
 
     dip = atand(sqrt(mx^2 + my^2))
     dip_dir = atan(my, mx)
-    strike_angle = dip_dir + pi / 2.
+    strike_angle = dip_dir + pi / 2.0
     # strike_angle = dip_dir
     strike = angle_to_az(strike_angle)
 
