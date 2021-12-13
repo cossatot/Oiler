@@ -468,7 +468,18 @@ function build_velocity_projection_matrix(strike::Float64, dip::Float64)
 end
 
 
+function project_fault_trace(fault)
+    hdist = fault.lsd / tand(fault.dip)
+    az = fault.strike + 90.0
 
+    new_trace = zeros(size(fault.trace))
+
+    for i = 1:size(fault.trace, 1)
+        new_trace[i, :] .= Oiler.Geom.terminal_coords_from_bearing_dist(
+            fault.trace[i, 1], fault.trace[i, 2], az, hdist)
+    end
+    new_trace
+end
 
 
 end # module

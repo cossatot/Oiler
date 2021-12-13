@@ -283,6 +283,26 @@ function test_build_velocity_projection_matrix_1()
 end
 
 
+function test_project_fault_trace()
+    new_thrust_coords = [-121.0 37.4
+        -121.5 37.2
+        -121.5 36.6
+        -121.0 36.2]
+
+    new_thrust = Oiler.Fault(trace = new_thrust_coords, dip = 15.0, lsd = 10.0, dip_dir = "E")
+
+    new_trace = project_fault_trace(new_thrust)
+
+    new_trace_ans = [-120.606 36.0938
+        -121.104 36.4938
+        -121.101 37.0938
+        -120.6 37.2938]
+
+    @test new_trace == new_trace_ans
+
+end
+
+
 @testset "test faults.jl" begin
     test_fault_to_vel_1()
     test_fault_to_vel_2()
@@ -299,4 +319,5 @@ end
     test_fault_slip_rate_to_ve_vn()
     test_strike_rot_matrix_xd()
     test_build_velocity_projection_matrix_1()
+    test_project_fault_trace()
 end

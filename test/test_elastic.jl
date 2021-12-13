@@ -7,21 +7,21 @@ rtol = 0.01
 
 
 function test_calc_locking_effects_per_fault_1()
-    ff = Oiler.Fault(trace=[-81.905471 12.945880; -81.554797 12.114126],
-                     dip=20., dip_dir="S", lsd=20.)
+    ff = Oiler.Fault(trace = [-81.905471 12.945880; -81.554797 12.114126],
+        dip = 20.0, dip_dir = "S", lsd = 20.0)
 
     lons = [-81.739]
     lats = [12.527]
 
-    pp = Oiler.Elastic.calc_locking_effects_per_fault(ff, lons, lats; 
-            elastic_floor=0.)[1]
+    pp = Oiler.Elastic.calc_okada_locking_effects_per_fault(ff, lons, lats;
+        elastic_floor = 0.0)[1]
 
     # no good way of verifying this right now; doesn't match Meade and Loveless
     # because of the oblique mercator projections are different
     # and perhaps other reasons
-    @test isapprox(pp, [1.11344e8   1.0689e9    4.68748e9;
-                        -5.3601e9   -8.55279e8  -3.39197e8;
-                         0.0         0.0         0.0]; rtol=rtol)
+    @test isapprox(pp, [1.11344e8 1.0689e9 4.68748e9
+            -5.3601e9 -8.55279e8 -3.39197e8
+            0.0 0.0 0.0]; rtol = rtol)
 end
 
 
@@ -68,6 +68,31 @@ function test_calc_locking_effects_1()
                          0.0         0.0         0.0]; rtol=rtol)
 
 end
+
+
+function test_get_fault_tris()
+    new_thrust_coords = [-121.0 37.4
+        -121.5 37.2
+        -121.5 36.6
+        -121.0 36.2]
+
+    new_thrust = Oiler.Fault(trace = new_thrust_coords, dip = 15.0, lsd = 10.0, dip_dir = "E")
+
+    tris = Oiler.Elastic.get_fault_tris(new_thrust)
+
+    fault_tris = [Oiler.Tris.Tri([-121.0, 36.2, 0.0], [-121.5, 36.6, 0.0], [-120.60571152819729, 36.0938117593902, -10.0], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, "", "", "")
+        Oiler.Tris.Tri([-121.10368477385849, 36.493802239447874, -10.0], [-120.60571152819729, 36.0938117593902, -10.0], [-121.5, 36.6, 0.0], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, "", "", "")
+        Oiler.Tris.Tri([-121.5, 36.6, 0.0], [-121.5, 37.2, 0.0], [-121.10368477385849, 36.493802239447874, -10.0], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, "", "", "")
+        Oiler.Tris.Tri([-121.100568518915, 37.09378777341805, -10.0], [-121.10368477385849, 36.493802239447874, -10.0], [-121.5, 37.2, 0.0], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, "", "", "")
+        Oiler.Tris.Tri([-121.5, 37.2, 0.0], [-121.0, 37.4, 0.0], [-121.100568518915, 37.09378777341805, -10.0], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, "", "", "")
+        Oiler.Tris.Tri([-120.599509046255, 37.29378290052262, -10.0], [-121.100568518915, 37.09378777341805, -10.0], [-121.0, 37.4, 0.0], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, "", "", "")]
+
+    for (i, tri) in enumerate(tris)
+        @test tri == fault_tris[i]
+    end
+
+end
+
 
 
 @testset "test elastic.jl" begin

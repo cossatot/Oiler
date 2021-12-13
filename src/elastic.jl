@@ -45,8 +45,8 @@ function fault_to_okada(fault::Fault, sx1::Float64, sy1::Float64,
 end
 
 
-function calc_locking_effects_per_fault(fault::Fault, lons, lats;
-    elastic_floor = 1e-4, check_nans = false)
+function calc_okada_locking_effects_per_fault(fault::Fault, lons, lats;
+    elastic_floor = 1e-4, check_nans = false, ss = 1.0, ds = 1.0, ts = 1.0)
 
     # project fault and velocity coordinates
     n_gnss = length(lons)
@@ -54,14 +54,11 @@ function calc_locking_effects_per_fault(fault::Fault, lons, lats;
     xg, yg = xp[1:n_gnss], yp[1:n_gnss] # gnss
     sx1, sy1, sx2, sy2 = xp[end-1], yp[end-1], xp[end], yp[end] # fault 
 
-    # TODO: add distance-based filtering HERE to maintain some sparsity in
-    # the results to preserve RAM
-
     # format Okada
     D = fault_to_okada(fault, sx1, sy1, sx2, sy2)
 
     # calc Okada partials
-    elastic_partials = distribute_partials(okada(D, 1.0, 1.0, 1.0,
+    elastic_partials = distribute_partials(okada(D, ss, ts, ds,
         xg, yg; floor = elastic_floor))
 
     if check_nans == true
@@ -99,7 +96,7 @@ function calc_locking_effects_segmented_fault(fault::Fault, lons, lats;
     parts = []
     for i = 1:size(simp_trace, 1)-1
         seg_trace = simp_trace[i:i+1, :]
-        part = calc_locking_effects_per_fault(Oiler.Fault(trace = seg_trace,
+        part = calc_okada_locking_effects_per_fault(Oiler.Fault(trace = seg_trace,
                 dip = fault.dip,
                 dip_dir = fault.dip_dir,
                 lsd = fault.lsd, usd = fault.usd),
@@ -111,7 +108,111 @@ function calc_locking_effects_segmented_fault(fault::Fault, lons, lats;
 end
 
 
+function calc_any_fault_locking_effects(fault::Fault, lons, lats;
+    elastic_floor = 1e-4, check_nans = false, dip_threshold = 45.0)
+
+    if fault.dip >= dip_threshold
+        return calc_locking_effects_segmented_fault(fault, lons, lats;
+            elastic_floor = elastic_floor, check_nans = check_nans)
+    else
+        return calc_tri_locking_effects_per_fault(fault, lons, lats;
+            elastic_floor = elastic_floor, check_nans = check_nans)
+    end
+end
+
+function get_tri_slip_vec(ds, ss, fault_strike, tri_strike)
+    angle_diff = Oiler.Geom.angle_difference(fault_strike, tri_strike, return_abs = false)
+    rad_diff = deg2rad(angle_diff)
+    new_ds, new_ss = Oiler.Geom.rotate_velocity(ds, ss, rad_diff)
+end
+
+function calc_tri_locking_effects_per_fault(fault::Fault, lons, lats;
+    ss = 1.0, ds = 1.0, ts = 0.0, elastic_floor = 1e-4, check_nans = false)
+
+    trace = fault.trace
+    simp_trace = Oiler.Geom.simplify_polyline(trace, 0.2)
+    simp_fault = Fault(trace = simp_trace, dip = fault.dip, lsd = fault.lsd,
+        dip_dir = fault.dip_dir)
+
+    fault_tris = get_fault_tris(simp_fault)
+
+    ds_slip_vecs = zeros(length(fault_tris))
+    ss_slip_vecs = zeros(length(fault_tris))
+
+    for (i, tri) in enumerate(fault_tris)
+        tri_strike = Oiler.Tris.get_tri_strike_dip(tri)[1]
+        ds_slip_vecs[i], ss_slip_vecs[i] = get_tri_slip_vec(ds, ss, simp_fault.strike, tri_strike)
+    end
+
+    due = zeros(length(lons))
+    dun = zeros(length(lons))
+    duv = zeros(length(lons))
+    sue = zeros(length(lons))
+    sun = zeros(length(lons))
+    suv = zeros(length(lons))
+    txx = zeros(length(lons))
+
+    for (i, tri) in enumerate(fault_tris)
+        de, dn, dv, se, sn, sv = calc_tri_slip(tri, lons, lats;
+            ss = ss_slip_vecs[i], ds = ds_slip_vecs[i], floor = elastic_floor)
+        due .+= de
+        dun .+= dn
+        duv .+= dv
+        sue .+= se
+        sun .+= sn
+        suv .+= sv
+    end
+
+    elastic_partials = distribute_partials((sue, sun, suv,
+        due, dun, duv, txx, txx, txx))
+
+    if check_nans == true
+        for (i, ep) in enumerate(elastic_partials)
+            if any(isnan, ep)
+                @warn "NaN"
+                @warn i
+                @warn fault
+                bad_lon, bad_lat = lons[i], lats[i]
+                @warn "$bad_lon, $bad_lat"
+            end
+        end
+    end
+
+    # build rotation and transformation matrices
+    Pf = Oiler.Faults.build_velocity_projection_matrix(fault.strike, fault.dip)
+
+    PvGbf = Oiler.BlockRotations.build_PvGb_vel(
+        Oiler.fault_to_vel(fault)
+    )
+
+    PfPvGbf = Pf * PvGbf
+
+    [part * PfPvGbf for part in elastic_partials]
+end
+
+
+function get_fault_tris(fault::Fault)
+    lower_trace = Oiler.Faults.project_fault_trace(fault)
+
+    tris = []
+    for i = 1:size(fault.trace, 1)-1
+        t1 = [fault.trace[i, 1]; fault.trace[i, 2]; 0.0]
+        t2 = [fault.trace[i+1, 1]; fault.trace[i+1, 2]; 0.0]
+        b1 = [lower_trace[i, 1]; lower_trace[i, 2]; -fault.lsd]
+        b2 = [lower_trace[i+1, 1]; lower_trace[i+1, 2]; -fault.lsd]
+        tri1 = Oiler.Tris.Tri(p1 = t1, p2 = t2, p3 = b1)
+        tri2 = Oiler.Tris.Tri(p1 = t2, p2 = b1, p3 = b2)
+        push!(tris, tri1)
+        push!(tris, tri2)
+    end
+
+    tris
+end
+
+
+
 function distribute_partials(partials::NTuple{9,Array{Float64}})
+    # (es, ens, )
     n_gnss = length(partials[1])
     [make_partials_matrix(partials, i) for i = 1:n_gnss]
 end
@@ -149,7 +250,8 @@ function calc_locking_effects(faults, vel_groups; elastic_floor = 1e-4,
     @threads for vg in vg_keys
         if haskey(fault_groups, vg)
             locking_partial_groups[vg] = sum([
-                calc_locking_effects_segmented_fault(fault, gnss_lons, gnss_lats,
+                #calc_locking_effects_segmented_fault(fault, gnss_lons, gnss_lats,
+                calc_any_fault_locking_effects(fault, gnss_lons, gnss_lats,
                     elastic_floor = elastic_floor, check_nans = check_nans)
                 for fault in fault_groups[vg]
             ])
@@ -177,7 +279,7 @@ end
     calc_tri_effects
 
 Calculates unit strike and dip slip on all GNSS velocities for all tris.
-Returns an Mx2T matrix, where M is the number of sites and T is the number
+Returns an 3Mx2T matrix, where M is the number of sites and T is the number
 of tris. Only horizontal components are returned.
 """
 function calc_tri_effects(tris, gnss_lons, gnss_lats; elastic_floor = 1e-4)
@@ -201,17 +303,16 @@ end
 
 function calc_tri_effects_single_tri(tri, lons, lats; elastic_floor = 1e-4)
 
-    ss_slip = 1.# e-3 # mm
-    ds_slip = 1.# e-3 # mm
-    ts_slip = 0.0 # no tensile slip on tris
+    ss = 1.# e-3 # mm
+    ds = 1.# e-3 # mm
+    ts = 0.0 # no tensile slip on tris
 
-    calc_tri_slip(tri, lons, lats; ss_slip = ss_slip, ds_slip = ds_slip,
-        ts_slip = ts_slip, floor = elastic_floor)
+    calc_tri_slip(tri, lons, lats; ss = ss, ds = ds,
+        ts = ts, floor = elastic_floor)
 end
 
 
-function calc_tri_slip(tri, lons, lats; ss_slip = 0.0, ds_slip = 0.0, ts_slip = 0.0,
-    floor = 1e-4)
+function calc_tri_slip(tri, lons, lats; ss = 0.0, ds = 0.0, ts = 0.0, floor = 1e-4)
 
     # project coordinates of tri and sites
     x_proj, y_proj = Oiler.Tris.tri_merc(tri, lons, lats)
@@ -233,24 +334,30 @@ function calc_tri_slip(tri, lons, lats; ss_slip = 0.0, ds_slip = 0.0, ts_slip = 
 
     # dip slip component
     due, dun, duv = Oiler.TD.TDdispHS(x_gnss, y_gnss, z_gnss, tri_p1, tri_p2,
-        tri_p3, 0.0, ds_slip)
-    due[abs.(due).<abs(ds_slip * floor)] .= 0.0
-    dun[abs.(dun).<abs(ds_slip * floor)] .= 0.0
-    duv[abs.(duv).<abs(ds_slip * floor)] .= 0.0
+        tri_p3, 0.0, ds)
+    due[abs.(due).<abs(ds * floor)] .= 0.0
+    dun[abs.(dun).<abs(ds * floor)] .= 0.0
+    duv[abs.(duv).<abs(ds * floor)] .= 0.0
 
-    # strike_slip_component
+    # strike_component
     sue, sun, suv = Oiler.TD.TDdispHS(x_gnss, y_gnss, z_gnss, tri_p1, tri_p2,
-        tri_p3, ss_slip, 0.0)
+        tri_p3, ss, 0.0)
 
-    sue[abs.(sue).<abs(ss_slip * floor)] .= 0.0
-    sun[abs.(sun).<abs(ss_slip * floor)] .= 0.0
-    suv[abs.(suv).<abs(ss_slip * floor)] .= 0.0
+    sue[abs.(sue).<abs(ss * floor)] .= 0.0
+    sun[abs.(sun).<abs(ss * floor)] .= 0.0
+    suv[abs.(suv).<abs(ss * floor)] .= 0.0
 
     due', dun', duv', sue', sun', suv'
 end
 
 
 function arrange_tri_partials(due, dun, duv, sue, sun, suv; uv_zero = true)
+
+    # one 3x2 matrix for each site, stacked vertically
+    # due sue
+    # dun sun
+    # duv suv
+
     n_vels = length(due)
 
     if uv_zero == true
