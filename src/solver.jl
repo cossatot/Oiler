@@ -209,13 +209,13 @@ function make_tri_regularization_matrix(tris, distance_weight)
             tri2 = tris[tri_enum[tri2_name]]
             t1_ind = 2 * tri_enum[tri1_name] - 1
             t2_ind = 2 * tri_enum[tri2_name] - 1
-
+        
             const_mat = zeros(2, 2 * size(tris, 1))
             centroid_dist = Oiler.Tris.tri_centroid_distance(tri1, tri2)
             const_mat[1, t1_ind] = distance_weight / centroid_dist
             const_mat[2, t1_ind+1] = distance_weight / centroid_dist
             const_mat[1, t2_ind] = -distance_weight / centroid_dist
-            const_mat[2, t2_ind] = -distance_weight / centroid_dist
+            const_mat[2, t2_ind+1] = -distance_weight / centroid_dist
             push!(tri_eqns, const_mat)
         end
     end
