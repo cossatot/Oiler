@@ -758,6 +758,9 @@ end
 
 function tris_from_geojson(tri_json)
     tris = map(tri_from_feature, tri_json["features"])
+
+    tris = filter(t -> (t.p1 != t.p2) && (t.p1 != t.p3) && (t.p2 != t.p3), tris)
+
 end
 
 

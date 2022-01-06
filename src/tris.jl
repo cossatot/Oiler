@@ -44,10 +44,15 @@ function Tri(;
     )
 
     for z in [p1[3] p2[3] p3[3]]
-        if z > 0.
-            warn_msg = "Z coordinate $z > 0 (above HS surface)"
+        if z > 0.0
+            warn_msg = "Tri $name has Z coordinate $z > 0 (above HS surface)"
             @warn warn_msg
         end
+    end
+
+    if (p1 == p2) || (p1 == p3) || (p2 == p3)
+        warn_msg = "Tri $name has duplicated coordinates"
+        @warn warn_msg
     end
 
     if Oiler.Geom.check_winding_order([p1, p2, p3, p1]) == 1
