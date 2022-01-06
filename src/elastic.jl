@@ -109,7 +109,10 @@ end
 
 
 function calc_any_fault_locking_effects(fault::Fault, lons, lats;
-    elastic_floor = 1e-4, check_nans = false, dip_threshold = 45.0)
+    elastic_floor = 1e-4, check_nans = false, dip_threshold = 0.0)
+
+    # tri locking calcs are slower and may be a bit more inaccurate;
+    # for now they are turned off.
 
     if fault.dip >= dip_threshold
         return calc_locking_effects_segmented_fault(fault, lons, lats;
