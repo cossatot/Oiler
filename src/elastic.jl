@@ -1,5 +1,8 @@
 module Elastic
 
+using Logging
+using ThreadsX
+
 import Base.Threads.@spawn
 import Base.Threads.@threads
 
@@ -8,7 +11,6 @@ using ..Oiler: Fault, VelocityVectorSphere, fault_oblique_merc, get_gnss_vels,
     get_coords_from_vel_array, az_to_angle, okada
 
 
-using Logging
 
 export fault_to_okada
 
@@ -294,7 +296,7 @@ function calc_tri_effects(tris, gnss_lons, gnss_lats; elastic_floor = 1e-4)
     #sun_alloc = zeros(length(gnss_lons))
     #suv_alloc = zeros(length(gnss_lons))
 
-    tri_gnss_partials = hcat(collect(
+    tri_gnss_partials = hcat(ThreadsX.collect(
         [arrange_tri_partials(
         calc_tri_effects_single_tri(tri, gnss_lons, gnss_lats;
             elastic_floor = elastic_floor)...)
