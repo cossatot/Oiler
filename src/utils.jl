@@ -8,9 +8,12 @@ using ..Oiler: VelocityVectorSphere, PoleCart, PoleSphere, build_PvGb_from_vels,
     build_vel_column_from_vels, add_poles, pole_sphere_to_cart
 
 using Logging
-using DataFrames
 using SparseArrays
 using LinearAlgebra
+
+using ThreadsX
+using Setfield
+using DataFrames
 
 
 function diagonalize_matrices(matrices; sparse_output = true)
@@ -616,6 +619,26 @@ function make_gnss_df_from_vel_groups(vel_groups)
     vel__ = get_gnss_vels(vel_groups)
     vels = [v["vel"] for v in vel__]
     make_df_from_vel_array(vels)
+end
+
+
+function tri_priors_from_pole(tris, pole; locking_fraction = 1.0,
+    err_coeff = 1.0, depth_adjust = false)
+    tri_rates = ThreadsX.map(x -> Oiler.Tris.get_tri_rate_from_pole(x, pole), tris)
+
+    function set_tri_rates(tri, rate_array, locking_fraction, err_coeff)
+        tri = @set tri.dip_slip_rate = rate_array[1] * locking_fraction
+        tri = @set tri.dip_slip_err = rate_array[2] * err_coeff
+        tri = @set tri.strike_slip_rate = rate_array[3] * locking_fraction
+        tri = @set tri.strike_slip_err = rate_array[4] * err_coeff
+        tri = @set tri.cds = rate_array[5]
+    end
+
+    for (i, tri) in enumerate(tris)
+        tris[i] = set_tri_rates(tri, tri_rates[i], locking_fraction, err_coeff)
+    end
+
+    tris
 end
 
 
