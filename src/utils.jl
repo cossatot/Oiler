@@ -471,7 +471,7 @@ function check_vel_closures(poles; tol = 1e-5)
 end
 
 
-function get_fault_slip_rates_from_poles(faults, poles; use_path = false)
+function get_fault_slip_rates_from_poles(faults, poles; use_path = true)
     rates = []
     for fault in faults
         fault_key = (fault.fw, fault.hw)
@@ -623,19 +623,32 @@ end
 
 
 function tri_priors_from_pole(tris, pole; locking_fraction = 1.0,
-    err_coeff = 1.0, depth_adjust = false)
+    err_coeff = 1.0, depth_adjust = false, depth_max = 80.0)
     tri_rates = ThreadsX.map(x -> Oiler.Tris.get_tri_rate_from_pole(x, pole), tris)
 
-    function set_tri_rates(tri, rate_array, locking_fraction, err_coeff)
-        tri = @set tri.dip_slip_rate = rate_array[1] * locking_fraction
+    function set_tri_rates(tri, rate_array, locking_fraction, err_coeff, depth_adjust, depth_max)
+
+        if depth_adjust
+            depth = -Oiler.Tris.get_tri_center(tri)[3]
+            if depth < depth_max
+                depth_fraction = (depth_max - depth) / depth_max
+            else
+                depth_fraction = 0.0
+            end
+        else
+            depth_fraction = 1.0
+        end
+
+        tri = @set tri.dip_slip_rate = rate_array[1] * locking_fraction * depth_fraction
         tri = @set tri.dip_slip_err = rate_array[2] * err_coeff
-        tri = @set tri.strike_slip_rate = rate_array[3] * locking_fraction
+        tri = @set tri.strike_slip_rate = rate_array[3] * locking_fraction * depth_fraction
         tri = @set tri.strike_slip_err = rate_array[4] * err_coeff
         tri = @set tri.cds = rate_array[5]
     end
 
     for (i, tri) in enumerate(tris)
-        tris[i] = set_tri_rates(tri, tri_rates[i], locking_fraction, err_coeff)
+        tris[i] = set_tri_rates(tri, tri_rates[i], locking_fraction, err_coeff,
+            depth_adjust, depth_max)
     end
 
     tris

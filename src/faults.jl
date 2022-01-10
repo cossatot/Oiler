@@ -305,14 +305,15 @@ function fault_to_vels(fault::Fault; simp_dist::Float64=1.)
     simp_trace = Oiler.Geom.simplify_polyline(fault.trace, simp_dist)
     fault_length = Oiler.Geom.polyline_length(simp_trace)
 
-    if fault_length < 20.
+    if fault_length < 10.0
         n_segs = 1
-    elseif (20. <= fault_length) & (fault_length < 60.)
+    elseif (10.0 <= fault_length) & (fault_length < 30.0)
         n_segs = 2
-    elseif (60. <= fault_length) & (fault_length < 150.)
+    elseif (30.0 <= fault_length) & (fault_length < 60.0)
         n_segs = 3
     else
-        n_segs = Int(floor(150. / 50.))
+        #n_segs = Int(floor(150. / 50.))
+        n_segs = Int(floor(fault_length / 20.0))
     end
 
     new_traces = Oiler.Geom.break_polyline_equal(simp_trace, n_segs)

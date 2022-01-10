@@ -6,6 +6,38 @@ rtol = 0.01
 
 
 
+function test_okada_displacements_per_fault()
+
+    ss = 1.0
+    ds = 1.0
+    ts = 1.0
+
+    fault = Oiler.Fault(trace = [-81.905471 12.945880; -81.554797 12.114126],
+        dip = 20.0, dip_dir = "S", lsd = 20.0)
+
+    lons = [-81.739]
+    lats = [12.527]
+
+    n_gnss = length(lons)
+    xp, yp = fault_oblique_merc(fault, lons, lats)
+    xg, yg = xp[1:n_gnss], yp[1:n_gnss] # gnss
+    sx1, sy1, sx2, sy2 = xp[end-1], yp[end-1], xp[end], yp[end] # fault 
+
+    # format okada
+    d = fault_to_okada(fault, sx1, sy1, sx2, sy2)
+
+    # calc okada partials
+    elastic_floor = 0.0
+    offset_comps = okada(d, ss, ts, ds, xg, yg; floor = elastic_floor)
+
+    x = offset_comps[1] + offset_comps[4] + offset_comps[7]
+    y = offset_comps[2] + offset_comps[5] + offset_comps[8]
+    z = offset_comps[3] + offset_comps[6] + offset_comps[9]
+
+    x, y, z
+end
+
+
 function test_calc_locking_effects_per_fault_1()
     ff = Oiler.Fault(trace = [-81.905471 12.945880; -81.554797 12.114126],
         dip = 20.0, dip_dir = "S", lsd = 20.0)

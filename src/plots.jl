@@ -18,14 +18,17 @@ function plot_results_map(results, vel_groups, faults, tris=[])
 
     if length(tris) > 0
         cm = get_cmap(:viridis)
-
+    
         tri_rates = [get_tri_total_rate(tri, results) for tri in tris]
         tri_rate_min = minimum(tri_rates)
         tri_rate_max = maximum(tri_rates)
-
+    
+        #clim(tri_rate_min, tri_rate_max)
+    
         for tri in tris
-            plot_tri(tri, results; vmin=tri_rate_min, vmax=tri_rate_max, cm=cm)
+            plot_tri(tri, results; vmin = tri_rate_min, vmax = tri_rate_max, cm = cm)
         end
+        #colorbar()
     end
 
     quiver(vel_df.lon, vel_df.lat,

@@ -212,10 +212,10 @@ function make_tri_regularization_matrix(tris, distance_weight)
         
             const_mat = zeros(2, 2 * size(tris, 1))
             centroid_dist = Oiler.Tris.tri_centroid_distance(tri1, tri2)
-            const_mat[1, t1_ind] = distance_weight / centroid_dist
-            const_mat[2, t1_ind+1] = distance_weight / centroid_dist
-            const_mat[1, t2_ind] = -distance_weight / centroid_dist
-            const_mat[2, t2_ind+1] = -distance_weight / centroid_dist
+            const_mat[1, t1_ind] = distance_weight / centroid_dist^2
+            const_mat[2, t1_ind+1] = distance_weight / centroid_dist^2
+            const_mat[1, t2_ind] = -distance_weight / centroid_dist^2
+            const_mat[2, t2_ind+1] = -distance_weight / centroid_dist^2
             push!(tri_eqns, const_mat)
         end
     end
@@ -254,10 +254,14 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors = false, regularize = tru
     gnss_lats = [vel["vel"].lat for vel in gnss_vels]
     gnss_idxs = [vel["idx"] for vel in gnss_vels]
 
-    tri_effects = Oiler.Elastic.calc_tri_effects(tris, gnss_lons, gnss_lats;
+    @info "   calculating tri locking partials"
+    @time tri_effects = Oiler.Elastic.calc_tri_effects(tris, gnss_lons, gnss_lats;
         elastic_floor = elastic_floor)
+    @info "   done"
+    #@info "    making tri effect matrices"
     tri_gnss_effects_matrix = zeros((size(PvGb)[1], size(tri_effects)[2]))
 
+    #@info "    adding matrices together"
     for (i, vel_idx) in enumerate(gnss_idxs)
         i3 = i * 3
         gnss_row_idxs = i3-2:i3
@@ -267,11 +271,13 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors = false, regularize = tru
     end
     PvGb = hcat(PvGb, tri_gnss_effects_matrix)
 
+    #@info "    doing regularization"
     # Priors and regularization
     tri_reg_matrix = zeros(0, nt * 2)
     tri_reg_weights = zeros(0)
     tri_reg_vels = zeros(0)
 
+    # @info "    making regularization matrices"
     if regularize == true
         distance_reg_matrix = make_tri_regularization_matrix(tris, distance_weight)
         tri_reg_matrix = vcat(tri_reg_matrix, distance_reg_matrix)
@@ -279,6 +285,7 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors = false, regularize = tru
         tri_reg_vels = vcat(tri_reg_vels, zeros(size(tri_reg_matrix, 1)))
     end
 
+    #@info "    doing priors"
     if priors == true
         priors, prior_vels, prior_weights = make_tri_prior_matrices(tris)
         tri_reg_matrix = vcat(tri_reg_matrix, priors)
@@ -286,10 +293,12 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors = false, regularize = tru
         tri_reg_weights = vcat(tri_reg_weights, prior_weights)
     end
 
+    #@info "    finalizing"
     tri_reg_block = hcat(zeros(size(tri_reg_matrix, 1), PvGb_n_cols), tri_reg_matrix)
 
     PvGb = vcat(PvGb, tri_reg_block)
 
+    #@info "    done"
     vd["weights"] = vcat(vd["weights"], zeros(size(tri_reg_weights))) # maybe 1s?
     vd["tri_weights"] = tri_reg_weights
     vd["Vc"] = vcat(vd["Vc"], tri_reg_vels)
@@ -424,7 +433,7 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
         vd["PvGb"] = add_fault_locking_to_PvGb(faults, vel_groups, vd["PvGb"];
             elastic_floor = elastic_floor, check_nans = check_nans)
         @info " done doing locking"
-
+    
     end
 
     if length(tris) > 0

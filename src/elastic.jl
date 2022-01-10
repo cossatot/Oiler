@@ -56,11 +56,11 @@ function calc_okada_locking_effects_per_fault(fault::Fault, lons, lats;
     xg, yg = xp[1:n_gnss], yp[1:n_gnss] # gnss
     sx1, sy1, sx2, sy2 = xp[end-1], yp[end-1], xp[end], yp[end] # fault 
 
-    # format Okada
-    D = fault_to_okada(fault, sx1, sy1, sx2, sy2)
+    # format okada
+    d = fault_to_okada(fault, sx1, sy1, sx2, sy2)
 
-    # calc Okada partials
-    elastic_partials = distribute_partials(okada(D, ss, ts, ds,
+    # calc okada partials
+    elastic_partials = distribute_partials(okada(d, ss, ts, ds,
         xg, yg; floor = elastic_floor))
 
     if check_nans == true
@@ -101,7 +101,10 @@ function calc_locking_effects_segmented_fault(fault::Fault, lons, lats;
         part = calc_okada_locking_effects_per_fault(Oiler.Fault(trace = seg_trace,
                 dip = fault.dip,
                 dip_dir = fault.dip_dir,
-                lsd = fault.lsd, usd = fault.usd),
+                lsd = fault.lsd,
+                usd = fault.usd
+                #usd = maximum([fault.usd; 1.0])
+            ),
             lons, lats; elastic_floor = elastic_floor,
             check_nans = check_nans)
         push!(parts, part)
@@ -289,20 +292,12 @@ of tris. Only horizontal components are returned.
 """
 function calc_tri_effects(tris, gnss_lons, gnss_lats; elastic_floor = 1e-4)
 
-    #due_alloc = zeros(length(gnss_lons))
-    #dun_alloc = zeros(length(gnss_lons))
-    #duv_alloc = zeros(length(gnss_lons))
-    #sue_alloc = zeros(length(gnss_lons))
-    #sun_alloc = zeros(length(gnss_lons))
-    #suv_alloc = zeros(length(gnss_lons))
-
     tri_gnss_partials = hcat(ThreadsX.collect(
-        [arrange_tri_partials(
-        calc_tri_effects_single_tri(tri, gnss_lons, gnss_lats;
-            elastic_floor = elastic_floor)...)
-         for tri in tris]
+        arrange_tri_partials(
+            calc_tri_effects_single_tri(tri, gnss_lons, gnss_lats;
+                elastic_floor = elastic_floor)...)
+        for tri in tris
     )...)
-
 end
 
 
