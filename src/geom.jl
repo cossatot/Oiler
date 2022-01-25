@@ -168,7 +168,7 @@ end
 
 function get_oblique_merc(lon1, lat1, lon2, lat2)
     # correction for perfectly horizontal lines or lat1 at zero
-    if (lat1 == lat2) || (lat1 == 0.0)
+    if (abs(lat1 - lat2) < 1e-4) || (lat1 == 0.0)
         lat1 = lat1 + 1e-4
     end
 

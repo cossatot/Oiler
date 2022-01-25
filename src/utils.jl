@@ -625,6 +625,12 @@ end
 function tri_priors_from_pole(tris, pole; locking_fraction = 1.0,
     err_coeff = 1.0, depth_adjust = false, depth_max = 80.0)
     tri_rates = ThreadsX.map(x -> Oiler.Tris.get_tri_rate_from_pole(x, pole), tris)
+    #tri_rates = map(x -> Oiler.Tris.get_tri_rate_from_pole(x, pole), tris)
+    #tri_rates = []
+    #for (i, tri) in enumerate(tris)
+    #    println(i)
+    #    push!(tri_rates, Oiler.Tris.get_tri_rate_from_pole(tri, pole))
+    #end
 
     function set_tri_rates(tri, rate_array, locking_fraction, err_coeff, depth_adjust, depth_max)
 

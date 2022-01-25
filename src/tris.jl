@@ -130,8 +130,8 @@ function tri_merc(tri, lons, lats)
 
     ps1, ps2 = get_tri_strike_line(tri.p1, tri.p2, tri.p3)
 
-    xp, yp = Oiler.Geom.oblique_merc(lons_w_tri_pts, lats_w_tri_pts, ps1[1], 
-                                ps1[2], ps2[1], ps2[2])
+    xp, yp = Oiler.Geom.oblique_merc(lons_w_tri_pts, lats_w_tri_pts, ps1[1],
+        ps1[2], ps2[1], ps2[2])
 end
 
 """
