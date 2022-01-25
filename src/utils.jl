@@ -655,6 +655,30 @@ function tri_priors_from_pole(tris, pole; locking_fraction = 1.0,
 end
 
 
+function find_first_nz_per_row(matrix)
+    first_idxs = []
+    nr, nc = size(matrix)
+    for i in 1:nr
+        for j in 1:nc
+            if matrix[i,j] != 0.
+                push!(first_idxs, (i,j))
+                break
+            end
+        end
+    end
+    first_idxs
+end
+
+
+function sort_sparse_matrix(matrix)
+    first_idxs = find_first_nz_per_row(matrix)
+
+    first_idxs = sort!(first_idxs, by=x->x[2])
+    rows = [x[1] for x in first_idxs]
+
+    matrix[rows,:]
+end
+
 
 function get_block_centroids(blocks) end
 

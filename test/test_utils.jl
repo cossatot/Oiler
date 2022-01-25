@@ -330,6 +330,23 @@ function test_group_faults()
     @test fault_groups == group_faults_answer
 end
 
+function test_find_first_nz_per_row()
+
+    A = sparse([0.0 2.3 0 0; 0. 0. 9. 22.; 2. 0 5. 7.])
+    first_idxs = Oiler.Utils.find_first_nz_per_row(A)
+    first_idxs_answer = [(1,2), (2,3), (3,1)]
+    @test first_idxs == first_idxs_answer
+end
+
+
+function test_sort_sparse_matrix()
+    A = sparse([0.0 2.3 0 0; 0. 0. 9. 22.; 2. 0 5. 7.])
+
+    A_sort = Oiler.Utils.sort_sparse_matrix(A)
+    A_sort_ans = sparse([2. 0. 5. 7.; 0. 2.3 0. 0.; 0. 0. 9. 22.])
+
+    @test A_sort == A_sort_ans
+end
 
 
 @testset "test utils.jl" begin
