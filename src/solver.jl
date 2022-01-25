@@ -498,6 +498,7 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
             cm = hcat(cm, zeros(size(cm)[1], length(tris) * 2))
             cm = vcat(cm, zeros(size(PvGb, 1) - size(cm, 1), size(PvGb, 2)))
         end
+        cm = Oiler.Utils.sort_sparse_matrix(cm)
     end
 
     if weighted == true
