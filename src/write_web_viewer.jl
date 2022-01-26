@@ -42,16 +42,20 @@ function get_block_adj(block_df)
     df_adj = Dict(block_df[i,:fid] => [] for i in 1:size(block_df, 1))
 
     for i in 1:size(block_df, 1)
-        f1 = block_df[i,:]
+        f1 = block_df[i, :]
         fid1 = f1[:fid]
+        g1 = f1[:geometry]
         for j in 1:size(block_df, 1)
-            f2 = block_df[i,:]
+            f2 = block_df[j, :]
             fid2 = f2[:fid]
-            if !(fid1 in df_adj[fid2])
-                push!(df_adj[fid2], fid1)
-            end
-            if !(fid2 in df_adj[fid1])
-                push!(df_adj[fid1], fid1)
+            were_touching = check_geom(g1, f2[:geometry])
+            if were_touching
+                if !(fid1 in df_adj[fid2])
+                    push!(df_adj[fid2], fid1)
+                end
+                if !(fid2 in df_adj[fid1])
+                    push!(df_adj[fid1], fid1)
+                end
             end
         end
     end
@@ -59,18 +63,18 @@ function get_block_adj(block_df)
 end
 
 
-function check_geom(g1, g2; n_min_pts=2)
-    g1 = Oiler.IO.get_coords_from_geom(g1)
-    g2 = Oiler.IO.get_coords_from_geom(g2)
+function check_geom(g1, g2; n_min_pts = 2)
+    g1c = Oiler.IO.get_geom_coords_from_feature(g1)
+    g2c = Oiler.IO.get_geom_coords_from_feature(g2)
 
-    pt_set_1 = Set([Tuple(g1[i,:]) for i in 1:size(g1, 1)]) 
-    pt_set_2 = Set([Tuple(g2[i,:]) for i in 1:size(g2, 1)])
-    
+    pt_set_1 = Set([Tuple(g1c[i, :]) for i in 1:size(g1c, 1)])
+    pt_set_2 = Set([Tuple(g2c[i, :]) for i in 1:size(g2c, 1)])
+
     if pt_set_1 == pt_set_2
         return_val = false
     else
         common_pts = intersect(pt_set_1, pt_set_2)
-        return_val = (length(common_pts >= n_min_pts))
+        return_val = (length(common_pts) >= n_min_pts)
     end
     return_val
 end
