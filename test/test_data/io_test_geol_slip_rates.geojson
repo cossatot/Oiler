@@ -1,0 +1,11 @@
+{
+"type": "FeatureCollection",
+"name": "io_test_geol_slip_rates",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "fid": 1, "dextral_rate": 2.5, "dextral_err": 0.25, "extension_rate": null, "extension_err": null, "fault_seg": "1", "include": false }, "geometry": { "type": "Point", "coordinates": [ 0.585887818123653, 1.358316559907059 ] } },
+{ "type": "Feature", "properties": { "fid": 2, "dextral_rate": null, "dextral_err": null, "extension_rate": 0.2, "extension_err": 0.1, "fault_seg": "4", "include": true }, "geometry": { "type": "Point", "coordinates": [ 0.837754007475755, 1.432051925242457 ] } },
+{ "type": "Feature", "properties": { "fid": 3, "dextral_rate": 0.1, "dextral_err": 0.01, "extension_rate": 0.2, "extension_err": 0.02, "fault_seg": "2", "include": true }, "geometry": { "type": "Point", "coordinates": [ 1.482047800040411, 1.414778633216595 ] } },
+{ "type": "Feature", "properties": { "fid": 4, "dextral_rate": 0.35, "dextral_err": 0.2, "extension_rate": null, "extension_err": null, "fault_seg": null, "include": false }, "geometry": { "type": "Point", "coordinates": [ 1.407772644329204, 1.162588569639008 ] } }
+]
+}

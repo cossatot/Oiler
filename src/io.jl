@@ -468,7 +468,8 @@ function get_blocks_in_bounds!(block_df, bound_df; epsg=0)
 
     block_idxs = falses(length(block_geoms))
     for (i, block_geom) in enumerate(block_geoms)
-        if any((inpolygon(pt, bound) == 1) for pt in block_geom)
+        if any((inpolygon(pt, bound) == 1) for pt in block_geom) | 
+           any((inpolygon(pt, block_geom) == 1) for pt in bound)
             block_idxs[i] = true
         end
     end
@@ -927,7 +928,6 @@ end
 function row_to_feature(row; min_dist=0.001, simplify=true,
     check_poly_winding_order=true, epsg=3995)
 
-
     if typeof(row[:geometry]) == Oiler.Geom.Polygon
         geom_json = geom_to_geojson(row[:geometry]; simplify=simplify,
             min_dist=min_dist, check_poly_winding_order=check_poly_winding_order,
@@ -964,8 +964,6 @@ end
 
 function geom_to_geojson(geom::Oiler.Geom.Polygon; simplify=false, min_dist=0.0001,
                          check_poly_winding_order=true, epsg=3995)
-    
-
     if simplify
         coords = Oiler.Geom.simplify_polyline(geom.coords, min_dist)
     else

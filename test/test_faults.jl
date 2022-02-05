@@ -291,12 +291,12 @@ function test_project_fault_trace()
 
     new_thrust = Oiler.Fault(trace = new_thrust_coords, dip = 15.0, lsd = 10.0, dip_dir = "E")
 
-    new_trace = project_fault_trace(new_thrust)
+    new_trace = Oiler.Faults.project_fault_trace(new_thrust)
 
-    new_trace_ans = [-120.606 36.0938
-        -121.104 36.4938
-        -121.101 37.0938
-        -120.6 37.2938]
+    new_trace_ans = [-120.5840782861774 36.20045428065595; 
+    -121.08193195903539 36.6004436871955; 
+    -121.07863183830526 37.200427589088946; 
+    -120.57750984903879 37.40042216620642]
 
     @test new_trace == new_trace_ans
 

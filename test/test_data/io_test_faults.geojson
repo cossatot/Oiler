@@ -1,0 +1,10 @@
+{
+"type": "FeatureCollection",
+"name": "io_test_faults",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "fid": 1, "dip": 60.0, "dip_dir": "E", "hw": "3", "fw": "5", "usd": 0.0, "lsd": 20.0, "v_rl": 0.0, "e_rl": 1.0, "v_ex": 0.0, "e_ex": 1.0, "rate_type": "est", "name": "f1", "notes": "note" }, "geometry": { "type": "LineString", "coordinates": [ [ 0.492625999386338, 0.707169680907842 ], [ 0.639709871093275, 1.736756782856397 ] ] } },
+{ "type": "Feature", "properties": { "fid": 2, "dip": 30.0, "dip_dir": "NW", "hw": "1", "fw": "2", "usd": 0.0, "lsd": 15.0, "v_rl": 3.0, "e_rl": 2.0, "v_ex": 1.0, "e_ex": 5.0, "rate_type": "est", "name": "f2", "notes": "asdf" }, "geometry": { "type": "LineString", "coordinates": [ [ 1.649009542461562, 2.233798832072941 ], [ 1.816380844748766, 1.488235758248125 ], [ 0.928805756862081, 1.290433310090521 ] ] } },
+{ "type": "Feature", "properties": { "fid": 4, "dip": 89.0, "dip_dir": "E", "hw": "1", "fw": "3", "usd": 0.0, "lsd": 20.0, "v_rl": null, "e_rl": null, "v_ex": null, "e_ex": null, "rate_type": null, "name": null, "notes": null }, "geometry": { "type": "LineString", "coordinates": [ [ 0.639709871093275, 1.736756782856397 ], [ 0.928805756862081, 1.290433310090521 ] ] } }
+]
+}

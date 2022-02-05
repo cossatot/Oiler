@@ -1,0 +1,11 @@
+{
+"type": "FeatureCollection",
+"name": "io_test_gnss_vels",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "fid": 1, "e_vel": 5.0, "n_vel": 4.0, "e_err": 0.1, "n_err": 3.0, "station": "1", "source": "aa", "ref_frame": "EU" }, "geometry": { "type": "Point", "coordinates": [ -0.467094865038152, 1.083360621433274 ] } },
+{ "type": "Feature", "properties": { "fid": 2, "e_vel": 6.0, "n_vel": 2.0, "e_err": 5.0, "n_err": 1.0, "station": "aaaa", "source": "bb", "ref_frame": "EU" }, "geometry": { "type": "Point", "coordinates": [ 0.307399720062997, 2.145356984337122 ] } },
+{ "type": "Feature", "properties": { "fid": 3, "e_vel": 2.0, "n_vel": 3.0, "e_err": 4.0, "n_err": 5.0, "station": "3", "source": "aa", "ref_frame": "EU" }, "geometry": { "type": "Point", "coordinates": [ 1.146435520589242, 2.356582780273799 ] } },
+{ "type": "Feature", "properties": { "fid": 4, "e_vel": 1.0, "n_vel": 2.0, "e_err": 1.0, "n_err": 2.0, "station": "llll", "source": "aa", "ref_frame": "EU" }, "geometry": { "type": "Point", "coordinates": [ 1.005618323298124, 1.705303242802378 ] } }
+]
+}

@@ -58,7 +58,7 @@ function test_get_tri_strike_dip()
     
     tri_2 = Oiler.Tris.Tri(p1=pt1, p2=pt4, p3=pt5)
     strike_2, dip_2 = Oiler.Tris.get_tri_strike_dip(tri_2)
-    @test isapprox(strike_2, 45.19132722116258)
+    @test isapprox(strike_2, 45.19132459503624)
     @test isapprox(dip_2, 54.50372439999114)
 end
 
