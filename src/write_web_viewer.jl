@@ -1,7 +1,7 @@
 module WebViewer
 
 using Mustache
-using ArchGDAL
+#using ArchGDAL
 
 using ..Oiler
 
@@ -30,7 +30,7 @@ function write_web_viewer(;results, block_df, directory::AbstractString, ref_pol
     cp(main_file, joinpath(directory, "js", "main.js"); force=true)
     
     Oiler.IO.write_solution_poles(pole_filepath, results, block_df, ref_pole)
-    Oiler.IO.write_block_df(block_df, block_filepath)
+    Oiler.IO.write_block_df(block_df, block_filepath, simplify=true)
 
     open(joinpath(directory, "index.html"), "w") do f
         write(f, filled_index_html)
@@ -64,8 +64,8 @@ end
 
 
 function check_geom(g1, g2; n_min_pts = 2)
-    g1c = Oiler.IO.get_geom_coords_from_feature(g1)
-    g2c = Oiler.IO.get_geom_coords_from_feature(g2)
+    g1c = g1.coords
+    g2c = g2.coords
 
     pt_set_1 = Set([Tuple(g1c[i, :]) for i in 1:size(g1c, 1)])
     pt_set_2 = Set([Tuple(g2c[i, :]) for i in 1:size(g2c, 1)])

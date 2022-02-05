@@ -168,11 +168,11 @@ end
 
 function get_oblique_merc(lon1, lat1, lon2, lat2)
     # correction for perfectly horizontal lines or lat1 at zero
-    if (abs(lat1 - lat2) < 1e-4) || (lat1 == 0.0)
-        lat1 = lat1 + 1e-4
+    if (abs(lat1 - lat2) < 1e-3) || (lat1 == 0.0)
+        lat1 = lat1 + 1e-3
     end
 
-    init_str = "+proj=omerc +lat_1=$lat1 +lon_1=$lon1 +lat_2=$lat2 +lon_2=$lon2"
+    init_str = "+proj=omerc +lat_1=$lat1 +lon_1=$lon1 +lat_2=$lat2 +lon_2=$lon2 +ellps=WGS84"
     omerc = Projection(init_str)
 end
 
@@ -405,6 +405,43 @@ function strike_dip_from_3_pts(pt1, pt2, pt3)
 
     strike, dip
 
+end
+
+struct LineString
+    coords::Array{Float64,2}
+end
+
+struct Polygon
+    coords::Array{Float64,2}
+end
+
+struct Point
+    coords::Array{Float64,2}
+end
+
+
+function polygon_center(pts)
+    centroid = [0. 0.]
+    
+    n = size(pts, 1)
+    signed_area = 0.
+    
+    for i in 1:n
+        ii = i+1
+        if ii > n
+            ii = 1
+        end
+        x0, y0 = pts[i,:]
+        x1, y1 = pts[ii, :]
+        
+        A = (x0 * y1) - (x1 * y0)
+        signed_area += A
+        
+        centroid[1] += (x0 + x1) * A
+        centroid[2] += (y0 + y1) * A
+    end
+        
+    centroid ./= 3 * signed_area
 end
 
 

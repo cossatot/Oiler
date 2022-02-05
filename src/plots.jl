@@ -67,7 +67,7 @@ function plot_slip_rate_fig(geol_slip_rate_df, geol_slip_rate_vels,
     for (i, rate) in enumerate(geol_slip_rate_vels)
         # fault_idx = parse(Int, rate.name)
         fault_idx = rate.name
-        fault_row = @where(fault_df, :fid .== fault_idx)[1,:]
+        fault_row = @subset(fault_df, :fid .== fault_idx)[1,:]
         fault = Oiler.IO.row_to_fault(fault_row; lsd=lsd,
                                                  usd=usd)
         
@@ -88,11 +88,11 @@ function plot_slip_rate_fig(geol_slip_rate_df, geol_slip_rate_vels,
     inc = map(!, iszero.(geol_slip_rate_df[!,:include]))
     
     function check_missing(val)
-        if val == ""
+        if ismissing(val) | isnothing(val)
+            return false
+        elseif val == ""
             return false
         elseif val == 0.
-            return false
-        elseif ismissing(val) | isnothing(val)
             return false
         else
             return true

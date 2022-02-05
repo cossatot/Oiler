@@ -11,12 +11,11 @@ import Base.Threads.@threads
 
 using CSV
 using JSON
-using ArchGDAL
-using GeoFormatTypes
+using Proj4: Transformation
+using PolygonOps: inpolygon
 using DataFrames: DataFrame, DataFrameRow
 using DataFramesMeta
 
-const AG = ArchGDAL
 
 
 function vel_from_row(row::DataFrameRow)
@@ -136,116 +135,117 @@ function poles_to_df(poles::Array{PoleCart,1};
 end
 
 
-function gis_vec_file_to_df(filename::AbstractString; 
-                            layername::AbstractString="")
-    dataset = AG.read(filename)
-    if layername == ""
-        layer = AG.getlayer(dataset, 0)
-    else
-        layer = AG.getlayer(dataset, layername)
-    end
 
-    dataframe = DataFrame(layer)
-    
-    if !("geometry" in names(dataframe))
-        rename!(dataframe, "" => :geometry)
+function gj_linestring_to_array(gj_coords)
+    if length(gj_coords[1]) == 2
+        arr = vcat([[c[1] c[2]] for c in gj_coords]...)
+    elseif length(gj_coords[1]) == 3
+        arr = vcat([[c[1] c[2] c[3]] for c in gj_coords]...)
     end
-
-    if !("fid" in names(dataframe))
-        nfeat = AG.nfeature(layer)
-        fids = []
-        for nf in 1:nfeat
-            feature = AG.unsafe_nextfeature(layer)
-            push!(fids, AG.getfid(feature))
-        end
-        dataframe[!, "fid"] = fids
-    end
-
-    dataframe
+    arr
 end
 
 
-function gis_vec_file_to_df_old(filename::AbstractString; layername="")
-    dataset = AG.read(filename)
-    if layername == ""
-        layer = AG.getlayer(dataset, 0)
-    else
-        layer = AG.getlayer(dataset, layername)
+function gj_polygon_to_array(gj_coords)
+    return gj_linestring_to_array(gj_coords[1])
+end
+
+
+function gj_point_to_array(gj_coords)
+    c = gj_coords
+    if length(gj_coords) == 2
+        arr = [c[1] c[2]]
+    elseif length(gj_coords) == 3
+        arr = [c[1] c[2] c[3]]
     end
+    arr
+end
 
-    nfeat = AG.nfeature(layer)
-    nfield = AG.nfield(layer)
 
-    # prepare Dict with empty vectors of the right type for each field
-    d = Dict{String,Vector}()
-    featuredefn = AG.layerdefn(layer)
-    for field_no in 0:nfield - 1
-        field = AG.getfielddefn(featuredefn, field_no)
-        name = AG.getname(field)
-        typ = AG._FIELDTYPE[AG.gettype(field)]
-        d[name] = typ[]
-    end
-    d["geometry"] = AG.IGeometry[]
-    # d["fid"] = Int64[]
-    d["fid"] = []
-
-    # loop over the features to fill the vectors in the Dict
-    # for fid in 0:nfeat-1
-    for nf in 1:nfeat
-        try
-            feature = AG.unsafe_nextfeature(layer)# do feature
-            for (k, v) in pairs(d)
-                if k == "geometry"
-                    val = AG.getgeom(feature, 0)
-                elseif k == "fid"
-                    try
-                        val = AG.getfield(feature, k)
-                    catch
-                        val = AG.getfid(feature)
-                    end
-                else
-                    val = AG.getfield(feature, k)
-                end
-                push!(v, val)
-            end
-        catch e
-            println(e)
+function reformat_feature(feat; convert_geom=true)
+    ref = Dict{String,Any}("geometry" => feat["geometry"]["coordinates"])
+    ref["geom_type"] = feat["geometry"]["type"]
+    if convert_geom == true
+        if ref["geom_type"] == "LineString"
+            ref["geometry"] = Oiler.Geom.LineString(gj_linestring_to_array(ref["geometry"]))
+        elseif ref["geom_type"] == "Polygon"
+            ref["geometry"] = Oiler.Geom.Polygon(gj_polygon_to_array(ref["geometry"]))
+        elseif ref["geom_type"] == "Point"
+            ref["geometry"] = Oiler.Geom.Point(gj_point_to_array(ref["geometry"]))
         end
     end
-    # construct a DataFrame from the Dict
-    df = DataFrame(d)
-end
 
-
-function get_geom_coords_from_feature(feature)
-    geom = AG.getgeom(feature, 0)
-    coords = get_coords_from_geom(geom)
-end
-
-
-function get_coords_from_geom(geom)
-    n_pts = AG.ngeom(geom)
-
-    coords = Array{Float64}(undef, n_pts, 2)
-
-    for i in 0:n_pts - 1
-        coords[i + 1, 1] = AG.getx(geom, i)
-        coords[i + 1, 2] = AG.gety(geom, i)
+    for (prop, val) in feat["properties"]
+        if !isnothing(val)
+            ref[prop] = val
+        else
+            ref[prop] = missing
+        end
     end
-    coords
+    return ref
 end
+
+
+function reformat_geojson(gj; convert_geom=true)
+    [reformat_feature(feat; convert_geom=convert_geom) for feat in gj["features"]]
+end
+
+
+function gj_to_df(gj; convert_geom=true)
+    feats = reformat_geojson(gj; convert_geom=convert_geom)
+
+    cols = collect(keys(feats[1]))
+
+    col_dict = Dict{String, Any}()
+    for col in cols
+        col_dict[col] = [f[col] for f in feats]
+    end
+
+    if !("fid" in cols)
+        col_dict["fid"] = collect(range(1,length(feats)))
+    end
+
+    DataFrame(col_dict)
+
+end
+
+
+function gis_vec_file_to_df(filename::AbstractString)
+    if !(last(split(filename, ".")) in ["json", "geojson"])
+        throw(ArgumentError("only geojson files implemented"))
+    end
+
+    gj = JSON.parsefile(filename)
+    return gj_to_df(gj)
+end
+
+
+
+function get_coords_from_geom(geom::Oiler.Geom.Point)
+    return geom.coords
+end
+
+
+function get_coords_from_geom(geom::Oiler.Geom.LineString)
+    return geom.coords
+end
+
+function get_coords_from_geom(geom::Oiler.Geom.Polygon)
+    return geom.coords
+end
+
 
 
 function get_block_idx_for_points(point_df, block_df)
-    point_geoms = point_df[:, :geometry]
+    point_geoms = [p.coords for p in point_df[:, :geometry]]
     idxs = Array{Any}(missing, length(point_geoms))
 
     @threads for i_b in 1:size(block_df, 1)
-        block_geom = block_df[i_b, :geometry]
+        block_geom = collect(eachrow(block_df[i_b, :geometry].coords))
         block_fid = block_df[i_b, :fid]
         
         @threads for (i_p, pg) in collect(enumerate(point_geoms))
-            if AG.contains(block_geom, pg)
+            if inpolygon(pg, block_geom) == 1
                 if !ismissing(idxs[i_p])
                     pfid = point_df[i_p, :fid]
                     @warn "$pfid in multiple blocks"
@@ -260,26 +260,20 @@ end
 
 
 function get_block_idx_for_points(point_df, block_df, to_epsg)
+    point_geoms = [p.coords for p in point_df[:, :geometry]]
 
-    point_geoms = point_df[:, :geometry]
-    point_geoms_p = [AG.clone(p) for p in point_geoms]
-    point_geoms_p = [AG.reproject(pg, 
-            ProjString("+proj=longlat +datum=WGS84 +no_defs"), 
-            EPSG(to_epsg)) for pg in point_geoms_p]
+    trans = Transformation("EPSG:4326", "EPSG:$to_epsg", always_xy=true)
+    point_geoms = trans.(point_geoms)
 
     idxs = Array{Any}(missing, length(point_geoms))
 
     @threads for i_b in 1:size(block_df, 1)
-        block_geom = block_df[i_b, :geometry]
-
-        block_geom_p = AG.reproject(AG.clone(block_geom), 
-            ProjString("+proj=longlat +datum=WGS84 +no_defs"), 
-            EPSG(to_epsg))
-
+        block_geom = collect(eachrow(block_df[i_b, :geometry].coords))
+        block_geom = trans.(block_geom)
         block_fid = block_df[i_b, :fid]
         
-        @threads for (i_p, pg) in collect(enumerate(point_geoms_p))
-            if AG.contains(block_geom_p, pg)
+        @threads for (i_p, pg) in collect(enumerate(point_geoms))
+            if inpolygon(pg, block_geom) == 1
                 if !ismissing(idxs[i_p])
                     pfid = point_df[i_p, :fid]
                     @warn "$pfid in multiple blocks"
@@ -292,36 +286,6 @@ function get_block_idx_for_points(point_df, block_df, to_epsg)
     idxs
 end
 
-
-# function get_block_idx_for_point_list(point_list, block_df; epsg=4326)
-#   point_geoms = map(p->AG.createpoint(p[1],p[2]), point_list)
-#
-#   if epsg != 4326
-#       point_geoms = map(x->AG.reproject(x,
-#                           ProjString("+proj=longlat +datum=WGS84 +no_defs"), 
-#                           EPSG(epsg)),
-#                   point_geoms)
-#   end
-#
-#   idxs = Array{Any}(missing, length(point_geoms))
-#
-#   for i_b in 1:size(block_df, 1)
-#       block_geom = AG.clone(block_df[i_b, :geometry])
-#       if epsg != 4326
-#           block_geom = AG.reproject(block_geom, 
-#               ProjString("+proj=longlat +datum=WGS84 +no_defs"), EPSG(epsg))
-#       end
-#
-#       block_fid = block_df[i_b, :fid]
-#
-#       for (i_p, pg) in point_geoms
-#           if AG.contains(block_geom, pg)
-#               idxs[i_p] = block_fid
-#           end
-#       end
-#   end
-#   idxs
-# end
 
 
 function get_block_idx_for_point(point, block_df; epsg=4326)
@@ -352,9 +316,9 @@ end
 
 
 function val_nothing_fix(vel; return_val=0.)
-    if vel == ""
+    if isnothing(vel) | ismissing(vel) | (typeof(vel) == Missing)
         return return_val
-    elseif isnothing(vel) | ismissing(vel)
+    elseif vel == ""
         return return_val
     else
         if typeof(vel) == String
@@ -367,9 +331,9 @@ end
 
 
 function err_nothing_fix(err; return_val=1., weight=1.)
-    if err == ""
+    if isnothing(err) | ismissing(err) | (err == 0.)
         return return_val
-    elseif isnothing(err) | ismissing(err) | (err == 0.)
+    elseif err == ""
         return return_val
     else
         if typeof(err) == String
@@ -393,6 +357,9 @@ function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex
     trace = Oiler.IO.get_coords_from_geom(row[:geometry])
     if name in names(row)
         _name = row[:name]
+        if ismissing(_name)
+            _name = ""
+        end
     else
         _name = ""
     end
@@ -422,7 +389,7 @@ function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v
 
     faults = []
     for i in 1:size(fault_df, 1)
-        # try
+        #try
         push!(faults, Oiler.IO.row_to_fault(fault_df[i,:]; 
                                                 name=name, 
                                                 dip_dir=dip_dir,
@@ -440,10 +407,11 @@ function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v
                                                 usd_default=usd_default, 
                                                 lsd_default=lsd_default,
                                                 fid=fid) ) 
-        # catch
-        #    warn_msg = "Problem with $fault_df[i,:]"
+        #catch
+        #    prob_row = fault_df[i,:]
+        #    warn_msg = "Problem with $prob_row"
         #    @warn warn_msg 
-        # end 
+        #end 
     end
     faults = [f for f in faults if f.fw != ""]
     faults = [f for f in faults if f.hw != ""]
@@ -483,18 +451,16 @@ function load_faults_from_gis_files(fault_files... ; layernames=[])
     fault_df
 end
 
-
 function get_blocks_in_bounds!(block_df, bound_df; epsg=0)
-    bound_orig = bound_df[1,:geometry]
+    bound_orig = collect(eachrow(bound_df[1,:geometry].coords))
     block_geoms_orig = block_df[:,:geometry]
+    block_geoms_orig = [collect(eachrow(geom.coords)) for geom in block_geoms_orig]
 
     if epsg != 0
-        bound = AG.reproject(AG.clone(bound_orig), 
-            ProjString("+proj=longlat +datum=WGS84 +no_defs"), EPSG(epsg))
-        block_geoms = [AG.reproject(AG.clone(g), 
-                                    ProjString("+proj=longlat +datum=WGS84 +no_defs"), 
-                                    EPSG(epsg))
-                       for g in block_geoms_orig]
+        trans = Transformation("EPSG:4326", "EPSG:$epsg", always_xy=true)
+
+        bound = trans.(bound_orig)
+        block_geoms = [trans.(g) for g in block_geoms_orig]
     else
         bound = bound_orig
         block_geoms = block_geoms_orig
@@ -502,12 +468,13 @@ function get_blocks_in_bounds!(block_df, bound_df; epsg=0)
 
     block_idxs = falses(length(block_geoms))
     for (i, block_geom) in enumerate(block_geoms)
-        if AG.intersects(bound, block_geom)
+        if any((inpolygon(pt, bound) == 1) for pt in block_geom)
             block_idxs[i] = true
         end
     end
     block_df[block_idxs,:]
 end
+
 
 
 function get_blocks_and_faults_in_bounds!(block_df, fault_df, bound_df)
@@ -592,7 +559,7 @@ function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val=1.,
     else
         fault_idx = parse(fault_fid_type, fault_seg)
     end
-    fault_row = @where(fault_df, :fid .== fault_idx)[1,:]
+    fault_row = @subset(fault_df, :fid .== fault_idx)[1,:]
     fault = row_to_fault(fault_row;
                          name=name, 
                          dip_dir=dip_dir,
@@ -734,8 +701,6 @@ function make_geol_slip_rate_vels!(geol_slip_rate_df, fault_df;
     geol_slip_rate_vels = convert(Array{VelocityVectorSphere}, geol_slip_rate_vels)
     geol_slip_rate_df, geol_slip_rate_vels
 end
-
-
 
 
 function tri_from_feature(feat)
@@ -959,36 +924,24 @@ function write_results_stats(results, outfile; description=nothing)
     end
 end
 
+function row_to_feature(row; min_dist=0.001, simplify=true,
+    check_poly_winding_order=true, epsg=3995)
 
-function row_to_feature(row; coord_digits=5, simplify=true,
-    check_poly_winding_order=false, epsg=3995)
 
-    if check_poly_winding_order
-        gg = AG.clone(row[:geometry])
-        gg = AG.reproject(gg, ProjString("+proj=longlat +datum=WGS84 +no_defs"), 
-                          EPSG(epsg))
-        
-        coords = get_coords_from_geom(AG.getgeom(gg, 0))
-        if Oiler.Geom.check_winding_order(coords) == 1
-            reverse_poly = true
-        else
-            reverse_poly = false
-        end
+    if typeof(row[:geometry]) == Oiler.Geom.Polygon
+        geom_json = geom_to_geojson(row[:geometry]; simplify=simplify,
+            min_dist=min_dist, check_poly_winding_order=check_poly_winding_order,
+            epsg=epsg)
     else
-        reverse_poly = false
+        geom_json = geom_to_geojson(row[:geometry])
     end
 
-    feat = Dict{Any,Any}()
-    feat["type"] = "Feature"
-    feat["geometry"] = JSON.parse(AG.toJSON(AG.simplifypreservetopology(
-                                            row[:geometry], 1e-4),
-                                  COORDINATE_PRECISION=coord_digits))
-    if reverse_poly
-        reverse!(feat["geometry"]["coordinates"][1])
-    end
+    feat = Dict{Any,Any}("type" => "Feature",
+        "geometry" => geom_json)
+    
     feat["properties"] = Dict()
     for field in names(row)
-        if field != "geometry"
+        if !(field in ["geometry", "geom_type"])
             feat["properties"][field] = row[field]
         end
     end
@@ -996,12 +949,52 @@ function row_to_feature(row; coord_digits=5, simplify=true,
 end
 
 
-function features_to_geojson(feature_df; name="", coord_digits=5, 
+
+function geom_to_geojson(geom::Oiler.Geom.Point)
+    return Dict("coordinates"=> JSON.json(geom.coords),
+                "type"=> "Point")
+end
+
+
+function geom_to_geojson(geom::Oiler.Geom.LineString)
+    return Dict("coordinates": JSON.json(geom.coords),
+                "type": "LineString")
+end
+
+
+function geom_to_geojson(geom::Oiler.Geom.Polygon; simplify=false, min_dist=0.0001,
+                         check_poly_winding_order=true, epsg=3995)
+    
+
+    if simplify
+        coords = Oiler.Geom.simplify_polyline(geom.coords, min_dist)
+    else
+        coords = geom.coords
+    end
+
+    coords = Oiler.Utils.matrix_to_rows(coords)
+    
+    if check_poly_winding_order
+        trans = Transformation("EPSG:4326", "EPSG:$epsg", always_xy=true)
+        trans_coords = trans.(coords)
+
+        if Oiler.Geom.check_winding_order(trans_coords) == 1
+            reverse!(coords)
+        end
+    end
+
+
+    return Dict("coordinates" => JSON.json([coords]),
+                "type"=>"Polygon")
+end
+
+
+function features_to_geojson(feature_df; name="", min_dist=0.0001, simplify=false,
                              check_poly_winding_order=false, epsg=3995)
 
     gj = Dict("type" => "FeatureCollection", 
               "features" => [row_to_feature(feature_df[i,:]; 
-                                coord_digits=coord_digits,
+                                min_dist=min_dist,
                                 check_poly_winding_order=check_poly_winding_order,
                                 epsg=epsg)
                            for i in 1:size(feature_df, 1)])
@@ -1013,8 +1006,8 @@ function features_to_geojson(feature_df; name="", coord_digits=5,
 end
 
 
-function write_block_df(block_df, outfile; name="", coord_digits=5)
-    gj = features_to_geojson(block_df; name=name, coord_digits=coord_digits,
+function write_block_df(block_df, outfile; name="", min_dist=0.0001, simplify=false)
+    gj = features_to_geojson(block_df; name=name, min_dist=min_dist,
                              check_poly_winding_order=true)
     open(outfile, "w") do f
         JSON.print(f, gj)
