@@ -88,7 +88,7 @@ function plot_slip_rate_fig(geol_slip_rate_df, geol_slip_rate_vels,
     inc = map(!, iszero.(geol_slip_rate_df[!,:include]))
     
     function check_missing(val)
-        if ismissing(val) | isnothing(val)
+        if isnothing(val) | ismissing(val) | (typeof(val) == Missing)
             return false
         elseif val == ""
             return false
@@ -123,6 +123,10 @@ function plot_slip_rate_fig(geol_slip_rate_df, geol_slip_rate_vels,
     plot([data_min, data_max], [data_min, data_max], "C1--", lw=0.5);
     
     axis("equal");
+
+    dex_geol_obs = convert(Array{Float64}, dex_geol_obs)
+    println(dex_geol_err)
+
     errorbar(dex_geol_obs, dex_geol_pred, xerr=dex_geol_err, yerr=dex_geol_pred_err,
              fmt=",", elinewidth=0.3);
     

@@ -634,7 +634,6 @@ function tri_priors_from_pole(tris, pole; locking_fraction = 1.0,
     #tri_rates = map(x -> Oiler.Tris.get_tri_rate_from_pole(x, pole), tris)
     tri_rates = []
     for (i, tri) in enumerate(tris)
-        #println(i)
         push!(tri_rates, Oiler.Tris.get_tri_rate_from_pole(tri, pole))
     end
 

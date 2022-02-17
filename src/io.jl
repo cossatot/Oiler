@@ -315,6 +315,19 @@ function get_block_idx_for_point(point, block_df; epsg=4326)
 end
 
 
+function check_missing(val)
+    if isnothing(val) | ismissing(val) | (typeof(val) == Missing)
+        return false
+    elseif val == ""
+        return false
+    elseif val == 0.
+        return false
+    else
+        return true
+    end
+end
+
+
 function val_nothing_fix(vel; return_val=0.)
     if isnothing(vel) | ismissing(vel) | (typeof(vel) == Missing)
         return return_val
@@ -339,7 +352,7 @@ function err_nothing_fix(err; return_val=1., weight=1.)
         if typeof(err) == String
             err = parse(Float64, err) / weight
             if iszero(err)
-                return return_val
+                return return_val / weight
             else
                 return err
             end
@@ -699,6 +712,23 @@ function make_geol_slip_rate_vels!(geol_slip_rate_df, fault_df;
     end
 
     geol_slip_rate_df = geol_slip_rate_df[geol_slip_rate_keeps,:]
+
+    for (i, dex_rate) in enumerate(geol_slip_rate_df[!,:dextral_rate])
+        if (check_missing(dex_rate))
+            if !(check_missing(geol_slip_rate_df[i,:dextral_err]))
+                geol_slip_rate_df[i,:dextral_err] = 0.
+            end
+        end
+    end
+
+    for (i, ex_rate) in enumerate(geol_slip_rate_df[!,:extension_rate])
+        if (check_missing(ex_rate))
+            if !(check_missing(geol_slip_rate_df[i,:extension_err]))
+                geol_slip_rate_df[i,:extension_err] = 0.
+            end
+        end
+    end
+
     geol_slip_rate_vels = convert(Array{VelocityVectorSphere}, geol_slip_rate_vels)
     geol_slip_rate_df, geol_slip_rate_vels
 end
@@ -951,13 +981,13 @@ end
 
 
 function geom_to_geojson(geom::Oiler.Geom.Point)
-    return Dict("coordinates"=> JSON.json(geom.coords),
+    return Dict("coordinates"=> geom.coords,
                 "type"=> "Point")
 end
 
 
 function geom_to_geojson(geom::Oiler.Geom.LineString)
-    return Dict("coordinates": JSON.json(geom.coords),
+    return Dict("coordinates": geom.coords,
                 "type": "LineString")
 end
 
@@ -982,7 +1012,8 @@ function geom_to_geojson(geom::Oiler.Geom.Polygon; simplify=false, min_dist=0.00
     end
 
 
-    return Dict("coordinates" => JSON.json([coords]),
+    #return Dict("coordinates" => JSON.json([coords]),
+    return Dict("coordinates" => [coords],
                 "type"=>"Polygon")
 end
 
