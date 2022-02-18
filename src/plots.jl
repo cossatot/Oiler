@@ -125,7 +125,6 @@ function plot_slip_rate_fig(geol_slip_rate_df, geol_slip_rate_vels,
     axis("equal");
 
     dex_geol_obs = convert(Array{Float64}, dex_geol_obs)
-    println(dex_geol_err)
 
     errorbar(dex_geol_obs, dex_geol_pred, xerr=dex_geol_err, yerr=dex_geol_pred_err,
              fmt=",", elinewidth=0.3);
