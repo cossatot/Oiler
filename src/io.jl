@@ -201,7 +201,7 @@ end
 
 
 
-function gj_to_df(gj; convert_geom = true)
+function gj_to_df(gj; convert_geom = true, fid_drop = [])
     feats = reformat_geojson(gj; convert_geom = convert_geom)
 
     cols = collect(keys(feats[1]))
@@ -217,18 +217,22 @@ function gj_to_df(gj; convert_geom = true)
         col_dict["fid"] = collect(range(1, length = length(feats)))
     end
 
-    DataFrame(col_dict)
+    df = DataFrame(col_dict)
 
+    if fid_drop != []
+        df = filter(row -> !(row.fid in fid_drop), df)
+    end
+    df
 end
 
 
-function gis_vec_file_to_df(filename::AbstractString)
+function gis_vec_file_to_df(filename::AbstractString; fid_drop = [])
     if !(last(split(filename, ".")) in ["json", "geojson"])
         throw(ArgumentError("only geojson files implemented"))
     end
 
     gj = JSON.parsefile(filename)
-    return gj_to_df(gj)
+    return gj_to_df(gj; fid_drop = fid_drop)
 end
 
 
@@ -1042,14 +1046,30 @@ end
 
 
 function features_to_geojson(feature_df; name = "", min_dist = 0.0001, simplify = false,
-    check_poly_winding_order = false, epsg = 3995)
+    check_poly_winding_order = false, epsg = 102016)
+
+    features = []
+
+
+    for i in 1:size(feature_df, 1)
+        row = feature_df[i, :]
+
+        # I'm sorry
+        if row.fid != "ant"
+            push!(features, row_to_feature(row; min_dist = min_dist,
+                check_poly_winding_order = check_poly_winding_order,
+                epsg = epsg))
+        else
+            push!(features, row_to_feature(row; min_dist = min_dist,
+                check_poly_winding_order = check_poly_winding_order,
+                epsg = 102019))
+        end
+    end
+
+    println(length(features))
 
     gj = Dict("type" => "FeatureCollection",
-        "features" => [row_to_feature(feature_df[i, :];
-            min_dist = min_dist,
-            check_poly_winding_order = check_poly_winding_order,
-            epsg = epsg)
-                       for i in 1:size(feature_df, 1)])
+        "features" => features)
     if name != ""
         gj["name"] = name
     end
