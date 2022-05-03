@@ -33,8 +33,8 @@ function vel_from_row(row::DataFrameRow)
         en = 0.0
     end
 
-    VelocityVectorSphere(lon = row.lon, lat = row.lat, ee = ee, en = en,
-        ve = row.ve, vn = row.vn, fix = row.fix, mov = row.mov)
+    VelocityVectorSphere(lon=row.lon, lat=row.lat, ee=ee, en=en,
+        ve=row.ve, vn=row.vn, fix=row.fix, mov=row.mov)
 end
 
 
@@ -118,7 +118,7 @@ end
 
 
 function poles_to_df(poles::Array{PoleCart,1};
-    convert_to_sphere::Bool = false)
+    convert_to_sphere::Bool=false)
 
     if convert_to_sphere
         pole_sphere = map(pole_cart_to_sphere, poles)
@@ -162,7 +162,7 @@ function gj_point_to_array(gj_coords)
 end
 
 
-function reformat_feature(feat; convert_geom = true)
+function reformat_feature(feat; convert_geom=true)
     ref = Dict{String,Any}("geometry" => feat["geometry"]["coordinates"])
     ref["geom_type"] = feat["geometry"]["type"]
     if convert_geom == true
@@ -186,12 +186,12 @@ function reformat_feature(feat; convert_geom = true)
 end
 
 
-function reformat_geojson(gj; convert_geom = true)
-    [reformat_feature(feat; convert_geom = convert_geom) for feat in gj["features"]]
+function reformat_geojson(gj; convert_geom=true)
+    [reformat_feature(feat; convert_geom=convert_geom) for feat in gj["features"]]
 end
 
 
-function tryget(dict, key; default = missing)
+function tryget(dict, key; default=missing)
     if haskey(dict, key)
         return dict[key]
     else
@@ -201,8 +201,8 @@ end
 
 
 
-function gj_to_df(gj; convert_geom = true, fid_drop = [])
-    feats = reformat_geojson(gj; convert_geom = convert_geom)
+function gj_to_df(gj; convert_geom=true, fid_drop=[])
+    feats = reformat_geojson(gj; convert_geom=convert_geom)
 
     cols = collect(keys(feats[1]))
 
@@ -214,7 +214,7 @@ function gj_to_df(gj; convert_geom = true, fid_drop = [])
     end
 
     if !("fid" in cols)
-        col_dict["fid"] = collect(range(1, length = length(feats)))
+        col_dict["fid"] = collect(range(1, length=length(feats)))
     end
 
     df = DataFrame(col_dict)
@@ -226,13 +226,13 @@ function gj_to_df(gj; convert_geom = true, fid_drop = [])
 end
 
 
-function gis_vec_file_to_df(filename::AbstractString; fid_drop = [])
+function gis_vec_file_to_df(filename::AbstractString; fid_drop=[])
     if !(last(split(filename, ".")) in ["json", "geojson"])
         throw(ArgumentError("only geojson files implemented"))
     end
 
     gj = JSON.parsefile(filename)
-    return gj_to_df(gj; fid_drop = fid_drop)
+    return gj_to_df(gj; fid_drop=fid_drop)
 end
 
 
@@ -275,11 +275,11 @@ function get_block_idx_for_points(point_df, block_df)
 end
 
 function make_trans_from_wgs84(to_epsg)
-    trans = Transformation("EPSG:4326", "EPSG:4326", always_xy = true)
+    trans = Transformation("EPSG:4326", "EPSG:4326", always_xy=true)
     try
-        trans = Transformation("EPSG:4326", "EPSG:$to_epsg", always_xy = true)
+        trans = Transformation("EPSG:4326", "EPSG:$to_epsg", always_xy=true)
     catch
-        trans = Transformation("EPSG:4326", "ESRI:$to_epsg", always_xy = true)
+        trans = Transformation("EPSG:4326", "ESRI:$to_epsg", always_xy=true)
     end
     trans
 end
@@ -316,7 +316,7 @@ end
 
 
 
-function get_block_idx_for_point(point, block_df; epsg = 4326)
+function get_block_idx_for_point(point, block_df; epsg=4326)
     point_geom = AG.createpoint(point[1], point[2])
 
     if epsg != 4326
@@ -356,7 +356,7 @@ function check_missing(val)
 end
 
 
-function val_nothing_fix(vel; return_val = 0.0)
+function val_nothing_fix(vel; return_val=0.0)
     if isnothing(vel) | ismissing(vel) | (typeof(vel) == Missing)
         return return_val
     elseif vel == ""
@@ -371,7 +371,7 @@ function val_nothing_fix(vel; return_val = 0.0)
 end
 
 
-function err_nothing_fix(err; return_val = 1.0, weight = 1.0)
+function err_nothing_fix(err; return_val=1.0, weight=1.0)
     if isnothing(err) | ismissing(err) | (err == 0.0)
         return return_val
     elseif err == ""
@@ -391,9 +391,9 @@ function err_nothing_fix(err; return_val = 1.0, weight = 1.0)
 end
 
 
-function row_to_fault(row; name = "name", dip_dir = :dip_dir, v_ex = :v_ex, e_ex = :e_ex,
-    v_rl = :v_rl, e_rl = :e_rl, dip = :dip, hw = :hw, fw = :fw, usd = :usd, lsd = :lsd,
-    v_default = 0.0, e_default = 5.0, usd_default = 0.0, lsd_default = 20.0, fid = :fid)
+function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
+    v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
+    v_default=0.0, e_default=5.0, usd_default=0.0, lsd_default=20.0, fid=:fid)
 
     trace = Oiler.IO.get_coords_from_geom(row[:geometry])
     if name in names(row)
@@ -405,49 +405,49 @@ function row_to_fault(row; name = "name", dip_dir = :dip_dir, v_ex = :v_ex, e_ex
         _name = ""
     end
 
-    Oiler.Fault(trace = trace,
-        dip_dir = row[dip_dir],
-        extension_rate = val_nothing_fix(row[v_ex], return_val = v_default),
-        extension_err = err_nothing_fix(row[e_ex], return_val = e_default),
-        dextral_rate = val_nothing_fix(row[v_rl], return_val = v_default),
-        dextral_err = err_nothing_fix(row[e_rl], return_val = e_default),
-        dip = row[dip],
-        name = _name,
-        hw = row[hw],
-        fw = row[fw],
-        usd = val_nothing_fix(row[usd], return_val = usd_default),
-        lsd = val_nothing_fix(row[lsd], return_val = lsd_default),
-        fid = row[fid]
+    Oiler.Fault(trace=trace,
+        dip_dir=row[dip_dir],
+        extension_rate=val_nothing_fix(row[v_ex], return_val=v_default),
+        extension_err=err_nothing_fix(row[e_ex], return_val=e_default),
+        dextral_rate=val_nothing_fix(row[v_rl], return_val=v_default),
+        dextral_err=err_nothing_fix(row[e_rl], return_val=e_default),
+        dip=row[dip],
+        name=_name,
+        hw=row[hw],
+        fw=row[fw],
+        usd=val_nothing_fix(row[usd], return_val=usd_default),
+        lsd=val_nothing_fix(row[lsd], return_val=lsd_default),
+        fid=row[fid]
     )
 end
 
 
-function process_faults_from_df(fault_df; name = "name", dip_dir = :dip_dir, v_ex = :v_ex,
-    e_ex = :e_ex, v_rl = :v_rl, e_rl = :e_rl, dip = :dip,
-    hw = :hw, fw = :fw, usd = :usd, lsd = :lsd,
-    v_default = 0.0, e_default = 5.0, usd_default = 0.0,
-    lsd_default = 20.0, fid = :fid, fid_drop = :fid_drop)
+function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v_ex,
+    e_ex=:e_ex, v_rl=:v_rl, e_rl=:e_rl, dip=:dip,
+    hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
+    v_default=0.0, e_default=5.0, usd_default=1.0,
+    lsd_default=15.0, fid=:fid, fid_drop=:fid_drop)
 
     faults = []
     for i in 1:size(fault_df, 1)
         #try
         push!(faults, Oiler.IO.row_to_fault(fault_df[i, :];
-            name = name,
-            dip_dir = dip_dir,
-            v_ex = v_ex,
-            e_ex = e_ex,
-            v_rl = v_rl,
-            e_rl = e_rl,
-            dip = dip,
-            hw = hw,
-            fw = fw,
-            usd = usd,
-            lsd = lsd,
-            v_default = v_default,
-            e_default = e_default,
-            usd_default = usd_default,
-            lsd_default = lsd_default,
-            fid = fid))
+            name=name,
+            dip_dir=dip_dir,
+            v_ex=v_ex,
+            e_ex=e_ex,
+            v_rl=v_rl,
+            e_rl=e_rl,
+            dip=dip,
+            hw=hw,
+            fw=fw,
+            usd=usd,
+            lsd=lsd,
+            v_default=v_default,
+            e_default=e_default,
+            usd_default=usd_default,
+            lsd_default=lsd_default,
+            fid=fid))
         #catch
         #    prob_row = fault_df[i,:]
         #    warn_msg = "Problem with $prob_row"
@@ -456,7 +456,7 @@ function process_faults_from_df(fault_df; name = "name", dip_dir = :dip_dir, v_e
     end
     faults = [f for f in faults if f.fw != ""]
     faults = [f for f in faults if f.hw != ""]
-    faults = [f for f in faults if f.fid != fid_drop]
+    faults = [f for f in faults if !(f.fid in fid_drop)]
 
     faults
 end
@@ -469,30 +469,30 @@ end
 
 
 
-function load_faults_from_gis_files(fault_files...; layernames = [])
+function load_faults_from_gis_files(fault_files...; layernames=[])
 
     if length(fault_files) == 1
         if length(layernames) == 0
             fault_df = gis_vec_file_to_df(fault_files[1])
         else
             fault_df = gis_vec_file_to_df(fault_files[1];
-                layername = layernames[1])
+                layername=layernames[1])
         end
     else
         if length(layernames) == 0
             fault_df = vcat([gis_vec_file_to_df(file)
                              for file in fault_files]...;
-                cols = :union)
+                cols=:union)
         else
-            fault_df = vcat([gis_vec_file_to_df(file; layername = layernames[i])
+            fault_df = vcat([gis_vec_file_to_df(file; layername=layernames[i])
                              for (i, file) in enumerate(fault_files)]...;
-                cols = :union)
+                cols=:union)
         end
     end
     fault_df
 end
 
-function get_blocks_in_bounds!(block_df, bound_df; epsg = 0)
+function get_blocks_in_bounds!(block_df, bound_df; epsg=0)
     bound_orig = collect(eachrow(bound_df[1, :geometry].coords))
     block_geoms_orig = block_df[:, :geometry]
     block_geoms_orig = [collect(eachrow(geom.coords)) for geom in block_geoms_orig]
@@ -540,12 +540,12 @@ end
 
 
 function process_faults_from_gis_files(fault_files...;
-    layernames = [],
-    name = "name", dip_dir = :dip_dir, v_ex = :v_ex, e_ex = :e_ex,
-    v_rl = :v_rl, e_rl = :e_rl, dip = :dip, hw = :hw, fw = :fw, usd = :usd, lsd = :lsd,
-    v_default = 0.0, e_default = 5.0, usd_default = 0.0, lsd_default = 20.0, fid = :fid,
-    fid_drop = :fid_drop, block_df = :block_df,
-    subset_in_bounds = false)
+    layernames=[],
+    name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
+    v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
+    v_default=0.0, e_default=5.0, usd_default=0.0, lsd_default=20.0, fid=:fid,
+    fid_drop=[], block_df=:block_df,
+    subset_in_bounds=false)
 
     fault_df = load_faults_from_gis_files(fault_files...; layernames)
 
@@ -559,23 +559,23 @@ function process_faults_from_gis_files(fault_files...;
     fault_df = filter(row -> !(row.hw == ""), fault_df)
     fault_df = filter(row -> !(row.fw == ""), fault_df)
 
-    faults = process_faults_from_df(fault_df; name = name,
-        dip_dir = dip_dir,
-        v_ex = v_ex,
-        e_ex = e_ex,
-        v_rl = v_rl,
-        e_rl = e_rl,
-        dip = dip,
-        hw = hw,
-        fw = fw,
-        usd = usd,
-        lsd = lsd,
-        v_default = v_default,
-        e_default = e_default,
-        usd_default = usd_default,
-        lsd_default = lsd_default,
-        fid = fid,
-        fid_drop = fid_drop)
+    faults = process_faults_from_df(fault_df; name=name,
+        dip_dir=dip_dir,
+        v_ex=v_ex,
+        e_ex=e_ex,
+        v_rl=v_rl,
+        e_rl=e_rl,
+        dip=dip,
+        hw=hw,
+        fw=fw,
+        usd=usd,
+        lsd=lsd,
+        v_default=v_default,
+        e_default=e_default,
+        usd_default=usd_default,
+        lsd_default=lsd_default,
+        fid=fid,
+        fid_drop=fid_drop)
 
     fault_vels = make_vels_from_faults(faults)
 
@@ -584,13 +584,13 @@ function process_faults_from_gis_files(fault_files...;
 end
 
 
-function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val = 1.0,
-    weight = 1.0, name = "name", dip_dir = :dip_dir,
-    v_ex = :v_ex, e_ex = :e_ex,
-    v_rl = :v_rl, e_rl = :e_rl, dip = :dip, hw = :hw,
-    fw = :fw, usd = :usd, lsd = :lsd,
-    v_default = 0.0, e_default = 5.0, usd_default = 0.0,
-    lsd_default = 20.0, fid = :fid)
+function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val=1.0,
+    weight=1.0, name="name", dip_dir=:dip_dir,
+    v_ex=:v_ex, e_ex=:e_ex,
+    v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw,
+    fw=:fw, usd=:usd, lsd=:lsd,
+    v_default=0.0, e_default=5.0, usd_default=0.0,
+    lsd_default=20.0, fid=:fid)
 
     fault_fid_type = typeof(fault_df[1, :fid])
 
@@ -603,29 +603,29 @@ function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val = 1.0,
     end
     fault_row = @subset(fault_df, :fid .== fault_idx)[1, :]
     fault = row_to_fault(fault_row;
-        name = name,
-        dip_dir = dip_dir,
-        v_ex = v_ex,
-        e_ex = e_ex,
-        v_rl = v_rl,
-        e_rl = e_rl,
-        dip = dip,
-        hw = hw,
-        fw = fw,
-        usd = usd,
-        lsd = lsd,
-        v_default = v_default,
-        e_default = e_default,
-        usd_default = usd_default,
-        lsd_default = lsd_default,
-        fid = fid)
+        name=name,
+        dip_dir=dip_dir,
+        v_ex=v_ex,
+        e_ex=e_ex,
+        v_rl=v_rl,
+        e_rl=e_rl,
+        dip=dip,
+        hw=hw,
+        fw=fw,
+        usd=usd,
+        lsd=lsd,
+        v_default=v_default,
+        e_default=e_default,
+        usd_default=usd_default,
+        lsd_default=lsd_default,
+        fid=fid)
 
     extension_rate = val_nothing_fix(slip_rate_row[:extension_rate])
     extension_err = err_nothing_fix(slip_rate_row[:extension_err];
-        return_val = err_return_val, weight = weight)
+        return_val=err_return_val, weight=weight)
     dextral_rate = val_nothing_fix(slip_rate_row[:dextral_rate])
     dextral_err = err_nothing_fix(slip_rate_row[:dextral_err];
-        return_val = err_return_val, weight = weight)
+        return_val=err_return_val, weight=weight)
 
     ve, vn = Oiler.Faults.fault_slip_rate_to_ve_vn(dextral_rate / weight,
         extension_rate,
@@ -639,20 +639,20 @@ function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val = 1.0,
     lon = pt[1]
     lat = pt[2]
 
-    VelocityVectorSphere(lon = lon, lat = lat, ve = ve, vn = vn, fix = fault.hw,
-        ee = ee, en = en, cen = cen,
-        mov = fault.fw, vel_type = "fault", name = fault_seg)
+    VelocityVectorSphere(lon=lon, lat=lat, ve=ve, vn=vn, fix=fault.hw,
+        ee=ee, en=en, cen=cen,
+        mov=fault.fw, vel_type="fault", name=fault_seg)
 end
 
 
 function make_geol_slip_rate_vels(geol_slip_rate_df, fault_df;
-    err_return_val = 1.0, weight = 1.0, name = "name", dip_dir = :dip_dir,
-    v_ex = :v_ex, e_ex = :e_ex,
-    v_rl = :v_rl, e_rl = :e_rl, dip = :dip, hw = :hw,
-    fw = :fw, usd = :usd, lsd = :lsd,
-    v_default = 0.0, e_default = 5.0, usd_default = 0.0,
-    lsd_default = 20.0, fid = :fid,
-    warn = false)
+    err_return_val=1.0, weight=1.0, name="name", dip_dir=:dip_dir,
+    v_ex=:v_ex, e_ex=:e_ex,
+    v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw,
+    fw=:fw, usd=:usd, lsd=:lsd,
+    v_default=0.0, e_default=5.0, usd_default=0.0,
+    lsd_default=20.0, fid=:fid,
+    warn=false)
 
     geol_slip_rate_vels = []
     for i in 1:size(geol_slip_rate_df, 1)
@@ -661,24 +661,24 @@ function make_geol_slip_rate_vels(geol_slip_rate_df, fault_df;
             try
                 push!(geol_slip_rate_vels, make_vel_from_slip_rate(slip_rate_row,
                     fault_df;
-                    err_return_val = err_return_val,
-                    weight = weight,
-                    name = name,
-                    dip_dir = dip_dir,
-                    v_ex = v_ex,
-                    e_ex = e_ex,
-                    v_rl = v_rl,
-                    e_rl = e_rl,
-                    dip = dip,
-                    hw = hw,
-                    fw = fw,
-                    usd = usd,
-                    lsd = lsd,
-                    v_default = v_default,
-                    e_default = e_default,
-                    usd_default = usd_default,
-                    lsd_default = lsd_default,
-                    fid = fid
+                    err_return_val=err_return_val,
+                    weight=weight,
+                    name=name,
+                    dip_dir=dip_dir,
+                    v_ex=v_ex,
+                    e_ex=e_ex,
+                    v_rl=v_rl,
+                    e_rl=e_rl,
+                    dip=dip,
+                    hw=hw,
+                    fw=fw,
+                    usd=usd,
+                    lsd=lsd,
+                    v_default=v_default,
+                    e_default=e_default,
+                    usd_default=usd_default,
+                    lsd_default=lsd_default,
+                    fid=fid
                 ))
             catch
                 warn_msg = "Can't process $slip_rate_row[:fault_seg]"
@@ -694,13 +694,13 @@ end
 
 
 function make_geol_slip_rate_vels!(geol_slip_rate_df, fault_df;
-    err_return_val = 1.0, weight = 1.0, name = "name", dip_dir = :dip_dir,
-    v_ex = :v_ex, e_ex = :e_ex,
-    v_rl = :v_rl, e_rl = :e_rl, dip = :dip, hw = :hw,
-    fw = :fw, usd = :usd, lsd = :lsd,
-    v_default = 0.0, e_default = 5.0, usd_default = 0.0,
-    lsd_default = 20.0, fid = :fid,
-    warn = false)
+    err_return_val=1.0, weight=1.0, name="name", dip_dir=:dip_dir,
+    v_ex=:v_ex, e_ex=:e_ex,
+    v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw,
+    fw=:fw, usd=:usd, lsd=:lsd,
+    v_default=0.0, e_default=5.0, usd_default=0.0,
+    lsd_default=20.0, fid=:fid,
+    warn=false)
 
     geol_slip_rate_vels = []
     geol_slip_rate_keeps = falses(size(geol_slip_rate_df, 1))
@@ -710,24 +710,24 @@ function make_geol_slip_rate_vels!(geol_slip_rate_df, fault_df;
             try
                 push!(geol_slip_rate_vels, make_vel_from_slip_rate(slip_rate_row,
                     fault_df;
-                    err_return_val = err_return_val,
-                    weight = weight,
-                    name = name,
-                    dip_dir = dip_dir,
-                    v_ex = v_ex,
-                    e_ex = e_ex,
-                    v_rl = v_rl,
-                    e_rl = e_rl,
-                    dip = dip,
-                    hw = hw,
-                    fw = fw,
-                    usd = usd,
-                    lsd = lsd,
-                    v_default = v_default,
-                    e_default = e_default,
-                    usd_default = usd_default,
-                    lsd_default = lsd_default,
-                    fid = fid
+                    err_return_val=err_return_val,
+                    weight=weight,
+                    name=name,
+                    dip_dir=dip_dir,
+                    v_ex=v_ex,
+                    e_ex=e_ex,
+                    v_rl=v_rl,
+                    e_rl=e_rl,
+                    dip=dip,
+                    hw=hw,
+                    fw=fw,
+                    usd=usd,
+                    lsd=lsd,
+                    v_default=v_default,
+                    e_default=e_default,
+                    usd_default=usd_default,
+                    lsd_default=lsd_default,
+                    fid=fid
                 ))
                 geol_slip_rate_keeps[i] = true
             catch
@@ -772,11 +772,11 @@ function tri_from_feature(feat)
     end
 
     tri = Oiler.Tris.Tri(;
-        p1 = Float64.(feat["geometry"]["coordinates"][1][1]),
-        p2 = Float64.(feat["geometry"]["coordinates"][1][2]),
-        p3 = Float64.(feat["geometry"]["coordinates"][1][3]),
-        name = string(feat["properties"]["fid"]),
-        fw = fw
+        p1=Float64.(feat["geometry"]["coordinates"][1][1]),
+        p2=Float64.(feat["geometry"]["coordinates"][1][2]),
+        p3=Float64.(feat["geometry"]["coordinates"][1][3]),
+        name=string(feat["properties"]["fid"]),
+        fw=fw
     )
 end
 
@@ -798,13 +798,13 @@ function tri_to_feature(tri)
             "coordinates" => [[tri.p1, tri.p2, tri.p3, tri.p1]]
         ),
         "properties" => Dict(
-            "dip_slip_rate" => round.(tri.dip_slip_rate, digits = 3),
-            "dip_slip_err" => round.(tri.dip_slip_err, digits = 3),
-            "strike_slip_rate" => round.(tri.strike_slip_rate, digits = 3),
-            "strike_slip_err" => round.(tri.strike_slip_err, digits = 3),
-            "dip_locking_frac" => round.(tri.dip_locking_frac, digits = 3),
-            "strike_locking_frac" => round.(tri.strike_locking_frac, digits = 3),
-            "cds" => round.(tri.cds, digits = 3),
+            "dip_slip_rate" => round.(tri.dip_slip_rate, digits=3),
+            "dip_slip_err" => round.(tri.dip_slip_err, digits=3),
+            "strike_slip_rate" => round.(tri.strike_slip_rate, digits=3),
+            "strike_slip_err" => round.(tri.strike_slip_err, digits=3),
+            "dip_locking_frac" => round.(tri.dip_locking_frac, digits=3),
+            "strike_locking_frac" => round.(tri.strike_locking_frac, digits=3),
+            "cds" => round.(tri.cds, digits=3),
             "fid" => tri.name,
             "hw" => tri.hw,
             "fw" => tri.fw
@@ -812,7 +812,7 @@ function tri_to_feature(tri)
     )
 end
 
-function tris_to_geojson(tris; name = "")
+function tris_to_geojson(tris; name="")
     gj = Dict(
         "type" => "FeatureCollection",
         "name" => name,
@@ -821,11 +821,11 @@ function tris_to_geojson(tris; name = "")
 end
 
 
-function make_tris_from_results(tris, results; default_no_err = 0.0)
+function make_tris_from_results(tris, results; default_no_err=0.0)
     tri_rates = results["tri_slip_rates"]
     tri_names = [tri.name for tri in tris]
 
-    function default_return(tri_rate, param; default_val = default_no_err)
+    function default_return(tri_rate, param; default_val=default_no_err)
         if haskey(tri_rate, param)
             return tri_rate[param]
         else
@@ -835,22 +835,22 @@ function make_tris_from_results(tris, results; default_no_err = 0.0)
 
     tris_out = [Oiler.Tris.Tri(;
         tris[i].p1, tris[i].p2, tris[i].p3,
-        dip_slip_rate = tri_rates[name]["dip_slip"],
-        strike_slip_rate = tri_rates[name]["strike_slip"],
-        dip_slip_err = default_return(tri_rates[name], "dip_slip_err"),
-        strike_slip_err = default_return(tri_rates[name], "strike_slip_err"),
-        cds = default_return(tri_rates[name], "dsc"),
-        dip_locking_frac = tris[i].dip_locking_frac,
-        strike_locking_frac = tris[i].strike_locking_frac,
-        name = name,
-        hw = tris[i].hw,
-        fw = tris[i].fw) for (i, name) in enumerate(tri_names)]
+        dip_slip_rate=tri_rates[name]["dip_slip"],
+        strike_slip_rate=tri_rates[name]["strike_slip"],
+        dip_slip_err=default_return(tri_rates[name], "dip_slip_err"),
+        strike_slip_err=default_return(tri_rates[name], "strike_slip_err"),
+        cds=default_return(tri_rates[name], "dsc"),
+        dip_locking_frac=tris[i].dip_locking_frac,
+        strike_locking_frac=tris[i].strike_locking_frac,
+        name=name,
+        hw=tris[i].hw,
+        fw=tris[i].fw) for (i, name) in enumerate(tri_names)]
 end
 
 
-function write_tri_results_to_gj(tris, results, outfile; name = "")
+function write_tri_results_to_gj(tris, results, outfile; name="")
     tris_out = make_tris_from_results(tris, results)
-    tri_gj = tris_to_geojson(tris_out; name = name)
+    tri_gj = tris_to_geojson(tris_out; name=name)
 
     open(outfile, "w") do f
         JSON.print(f, tri_gj)
@@ -858,7 +858,7 @@ function write_tri_results_to_gj(tris, results, outfile; name = "")
 end
 
 
-function faults_to_geojson(faults; name = "")
+function faults_to_geojson(faults; name="")
     gj = Dict(
         "type" => "FeatureCollection",
         "name" => name,
@@ -876,11 +876,11 @@ function fault_to_feature(fault)
         ),
         "properties" => Dict(
             "dip_dir" => fault.dip_dir,
-            "extension_rate" => round(fault.extension_rate, digits = 3),
-            "extension_err" => round(fault.extension_err, digits = 3),
-            "dextral_rate" => round(fault.dextral_rate, digits = 3),
-            "dextral_err" => round(fault.dextral_err, digits = 3),
-            "cde" => round(fault.cde, digits = 3),
+            "extension_rate" => round(fault.extension_rate, digits=3),
+            "extension_err" => round(fault.extension_err, digits=3),
+            "dextral_rate" => round(fault.dextral_rate, digits=3),
+            "dextral_err" => round(fault.dextral_err, digits=3),
+            "cde" => round(fault.cde, digits=3),
             "lsd" => fault.lsd,
             "usd" => fault.usd,
             "name" => fault.name,
@@ -892,8 +892,8 @@ function fault_to_feature(fault)
 end
 
 
-function write_fault_results_to_gj(results, outfile; name = "")
-    fault_gj = faults_to_geojson(results["predicted_slip_rates"]; name = name)
+function write_fault_results_to_gj(results, outfile; name="")
+    fault_gj = faults_to_geojson(results["predicted_slip_rates"]; name=name)
 
     open(outfile, "w") do f
         JSON.print(f, fault_gj)
@@ -901,25 +901,25 @@ function write_fault_results_to_gj(results, outfile; name = "")
 end
 
 
-function write_gnss_vel_results_to_csv(results, vel_groups; name = "")
+function write_gnss_vel_results_to_csv(results, vel_groups; name="")
     pred_gnss_df = Oiler.ResultsAnalysis.get_gnss_results(results, vel_groups)
     CSV.write(name, pred_gnss_df)
 end
 
 
-function gnss_vel_from_row(row, block; ve = :ve, vn = :vn, ee = :ee, en = :en,
-    fix = "1111", name = :station)
+function gnss_vel_from_row(row, block; ve=:ve, vn=:vn, ee=:ee, en=:en,
+    fix="1111", name=:station)
     pt = Oiler.IO.get_coords_from_geom(row[:geometry])
     lon = pt[1]
     lat = pt[2]
-    Oiler.VelocityVectorSphere(lon = lon, lat = lat, ve = row[ve],
-        vn = row[vn], ee = row[ee], en = row[en], name = row[name],
-        fix = fix, mov = string(block), vel_type = "GNSS")
+    Oiler.VelocityVectorSphere(lon=lon, lat=lat, ve=row[ve],
+        vn=row[vn], ee=row[ee], en=row[en], name=row[name],
+        fix=fix, mov=string(block), vel_type="GNSS")
 end
 
 
-function make_vels_from_gnss_and_blocks(gnss_df, block_df; ve = :ve, vn = :vn, ee = :ee, en = :en,
-    fix = "1111", name = :station, epsg = 0)
+function make_vels_from_gnss_and_blocks(gnss_df, block_df; ve=:ve, vn=:vn, ee=:ee, en=:en,
+    fix="1111", name=:station, epsg=0)
 
     if epsg != 0
         block_idx = get_block_idx_for_points(gnss_df, block_df, epsg)
@@ -931,8 +931,8 @@ function make_vels_from_gnss_and_blocks(gnss_df, block_df; ve = :ve, vn = :vn, e
 
     for (i, block) in enumerate(block_idx)
         if !ismissing(block)
-            gv = gnss_vel_from_row(gnss_df[i, :], block; ve = ve, vn = vn, ee = ee,
-                en = en, fix = fix, name = name)
+            gv = gnss_vel_from_row(gnss_df[i, :], block; ve=ve, vn=vn, ee=ee,
+                en=en, fix=fix, name=name)
             push!(gnss_vels, gv)
         end
     end
@@ -942,7 +942,7 @@ end
 
 
 function write_solution_poles(outfile, results, block_df, pole_fix;
-    convert_to_sphere = true)
+    convert_to_sphere=true)
     pole_arr = collect(values(results["poles"]))
     pole_arr = [pole for pole in pole_arr if typeof(pole) == Oiler.PoleCart]
 
@@ -966,11 +966,11 @@ function write_solution_poles(outfile, results, block_df, pole_fix;
     rel_poles = convert(Array{Oiler.PoleCart}, rel_poles)
 
     CSV.write(outfile, Oiler.IO.poles_to_df(rel_poles,
-        convert_to_sphere = convert_to_sphere))
+        convert_to_sphere=convert_to_sphere))
 end
 
 
-function write_results_stats(results, outfile; description = nothing)
+function write_results_stats(results, outfile; description=nothing)
     rs = results["stats_info"]
 
     if !(isnothing(description))
@@ -982,13 +982,13 @@ function write_results_stats(results, outfile; description = nothing)
     end
 end
 
-function row_to_feature(row; min_dist = 0.001, simplify = true,
-    check_poly_winding_order = true, epsg = 3995)
+function row_to_feature(row; min_dist=0.001, simplify=true,
+    check_poly_winding_order=true, epsg=3995)
 
     if typeof(row[:geometry]) == Oiler.Geom.Polygon
-        geom_json = geom_to_geojson(row[:geometry]; simplify = simplify,
-            min_dist = min_dist, check_poly_winding_order = check_poly_winding_order,
-            epsg = epsg)
+        geom_json = geom_to_geojson(row[:geometry]; simplify=simplify,
+            min_dist=min_dist, check_poly_winding_order=check_poly_winding_order,
+            epsg=epsg)
     else
         geom_json = geom_to_geojson(row[:geometry])
     end
@@ -1019,8 +1019,8 @@ function geom_to_geojson(geom::Oiler.Geom.LineString)
 end
 
 
-function geom_to_geojson(geom::Oiler.Geom.Polygon; simplify = false, min_dist = 0.0001,
-    check_poly_winding_order = true, epsg = 102016)
+function geom_to_geojson(geom::Oiler.Geom.Polygon; simplify=false, min_dist=0.0001,
+    check_poly_winding_order=true, epsg=102016)
     if simplify
         coords = Oiler.Geom.simplify_polyline(geom.coords, min_dist)
     else
@@ -1045,8 +1045,8 @@ function geom_to_geojson(geom::Oiler.Geom.Polygon; simplify = false, min_dist = 
 end
 
 
-function features_to_geojson(feature_df; name = "", min_dist = 0.0001, simplify = false,
-    check_poly_winding_order = false, epsg = 102016)
+function features_to_geojson(feature_df; name="", min_dist=0.0001, simplify=false,
+    check_poly_winding_order=false, epsg=102016)
 
     features = []
 
@@ -1056,17 +1056,15 @@ function features_to_geojson(feature_df; name = "", min_dist = 0.0001, simplify 
 
         # I'm sorry
         if row.fid != "ant"
-            push!(features, row_to_feature(row; min_dist = min_dist,
-                check_poly_winding_order = check_poly_winding_order,
-                epsg = epsg))
+            push!(features, row_to_feature(row; min_dist=min_dist,
+                check_poly_winding_order=check_poly_winding_order,
+                epsg=epsg))
         else
-            push!(features, row_to_feature(row; min_dist = min_dist,
-                check_poly_winding_order = check_poly_winding_order,
-                epsg = 102019))
+            push!(features, row_to_feature(row; min_dist=min_dist,
+                check_poly_winding_order=check_poly_winding_order,
+                epsg=102019))
         end
     end
-
-    println(length(features))
 
     gj = Dict("type" => "FeatureCollection",
         "features" => features)
@@ -1078,9 +1076,9 @@ function features_to_geojson(feature_df; name = "", min_dist = 0.0001, simplify 
 end
 
 
-function write_block_df(block_df, outfile; name = "", min_dist = 0.0001, simplify = false)
-    gj = features_to_geojson(block_df; name = name, min_dist = min_dist,
-        check_poly_winding_order = true)
+function write_block_df(block_df, outfile; name="", min_dist=0.0001, simplify=false)
+    gj = features_to_geojson(block_df; name=name, min_dist=min_dist,
+        check_poly_winding_order=true)
     open(outfile, "w") do f
         JSON.print(f, gj)
     end

@@ -92,7 +92,7 @@ function calc_locking_effects_segmented_fault(fault::Fault, lons, lats;
     elastic_floor = 1e-4, check_nans = false)
     # may have some problems w/ dip dir for highly curved faults
     trace = fault.trace
-    simp_trace = Oiler.Geom.simplify_polyline(trace, 0.2)
+    simp_trace = Oiler.Geom.simplify_polyline(trace, 0.01)
     # simp_trace = trace
 
     parts = []
@@ -114,7 +114,7 @@ end
 
 
 function calc_any_fault_locking_effects(fault::Fault, lons, lats;
-    elastic_floor = 1e-4, check_nans = false, dip_threshold = 0.0)
+    elastic_floor = 1e-4, check_nans = false, dip_threshold = 20.0)
 
     # tri locking calcs are slower and may be a bit more inaccurate;
     # for now they are turned off.
