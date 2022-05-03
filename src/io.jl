@@ -983,7 +983,7 @@ function write_results_stats(results, outfile; description=nothing)
 end
 
 function row_to_feature(row; min_dist=0.001, simplify=true,
-    check_poly_winding_order=true, epsg=3995)
+    check_poly_winding_order=true, epsg=102016)
 
     if typeof(row[:geometry]) == Oiler.Geom.Polygon
         geom_json = geom_to_geojson(row[:geometry]; simplify=simplify,
