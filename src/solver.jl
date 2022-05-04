@@ -64,7 +64,7 @@ is zero. The latter defaults to 1e-10.
 
 Note: this is applicable for uncorrelated (independent) errors.
 """
-function weight_from_error(error::Float64; zero_err_weight::Float64 = 1e2)
+function weight_from_error(error::Float64; zero_err_weight::Float64=1e2)
     if error == 0.0
         error = zero_err_weight
     end
@@ -100,7 +100,7 @@ function build_weight_vectors(vel_groups::Dict{Tuple{String,String},Array{Veloci
 end
 
 
-function var_cov_from_vel(vel::VelocityVectorSphere; zero_err_weight::Float64 = 1e2)
+function var_cov_from_vel(vel::VelocityVectorSphere; zero_err_weight::Float64=1e2)
 
     if vel.ee == 0.0
         e_var = zero_err_weight
@@ -182,11 +182,12 @@ end
 
 function add_fault_locking_to_PvGb(faults::Array{Fault},
     vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
-    PvGb::SparseMatrixCSC{Float64,Int64}; elastic_floor = 1e-4, check_nans = false)
+    PvGb::SparseMatrixCSC{Float64,Int64}; elastic_floor=1e-4, check_nans=false)
 
     @info "   calculating locking effects"
     @time locking_partials = Oiler.Elastic.calc_locking_effects(faults, vel_groups;
-        elastic_floor = elastic_floor, check_nans = check_nans)
+        elastic_floor=elastic_floor, check_nans=check_nans)
+    #println(locking_partials)
 
     @info "   adding to PvGb"
     PvGb = Matrix(PvGb)
@@ -209,7 +210,7 @@ function make_tri_regularization_matrix(tris, distance_weight)
             tri2 = tris[tri_enum[tri2_name]]
             t1_ind = 2 * tri_enum[tri1_name] - 1
             t2_ind = 2 * tri_enum[tri2_name] - 1
-        
+
             const_mat = zeros(2, 2 * size(tris, 1))
             centroid_dist = Oiler.Tris.tri_centroid_distance(tri1, tri2)
             const_mat[1, t1_ind] = distance_weight / centroid_dist
@@ -241,8 +242,8 @@ function make_tri_prior_matrices(tris)
 end
 
 
-function add_tris_to_PvGb(tris, vel_groups, vd; priors = false, regularize = true,
-    distance_weight::Float64 = 10.0, elastic_floor = 1e-4)
+function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
+    distance_weight::Float64=10.0, elastic_floor=1e-4)
 
     nt = length(tris)
 
@@ -256,7 +257,7 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors = false, regularize = tru
 
     @info "   calculating tri locking partials"
     @time tri_effects = Oiler.Elastic.calc_tri_effects(tris, gnss_lons, gnss_lats;
-        elastic_floor = elastic_floor)
+        elastic_floor=elastic_floor)
     @info "   done"
     #@info "    making tri effect matrices"
     tri_gnss_effects_matrix = zeros((size(PvGb)[1], size(tri_effects)[2]))
@@ -338,7 +339,7 @@ function add_equality_constraints_bi_objective(PvGb, Vc, cm)
 end
 
 
-function make_weighted_constrained_kkt_lls_matrices(PvGb, Vc, cm, weights; sparse_lhs::Bool = false)
+function make_weighted_constrained_kkt_lls_matrices(PvGb, Vc, cm, weights; sparse_lhs::Bool=false)
     # W = sparse(diagm(1 ./ weights))
     W = weights
     p, q = size(cm)
@@ -362,7 +363,7 @@ function make_weighted_constrained_kkt_lls_matrices(PvGb, Vc, cm, weights; spars
 end
 
 
-function make_weighted_constrained_kkt_lls_matrices_symmetric(PvGb, Vc, cm, weights; sparse_lhs::Bool = false)
+function make_weighted_constrained_kkt_lls_matrices_symmetric(PvGb, Vc, cm, weights; sparse_lhs::Bool=false)
     W = weights
 
     p, q = size(cm)
@@ -388,14 +389,14 @@ end
 
 
 function make_weighted_constrained_lls_matrices(PvGb, Vc, cm, weights;
-    sparse_lhs::Bool = false, method = "kkt_sym")
+    sparse_lhs::Bool=false, method="kkt_sym")
 
     if method == "kkt"
         return make_weighted_constrained_kkt_lls_matrices(PvGb, Vc, cm, weights;
-            sparse_lhs = sparse_lhs)
+            sparse_lhs=sparse_lhs)
     elseif method == "kkt_sym"
         return make_weighted_constrained_kkt_lls_matrices_symmetric(PvGb, Vc, cm, weights;
-            sparse_lhs = sparse_lhs)
+            sparse_lhs=sparse_lhs)
     else
         throw(ArgumentError("contraint method not implemented"))
     end
@@ -403,8 +404,8 @@ end
 
 
 function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array = [], tris::Array = [], regularize_tris = true, tri_priors = false, tri_distance_weight::Float64 = 10.0,
-    elastic_floor = 1e-4, check_nans = false)
+    faults::Array=[], tris::Array=[], regularize_tris=true, tri_priors=false, tri_distance_weight::Float64=10.0,
+    elastic_floor=1e-4, check_nans=false)
 
     @info " making block inversion matrices"
     @time vd = make_block_inversion_matrices_from_vels(vel_groups)
@@ -431,17 +432,17 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
     if length(faults) > 0
         @info " doing locking"
         vd["PvGb"] = add_fault_locking_to_PvGb(faults, vel_groups, vd["PvGb"];
-            elastic_floor = elastic_floor, check_nans = check_nans)
+            elastic_floor=elastic_floor, check_nans=check_nans)
         @info " done doing locking"
-    
+
     end
 
     if length(tris) > 0
         @info " doing tris"
         @time vd = add_tris_to_PvGb(tris, vel_groups, vd;
-            priors = tri_priors, regularize = regularize_tris,
-            distance_weight = tri_distance_weight,
-            elastic_floor = elastic_floor)
+            priors=tri_priors, regularize=regularize_tris,
+            distance_weight=tri_distance_weight,
+            elastic_floor=elastic_floor)
         @info " done doing tris"
     end
 
@@ -467,17 +468,17 @@ end
 
 
 function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    basic_matrices::Dict = Dict(), faults::Array = [], tris::Array = [], weighted::Bool = true,
-    elastic_floor = 1e-4,
-    regularize_tris::Bool = true, tri_priors::Bool = false,
-    tri_distance_weight::Float64 = 10.0, sparse_lhs::Bool = false,
-    constraint_method = "kkt_sym", check_nans = false)
+    basic_matrices::Dict=Dict(), faults::Array=[], tris::Array=[], weighted::Bool=true,
+    elastic_floor=1e-4,
+    regularize_tris::Bool=true, tri_priors::Bool=false,
+    tri_distance_weight::Float64=10.0, sparse_lhs::Bool=false,
+    constraint_method="kkt_sym", check_nans=false)
 
     if basic_matrices == Dict()
         basic_matrices = set_up_block_inv_no_constraints(vel_groups;
-            faults = faults, tris = tris, regularize_tris = regularize_tris,
-            tri_priors = tri_priors, tri_distance_weight = tri_distance_weight,
-            elastic_floor = elastic_floor, check_nans = check_nans)
+            faults=faults, tris=tris, regularize_tris=regularize_tris,
+            tri_priors=tri_priors, tri_distance_weight=tri_distance_weight,
+            elastic_floor=elastic_floor, check_nans=check_nans)
     end
 
     PvGb = basic_matrices["PvGb"]
@@ -518,7 +519,7 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
             end
 
             lhs, rhs = make_weighted_constrained_lls_matrices(PvGb, Vc, cm,
-                weights; sparse_lhs = sparse_lhs, method = constraint_method)
+                weights; sparse_lhs=sparse_lhs, method=constraint_method)
         end
     else
         if length(cm) == 0
@@ -584,33 +585,33 @@ solves for Euler poles, fault/tri slip rates, and uncertainty.
 
 """
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array = [], tris = [], weighted::Bool = true,
-    regularize_tris::Bool = true,
-    tri_priors::Bool = false, elastic_floor = 1e-4,
-    tri_distance_weight::Float64 = 10.0, check_closures::Bool = true,
-    sparse_lhs::Bool = false, predict_vels::Bool = false, constraint_method = "kkt_sym",
-    pred_se::Bool = false, factorization = "lu", check_nans = false)
+    faults::Array=[], tris=[], weighted::Bool=true,
+    regularize_tris::Bool=true,
+    tri_priors::Bool=false, elastic_floor=1e-4,
+    tri_distance_weight::Float64=10.0, check_closures::Bool=true,
+    sparse_lhs::Bool=false, predict_vels::Bool=false, constraint_method="kkt_sym",
+    pred_se::Bool=false, factorization="lu", check_nans=false)
 
     @info "setting up unconstrained matrices"
     @time block_inv_setup = set_up_block_inv_no_constraints(vel_groups;
-        faults = faults,
-        regularize_tris = regularize_tris,
-        tri_priors = tri_priors,
-        tri_distance_weight = tri_distance_weight,
-        elastic_floor = elastic_floor,
-        tris = tris, check_nans = check_nans)
+        faults=faults,
+        regularize_tris=regularize_tris,
+        tri_priors=tri_priors,
+        tri_distance_weight=tri_distance_weight,
+        elastic_floor=elastic_floor,
+        tris=tris, check_nans=check_nans)
     @info "making constrained matrices"
     @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups;
-        basic_matrices = block_inv_setup,
-        weighted = weighted,
-        regularize_tris = regularize_tris,
-        tri_priors = tri_priors,
-        tris = tris,
-        tri_distance_weight = tri_distance_weight,
-        elastic_floor = elastic_floor,
-        sparse_lhs = sparse_lhs,
-        constraint_method = constraint_method,
-        check_nans = check_nans)
+        basic_matrices=block_inv_setup,
+        weighted=weighted,
+        regularize_tris=regularize_tris,
+        tri_priors=tri_priors,
+        tris=tris,
+        tri_distance_weight=tri_distance_weight,
+        elastic_floor=elastic_floor,
+        sparse_lhs=sparse_lhs,
+        constraint_method=constraint_method,
+        check_nans=check_nans)
 
     lhs = block_inv_setup["lhs"]
     lhs_size = size(lhs)
@@ -687,17 +688,18 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     end
 
     if predict_vels == true
+        println("is true")
         results["predicted_vels"] = Oiler.ResultsAnalysis.predict_model_velocities(
             vel_groups,
             block_inv_setup, results["poles"];
-            tri_results = results["tri_slip_rates"])
+            tri_results=results["tri_slip_rates"])
 
         results["predicted_slip_rates"] = Oiler.ResultsAnalysis.predict_slip_rates(
             faults, results["poles"])
     end
 
     if check_closures == true
-        closures = Oiler.Utils.check_vel_closures(results["poles"]; tol = 1e-4)
+        closures = Oiler.Utils.check_vel_closures(results["poles"]; tol=1e-4)
     end
 
     results
@@ -707,11 +709,11 @@ end
 function get_poles_from_soln(vel_group_keys, soln)
     poles = Dict()
     for (i, (fix, mov)) in enumerate(vel_group_keys)
-        poles[(fix, mov)] = PoleCart(x = soln[i*3-2],
-            y = soln[i*3-1],
-            z = soln[i*3],
-            fix = fix,
-            mov = mov)
+        poles[(fix, mov)] = PoleCart(x=soln[i*3-2],
+            y=soln[i*3-1],
+            z=soln[i*3],
+            fix=fix,
+            mov=mov)
     end
     poles
 end
@@ -747,11 +749,19 @@ end
 
 
 function make_CWLS_cov_iter(lhs, var_cov_matrix, Vc, cm, n_pole_vars, soln_idx,
-    n_iters, constraint_method)
+    n_iters)
     @info "CWLS covariances through Monte Carlo techniques"
-    p, q = size(cm)
+    stoch_poles = make_stoch_poles(lhs, var_cov_matrix, Vc, cm, n_pole_vars,
+        soln_idx, n_iters, constraint_method)
+    var_cov = cov(stoch_poles; dims=1)
+end
 
-    # vel_stds = sqrt.(1 ./ weights)
+
+function make_stoch_poles(lhs, var_cov_matrix, Vc, cm, n_pole_vars, soln_idx,
+    n_iters, constraint_method)
+    # this one is for CWLS
+
+    p, q = size(cm)
 
     # rng = MersenneTwister(69) # to be replaced via config later
     # rand_vel_noise = randn((length(Vc), n_iters))
@@ -777,12 +787,13 @@ function make_CWLS_cov_iter(lhs, var_cov_matrix, Vc, cm, n_pole_vars, soln_idx,
         soln = full_soln[soln_idx]
         stoch_poles[i, :] = soln'
     end
-    var_cov = cov(stoch_poles; dims = 1)
+    stoch_poles
 end
 
 
 function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
-    constraint_method, weighted = true)
+    constraint_method,
+    weighted=true; save_stoch_poles=true)
     PvGb = block_matrices["PvGb"]
     cm = block_matrices["cm"]
     y_obs = block_matrices["Vc"]
@@ -799,14 +810,17 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
     elseif any(x -> x != 1.0, weights) & (length(cm) == 0)
         var_cov = make_WLS_cov(PvGb, weights)
     else
-        var_cov = make_CWLS_cov_iter(lhs_fact,
+        stoch_poles = make_stoch_poles(lhs_fact,
             block_matrices["var_cov_matrix"], y_obs, cm,
             p, soln_idx, 1000, constraint_method)
+        var_cov = cov(stoch_poles; dims=1)
+        if save_stoch_poles == true
+            block_matrices["stoch_poles"] = stoch_poles
+        end
     end
 
     var = results["stats_info"]["RMSE"]^2 * var_cov
     standard_error_vec = sqrt.(diag(var))
-
 
     SE_string = "mean standard error: " * string(
         sum(standard_error_vec) / length(standard_error_vec))
@@ -819,12 +833,12 @@ end
 function get_pole_uncertainties!(poles, pole_var, vel_group_keys)
     for (i, (fix, mov)) in enumerate(vel_group_keys)
         poles[(fix, mov)] = PoleCart(poles[(fix, mov)];
-            ex = sqrt(pole_var[i*3-2, i*3-2]),
-            ey = sqrt(pole_var[i*3-1, i*3-1]),
-            ez = sqrt(pole_var[i*3, i*3]),
-            cxy = pole_var[i*3-2, i*3-1],
-            cxz = pole_var[i*3-2, i*3],
-            cyz = pole_var[i*3-1, i*3])
+            ex=sqrt(pole_var[i*3-2, i*3-2]),
+            ey=sqrt(pole_var[i*3-1, i*3-1]),
+            ez=sqrt(pole_var[i*3, i*3]),
+            cxy=pole_var[i*3-2, i*3-1],
+            cxz=pole_var[i*3-2, i*3],
+            cyz=pole_var[i*3-1, i*3])
     end
 end
 
@@ -861,13 +875,49 @@ end
 
 
 
-function calc_forward_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
-    poles::Dict{Any,Any}; faults::Array = [])
+function calc_forward_velocities(forward_vels, fix; poles, stoch_poles=[], faults=[],
+    tris=[], tri_soln=[], elastic_floor=0.0)
+    # this should include locking (or not) for all vels
 
-    block_inv_setup = set_up_block_inv_w_constraints(vel_groups; faults = faults,
-        weighted = weighted)
-    @warn "NOT FINISHED IMPLEMENTING"
+    forward_vel_groups = group_vels_by_fix_mov(forward_vels)
 
+    fault_vels = Oiler.IO.make_vels_from_faults(faults)
+
+    if length(faults) > 0
+        vel_groups = group_vels_by_fix_mov(vcat(forward_vels, fault_vels))
+    else
+        vel_groups = forward_vel_groups
+    end
+
+    block_mats = make_block_PvGb_from_vels(vel_groups)
+
+    results_poles = Dict(k => Oiler.Utils.get_path_euler_pole(poles, k[1], k[2])
+                         for k in block_mats["keys"])
+
+    if length(faults) > 0
+        block_mats["PvGb"] = add_fault_locking_to_PvGb(faults, vel_groups,
+            block_mats["PvGb"]; elastic_floor=elastic_floor)
+    end
+
+    if length(tris) > 0
+        @warn "can't calculate forward vels including tris yet!"
+        #block_mats = add_tris_to_PvGb(tris, forward_vel_groups, block_mats;
+        #    regularize=false, priors=false, elastic_floor=elastic_floor)
+    end
+
+    # pred results dict like real results dict
+    pred_results = Dict("predicted_vels" => Oiler.ResultsAnalysis.predict_model_velocities(vel_groups,
+        block_mats, results_poles))
+
+    if length(stoch_poles) > 0
+
+    end
+
+    pred_vels_at_sites_ = Oiler.ResultsAnalysis.get_gnss_results(pred_results, vel_groups)
+
+    pred_vels_at_sites = pred_vels_at_sites_[!, [:lon, :lat, :pred_ve, :pred_vn]]
+
+    return pred_vels_at_sites
 end
 
 
@@ -896,10 +946,10 @@ function solve_for_block_poles_iterative(vel_groups::Dict{Tuple{String,String},A
 
         kkt_soln = lhs \ rhs
 
-        results["poles"][iter] = [PoleCart(x = kkt_soln[i*3-2],
-            y = kkt_soln[i*3-1],
-            z = kkt_soln[i*3],
-            fix = fix, mov = mov)
+        results["poles"][iter] = [PoleCart(x=kkt_soln[i*3-2],
+            y=kkt_soln[i*3-1],
+            z=kkt_soln[i*3],
+            fix=fix, mov=mov)
                                   for (i, (fix, mov)) in enumerate(vd["keys"])]
     end
     results

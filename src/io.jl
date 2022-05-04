@@ -317,6 +317,7 @@ end
 
 
 function get_block_idx_for_point(point, block_df; epsg=4326)
+    @warn "won't work without archgdal"
     point_geom = AG.createpoint(point[1], point[2])
 
     if epsg != 4326
@@ -919,9 +920,9 @@ end
 
 
 function make_vels_from_gnss_and_blocks(gnss_df, block_df; ve=:ve, vn=:vn, ee=:ee, en=:en,
-    fix="1111", name=:station, epsg=0)
+    fix="1111", name=:station, epsg=102016)
 
-    if epsg != 0
+    if epsg != 4326
         block_idx = get_block_idx_for_points(gnss_df, block_df, epsg)
     else
         block_idx = get_block_idx_for_points(gnss_df, block_df)
@@ -938,6 +939,45 @@ function make_vels_from_gnss_and_blocks(gnss_df, block_df; ve=:ve, vn=:vn, ee=:e
     end
 
     gnss_vels = convert(Array{VelocityVectorSphere}, gnss_vels)
+end
+
+
+function load_pred_vels_from_pt_file(pred_vel_pt_file)
+    filetype = split(pred_vel_pt_file, ".")[end]
+    if filetype in ["geojson", "json"]
+        pt_df = gis_vec_file_to_df(pred_vel_pt_file)
+    elseif filetype in [".csv"]
+        @warn "CSV not yet implemented"
+    end
+
+    pt_df
+end
+
+function make_vels_for_pred_from_pts(pred_pt_df, block_df; fix="1111", epsg=102016,
+    fault_locking=true)
+
+    if fault_locking != true
+        @warn "pred vels for no fault locking not implemented yet, here... ignoring"
+    end
+
+    n_pts = size(pred_pt_df)[1]
+
+    pred_pt_df[!, "ve"] = zeros(n_pts)
+    pred_pt_df[!, "ee"] = zeros(n_pts)
+    pred_pt_df[!, "vn"] = zeros(n_pts)
+    pred_pt_df[!, "en"] = zeros(n_pts)
+    pred_pt_df[!, "station"] = string.(collect(1:n_pts))
+
+    pred_vels = make_vels_from_gnss_and_blocks(pred_pt_df, block_df; epsg=epsg)
+end
+
+
+function make_vels_for_pred_from_pt_file(pred_vel_pt_file, block_df; fix="1111",
+    epsg=102016, fault_locking=true)
+
+    pred_pt_df = load_pred_vels_from_pt_file(pred_vel_pt_file)
+    pred_vels = make_vels_for_pred_from_pts(pred_pt_df, block_df; fix=fix,
+        epsg=epsg, fault_locking=fault_locking)
 end
 
 

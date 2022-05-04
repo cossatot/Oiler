@@ -2,39 +2,40 @@ module ResultsAnalysis
 
 using Setfield
 using StatsBase# , DataAPI
+import Base.Threads.@threads
 using DataFrames, DataFramesMeta
 
 using ..Oiler
 
 function check_missing_rate(val)
     if ismissing(val) | isnothing(val)
-            return false
+        return false
     elseif val == ""
         return false
-    elseif val == 0.
-            return false
+    elseif val == 0.0
+        return false
     elseif ismissing(val) | isnothing(val)
-            return false
+        return false
     else
-            return true
+        return true
     end
 end
 
 
 function get_geol_slip_rate_indices(geol_slip_rate_df)
-    include_idx = map(!, iszero.(geol_slip_rate_df[!,:include]))
+    include_idx = map(!, iszero.(geol_slip_rate_df[!, :include]))
 
-    dex_has_rate_idx = map(check_missing_rate, 
-                           geol_slip_rate_df[!,:dextral_rate])
-    ext_has_rate_idx = map(check_missing_rate, 
-                           geol_slip_rate_df[!,:extension_rate])
+    dex_has_rate_idx = map(check_missing_rate,
+        geol_slip_rate_df[!, :dextral_rate])
+    ext_has_rate_idx = map(check_missing_rate,
+        geol_slip_rate_df[!, :extension_rate])
 
     include_idx, dex_has_rate_idx, ext_has_rate_idx
 end
 
 
 function get_geol_obs_slip_rates(geol_slip_rate_df)
-    
+
     include_idx, dex_has_rate_idx, ext_has_rate_idx = get_geol_slip_rate_indices(
         geol_slip_rate_df
     )
@@ -49,31 +50,31 @@ function get_geol_obs_slip_rates(geol_slip_rate_df)
     ext_geol_err = geol_slip_rate_df[!, :extension_err][ext_include]
 
     Dict("dex_geol_obs" => dex_geol_obs,
-         "dex_geol_err" => dex_geol_err,
-         "ext_geol_obs" => ext_geol_obs,
-         "ext_geol_err" => ext_geol_err)
+        "dex_geol_err" => dex_geol_err,
+        "ext_geol_obs" => ext_geol_obs,
+        "ext_geol_err" => ext_geol_err)
 end
 
 
-function get_geol_pred_slip_rates(geol_slip_rate_vels, fault_df, results; 
-                                  usd=:usd, lsd=:lsd)
+function get_geol_pred_slip_rates(geol_slip_rate_vels, fault_df, results;
+    usd=:usd, lsd=:lsd)
     pred_geol_slip_rates = []
     for (i, rate) in enumerate(geol_slip_rate_vels)
         fault_idx = rate.name
-        fault_row = @subset(fault_df, :fid .== fault_idx)[1,:]
+        fault_row = @subset(fault_df, :fid .== fault_idx)[1, :]
         fault = Oiler.IO.row_to_fault(fault_row; lsd=lsd,
-                                                 usd=usd)
-        
+            usd=usd)
+
         if haskey(results["poles"], (rate.fix, rate.mov))
-            pred_rate = Oiler.Faults.get_fault_slip_rate_from_pole(fault, 
-                            results["poles"][(rate.fix, rate.mov)]; 
-                            lon=rate.lon, lat=rate.lat)
+            pred_rate = Oiler.Faults.get_fault_slip_rate_from_pole(fault,
+                results["poles"][(rate.fix, rate.mov)];
+                lon=rate.lon, lat=rate.lat)
         else
             pred_rate = Oiler.Faults.get_fault_slip_rate_from_pole(fault,
-                            results["poles"][(rate.mov, rate.fix)]; 
-                            lon=rate.lon, lat=rate.lat)
+                results["poles"][(rate.mov, rate.fix)];
+                lon=rate.lon, lat=rate.lat)
         end
-        
+
         push!(pred_geol_slip_rates, pred_rate)
     end
     pred_geol_slip_rates
@@ -81,7 +82,7 @@ end
 
 
 function filter_geol_pred_rates(geol_pred_slip_rates, include_idx,
-                                dex_has_rate_idx, ext_has_rate_idx)
+    dex_has_rate_idx, ext_has_rate_idx)
 
     dex_inc = dex_has_rate_idx[include_idx]
     ext_inc = ext_has_rate_idx[include_idx]
@@ -94,27 +95,27 @@ function filter_geol_pred_rates(geol_pred_slip_rates, include_idx,
 
 
     Dict("dex_geol_pred" => dex_geol_pred,
-         "dex_geol_pred_err" => dex_geol_err,
-         "ext_geol_pred" => ext_geol_pred,
-         "ext_geol_pred_err" => ext_geol_err)
+        "dex_geol_pred_err" => dex_geol_err,
+        "ext_geol_pred" => ext_geol_pred,
+        "ext_geol_pred_err" => ext_geol_err)
 end
 
 
-function get_obs_pred_geol_rate_vecs(;geol_slip_rate_df,
-                                     geol_slip_rate_vels,
-                                     fault_df,
-                                     results,
-                                     usd=:usd, lsd=:lsd)
+function get_obs_pred_geol_rate_vecs(; geol_slip_rate_df,
+    geol_slip_rate_vels,
+    fault_df,
+    results,
+    usd=:usd, lsd=:lsd)
 
     include_idx, dex_has_rate_idx, ext_has_rate_idx = get_geol_slip_rate_indices(
         geol_slip_rate_df
     )
 
     pred_rates = get_geol_pred_slip_rates(geol_slip_rate_vels, fault_df,
-                                          results; usd=usd, lsd=lsd)
+        results; usd=usd, lsd=lsd)
 
     pred_rates = filter_geol_pred_rates(pred_rates, include_idx,
-                                        dex_has_rate_idx, ext_has_rate_idx)
+        dex_has_rate_idx, ext_has_rate_idx)
 
     obs_rates = get_geol_obs_slip_rates(geol_slip_rate_df)
 
@@ -123,13 +124,13 @@ end
 
 
 function get_pred_solution(PvGb, keys, poles; tri_results=Dict())
-    
-    soln_vec = [[poles[k].x poles[k].y poles[k].z] 
-                 for k in keys]
+
+    soln_vec = [[poles[k].x poles[k].y poles[k].z]
+                for k in keys]
     soln_vec = [(soln_vec...)...]
-    
+
     if length(tri_results) > 0
-        tri_soln = [[tri["dip_slip"] tri["strike_slip"]] 
+        tri_soln = [[tri["dip_slip"] tri["strike_slip"]]
                     for tri in values(tri_results)]
         tri_soln = [(tri_soln...)...]
         append!(soln_vec, tri_soln)
@@ -142,8 +143,8 @@ end
 
 function calc_RMSE_from_G(block_matrices, results)
     y_pred = get_pred_solution(block_matrices["PvGb"], block_matrices["keys"],
-                               results["poles"];
-                               tri_results=results["tri_slip_rates"])
+        results["poles"];
+        tri_results=results["tri_slip_rates"])
 
     y_obs = block_matrices["Vc"]
     n, p = size(block_matrices["PvGb"])
@@ -151,10 +152,46 @@ function calc_RMSE_from_G(block_matrices, results)
     RMSE = Oiler.Stats.RMSE(y_obs, y_pred, n, p)
 end
 
-
 function predict_model_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
     block_matrices, poles; tri_results=Dict())
-    
+
+    # this is for propagating uncertainties to GNSS vels, unfinished
+    # but I don't want to leave it in a branch.
+    #gnss_df = Oiler.Utils.make_gnss_df_from_vel_groups(vel_groups)
+
+    #if haskey(block_matrices, "stoch_poles")
+    #    n_iters = size(block_matrices["stoch_poles"], 1)
+
+    #    #pred_vels_stoch = Dict()
+    #    gnss_stoch_ve = zeros(size(gnss_df, 1), n_iters)
+    #    gnss_stoch_vn = zeros(size(gnss_df, 1), n_iters)
+
+    #    @warn "doing the thing"
+    #    @time @threads for i in 1:n_iters
+    #        poles_iter = Oiler.Solver.get_poles_from_soln(block_matrices["keys"],
+    #            block_matrices["stoch_poles"][i, :])
+
+    #        # I don't think I'm propagating tri uncertainties through this...
+    #        pred_vels_stoch_i = predict_model_velocities_one_pole_set(vel_groups,
+    #            block_matrices, poles_iter; tri_results=tri_results)
+
+    #        pred_vels = [v["vel"] for v in Oiler.Utils.get_gnss_vels(
+    #            pred_vels_stoch_i)]
+    #        pve = [v.ve for v in pred_vels]
+    #        pvn = [v.vn for v in pred_vels]
+
+    #        gnss_stoch_ve[:, i] = pve
+    #        gnss_stoch_vn[:, i] = pvn
+    #    end
+    #end
+    predict_model_velocities_one_pole_set(vel_groups,
+        block_matrices, poles; tri_results=tri_results)
+end
+
+
+function predict_model_velocities_one_pole_set(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
+    block_matrices, poles; tri_results=Dict())
+
     pred_vel_vec = get_pred_solution(block_matrices["PvGb"], block_matrices["keys"],
         poles; tri_results)
 
@@ -184,42 +221,42 @@ end
 
 function predict_slip_rates(faults, poles)
     slip_rates = Oiler.Utils.get_fault_slip_rates_from_poles(
-            faults, poles)
+        faults, poles)
 
     new_faults = []
 
     for (i, fault) in enumerate(faults)
-        push!(new_faults, 
-              Fault(
-                  fault.trace,
-                  fault.strike,
-                  fault.dip,
-                  fault.dip_dir,
-                  slip_rates[i][2],
-                  slip_rates[i][4], # fault.extension_err,
-                  slip_rates[i][1],
-                  slip_rates[i][3], # fault.dextral_err,
-                  slip_rates[i][5], # fault.cde,
-                  fault.lsd,
-                  fault.usd,
-                  fault.name,
-                  fault.hw,
-                  fault.fw,
-                  fault.fid
-              )
+        push!(new_faults,
+            Fault(
+                fault.trace,
+                fault.strike,
+                fault.dip,
+                fault.dip_dir,
+                slip_rates[i][2],
+                slip_rates[i][4], # fault.extension_err,
+                slip_rates[i][1],
+                slip_rates[i][3], # fault.dextral_err,
+                slip_rates[i][5], # fault.cde,
+                fault.lsd,
+                fault.usd,
+                fault.name,
+                fault.hw,
+                fault.fw,
+                fault.fid
+            )
         )
     end
     new_faults
 end
 
 
-function compare_data_results(;results, 
-                               vel_groups, 
-                               geol_slip_rate_df,
-                               geol_slip_rate_vels,
-                               fault_df,
-                               usd=:usd, lsd=:lsd
-                               )
+function compare_data_results(; results,
+    vel_groups,
+    geol_slip_rate_df,
+    geol_slip_rate_vels,
+    fault_df,
+    usd=:usd, lsd=:lsd
+)
 
     geol_data_obs, geol_data_pred = get_obs_pred_geol_rate_vecs(
         geol_slip_rate_df=geol_slip_rate_df,
@@ -230,12 +267,12 @@ function compare_data_results(;results,
 
     gnss_results = get_gnss_results(results, vel_groups)
 
-    obs_vec = vcat(gnss_results.obs_ve, gnss_results.obs_vn, 
-                   geol_data_obs["dex_geol_obs"], geol_data_obs["ext_geol_obs"])
-    obs_err_vec = vcat(gnss_results.obs_ee, gnss_results.obs_en, 
-                   geol_data_obs["dex_geol_err"], geol_data_obs["ext_geol_err"])
-    pred_vec = vcat(gnss_results.pred_ve, gnss_results.pred_vn, 
-                   geol_data_pred["dex_geol_pred"], geol_data_pred["ext_geol_pred"])
+    obs_vec = vcat(gnss_results.obs_ve, gnss_results.obs_vn,
+        geol_data_obs["dex_geol_obs"], geol_data_obs["ext_geol_obs"])
+    obs_err_vec = vcat(gnss_results.obs_ee, gnss_results.obs_en,
+        geol_data_obs["dex_geol_err"], geol_data_obs["ext_geol_err"])
+    pred_vec = vcat(gnss_results.pred_ve, gnss_results.pred_vn,
+        geol_data_pred["dex_geol_pred"], geol_data_pred["ext_geol_pred"])
     # pred_err_vec = vcat(gnss_results.pred_ee, gnss_results.pred_en, 
     #               geol_data_pred["dex_geol_pred_err"], geol_data_pred["ext_geol_pred_err"])
 
@@ -246,22 +283,27 @@ function compare_data_results(;results,
     results["stats_info"]["reduced_chi_sq"] = Oiler.Stats.reduced_chi_sq(
         obs_vec, pred_vec, obs_err_vec, results["stats_info"]["n_params"]
     )
-    
+
     resid_summary = StatsBase.summarystats(abs.(resid_vec))
 
     results["stats_info"]["resid_summary"] = Dict(
-      "mean" => resid_summary.mean,
-      "min" => resid_summary.min,
-      "q25" => resid_summary.q25,
-      "median" => resid_summary.median,
-      "q75" => resid_summary.q75,
-      "max" => resid_summary.max,
+        "mean" => resid_summary.mean,
+        "min" => resid_summary.min,
+        "q25" => resid_summary.q25,
+        "median" => resid_summary.median,
+        "q75" => resid_summary.q75,
+        "max" => resid_summary.max,
     )
 
 end
 
 
 function get_gnss_results(results, vel_groups)
+    get_gnss_results_per_iter(results["predicted_vels"], vel_groups)
+end
+
+
+function get_gnss_results_per_iter(predicted_vels, vel_groups)
 
     gnss_df = Oiler.Utils.make_gnss_df_from_vel_groups(vel_groups)
     rename!(gnss_df, :ve => :obs_ve)
@@ -271,20 +313,20 @@ function get_gnss_results(results, vel_groups)
 
 
     pred_vels = [v["vel"] for v in Oiler.Utils.get_gnss_vels(
-        results["predicted_vels"])]
+        predicted_vels)]
     pve = [v.ve for v in pred_vels]
     pvn = [v.vn for v in pred_vels]
 
     rve, rvn = gnss_df.obs_ve - pve, gnss_df.obs_vn - pvn
 
-    gnss_df.pred_ve =  round.(pve, digits=3)
-    gnss_df.pred_vn =  round.(pvn, digits=3) 
+    gnss_df.pred_ve = round.(pve, digits=3)
+    gnss_df.pred_vn = round.(pvn, digits=3)
     # these are not correctly estimated
     # gnss_df.pred_ee =  round.([v.ee for v in pred_vels], digits=3)
     # gnss_df.pred_en =  round.([v.en for v in pred_vels], digits=3)
     gnss_df.cen = round.([v.cen for v in pred_vels], digits=3)
-    gnss_df.resid_e =  round.(rve, digits=3)
-    gnss_df.resid_n =  round.(rvn, digits=3)
+    gnss_df.resid_e = round.(rve, digits=3)
+    gnss_df.resid_n = round.(rvn, digits=3)
     # gnss_df.resid_ee = round.(sqrt.(gnss_df.pred_ee.^2 + gnss_df.obs_ee.^2),
     #                               digits=3)
     # gnss_df.resid_en = round.(sqrt.(gnss_df.pred_en.^2 + gnss_df.obs_en.^2),
