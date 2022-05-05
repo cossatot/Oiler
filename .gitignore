@@ -4,6 +4,7 @@
 .DS_Store
 *.gpkg-wal
 *.gpkg-shm
+.qmd
 
 /Manifest.toml
 /clones/
