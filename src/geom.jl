@@ -6,6 +6,7 @@ export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
 import Statistics: mean
 import Proj4: Projection, transform
 
+using Oiler
 using ..Oiler: EARTH_RAD_KM
 using LinearAlgebra
 
@@ -21,7 +22,7 @@ end
 
 
 function gc_distance(lon1::Float64, lat1::Float64,
-    lon2::Float64, lat2::Float64, R = EARTH_RAD_KM)
+    lon2::Float64, lat2::Float64, R=EARTH_RAD_KM)
 
     lon1 = deg2rad(lon1)
     lat1 = deg2rad(lat1)
@@ -44,12 +45,12 @@ function average_azimuth(lons::Array{Float64}, lats::Array{Float64})
     else
 
         azs = [azimuth(lons[i-1], lats[i-1], lons[i], lats[i]) for i =
-               2:length(lats)]
+            2:length(lats)]
 
         azs = [deg2rad(az) for az in azs]
 
         dists = [gc_distance(lons[i-1], lats[i-1], lons[i], lats[i]) for i =
-                 2:length(lats)]
+            2:length(lats)]
 
         avg_x = mean(dists .* [sin(az) for az in azs])
         avg_y = mean(dists .* [cos(az) for az in azs])
@@ -62,7 +63,7 @@ function average_azimuth(lons::Array{Float64}, lats::Array{Float64})
     az
 end
 
-function check_duplicates(arr, name = "")
+function check_duplicates(arr, name="")
     for i = 1:size(arr, 1)-1
         if arr[i] == arr[i+1]
             @warn "duplicated consecutive values in $name"
@@ -95,7 +96,7 @@ end
     angle_difference(trend_1, trend_2)
 Calculates the difference between to angles, azimuths or trends, in degrees.
 """
-function angle_difference(trend_1::Float64, trend_2::Float64; return_abs::Bool = true)
+function angle_difference(trend_1::Float64, trend_2::Float64; return_abs::Bool=true)
 
     difference = trend_2 - trend_1
 
@@ -113,7 +114,7 @@ function angle_difference(trend_1::Float64, trend_2::Float64; return_abs::Bool =
 end
 
 
-function point_sphere_to_cart(lon, lat, depth; R = EARTH_RAD_KM)
+function point_sphere_to_cart(lon, lat, depth; R=EARTH_RAD_KM)
     r = R + depth
 
     x = r * cosd(lat) * cosd(lon)
@@ -124,7 +125,7 @@ function point_sphere_to_cart(lon, lat, depth; R = EARTH_RAD_KM)
 end
 
 
-function point_sphere_to_cart(pos; R = EARTH_RAD_KM)
+function point_sphere_to_cart(pos; R=EARTH_RAD_KM)
     lon = pos[1]
     lat = pos[2]
     depth = pos[3]
@@ -144,7 +145,7 @@ function rotate_velocity(vx::Float64, vy::Float64, angle::Float64)
 end
 
 
-function rotate_velocity_err(ex, ey, angle; cov = 0.0)
+function rotate_velocity_err(ex, ey, angle; cov=0.0)
 
     R = [cos(angle) -sin(angle); sin(angle) cos(angle)]
 
@@ -421,28 +422,52 @@ end
 
 
 function polygon_center(pts)
-    centroid = [0. 0.]
-    
+    centroid = [0.0 0.0]
+
     n = size(pts, 1)
-    signed_area = 0.
-    
+    signed_area = 0.0
+
     for i in 1:n
-        ii = i+1
+        ii = i + 1
         if ii > n
             ii = 1
         end
-        x0, y0 = pts[i,:]
+        x0, y0 = pts[i, :]
         x1, y1 = pts[ii, :]
-        
+
         A = (x0 * y1) - (x1 * y0)
         signed_area += A
-        
+
         centroid[1] += (x0 + x1) * A
         centroid[2] += (y0 + y1) * A
     end
-        
+
     centroid ./= 3 * signed_area
 end
 
+
+function get_polygon_centroid(poly::Polygon; epsg=102016, algorithm=polygon_center)
+
+    poly_pts = poly.coords
+
+    if epsg != 4326
+        trans = Oiler.IO.make_trans_from_wgs84(epsg)
+        poly_zeros = zeros(size(poly_pts))
+        for (i, row) in enumerate(eachrow(poly_pts))
+            poly_zeros[i, :] = trans(row)
+        end
+        poly_pts = poly_zeros
+    end
+
+    centroid = algorithm(poly_pts)
+
+    if epsg != 4326
+        back_trans = Oiler.IO.make_trans_to_wgs84(epsg)
+        bc = back_trans(centroid)
+        centroid = [bc[1] bc[2]]
+    end
+
+    Point(centroid)
+end
 
 end # module

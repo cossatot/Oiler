@@ -366,5 +366,12 @@ function get_tri_locking_rate(tri, poles; set=false)
 end
 
 
+function get_block_centroid_vels(results, block_df; fix)
+    centroid_df = Oiler.Utils.get_block_centroid_velocities(block_df,
+        results["poles"]; fix=fix)
+    results["block_centroids"] = centroid_df
+    return
+end
+
 
 end # module

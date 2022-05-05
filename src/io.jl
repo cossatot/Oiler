@@ -274,12 +274,24 @@ function get_block_idx_for_points(point_df, block_df)
     idxs
 end
 
+
 function make_trans_from_wgs84(to_epsg)
     trans = Transformation("EPSG:4326", "EPSG:4326", always_xy=true)
     try
         trans = Transformation("EPSG:4326", "EPSG:$to_epsg", always_xy=true)
     catch
         trans = Transformation("EPSG:4326", "ESRI:$to_epsg", always_xy=true)
+    end
+    trans
+end
+
+
+function make_trans_to_wgs84(to_epsg)
+    trans = Transformation("EPSG:4326", "EPSG:4326", always_xy=true)
+    try
+        trans = Transformation("EPSG:$to_epsg", "EPSG:4326", always_xy=true)
+    catch
+        trans = Transformation("ESRI:$to_epsg", "EPSG:4326", always_xy=true)
     end
     trans
 end
@@ -313,7 +325,6 @@ function get_block_idx_for_points(point_df, block_df, to_epsg)
     end
     idxs
 end
-
 
 
 function get_block_idx_for_point(point, block_df; epsg=4326)
@@ -1046,7 +1057,6 @@ function row_to_feature(row; min_dist=0.001, simplify=true,
 end
 
 
-
 function geom_to_geojson(geom::Oiler.Geom.Point)
     return Dict("coordinates" => geom.coords,
         "type" => "Point")
@@ -1123,5 +1133,15 @@ function write_block_df(block_df, outfile; name="", min_dist=0.0001, simplify=fa
         JSON.print(f, gj)
     end
 end
+
+
+function write_block_centroid_vels_to_csv(results, block_df=nothing; outfile, fix)
+    if !(haskey(results, "block_centroids"))
+        get_block_centroid_vels(results, block_df; fix=fix)
+    end
+
+    CSV.write(outfile, results["block_centroids"])
+end
+
 
 end # module

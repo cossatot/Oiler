@@ -16,7 +16,7 @@ using Setfield
 using DataFrames
 
 
-function diagonalize_matrices(matrices; sparse_output = true)
+function diagonalize_matrices(matrices; sparse_output=true)
 
     rowz = [size(m, 1) for m in matrices]
     colz = [size(m, 2) for m in matrices]
@@ -69,7 +69,7 @@ end
 
 
 function matrix_to_rows(matrix::Matrix)
-    return [matrix[i,:] for i in 1:size(matrix, 1)]
+    return [matrix[i, :] for i in 1:size(matrix, 1)]
 end
 
 
@@ -88,7 +88,7 @@ end
     108835-how-to-get-only-linearly-independent-rows-
     in-a-matrix-or-to-remove-linear-dependency-b-w-rows-in-a-m
 """
-function lin_indep_cols(X; tol = 1e-10)
+function lin_indep_cols(X; tol=1e-10)
     if ~(true) # supposed to check for all zeros here
         idx = []
     else
@@ -112,8 +112,8 @@ function lin_indep_cols(X; tol = 1e-10)
 end
 
 
-function lin_indep_rows(X; tol = 1e-10)
-    lin_indep_cols(X'; tol = tol)
+function lin_indep_rows(X; tol=1e-10)
+    lin_indep_cols(X'; tol=tol)
 end
 
 
@@ -224,7 +224,7 @@ function make_ugraph_from_digraph(digraph::Dict)
 end
 
 
-function find_tricycles(graph::Dict; reduce::Bool = true)
+function find_tricycles(graph::Dict; reduce::Bool=true)
 
     all_tris = []
 
@@ -307,7 +307,7 @@ end
     flat(x)
 Flattens nested arrays of arrays
 """
-flat(x, y = vcat(x...)) = x == y ? x : flat(y)
+flat(x, y=vcat(x...)) = x == y ? x : flat(y)
 
 
 """
@@ -372,7 +372,7 @@ function get_path_euler_pole(poles::Array{PoleCart,1}, fix::String,
     mov::String)
 
     if fix == mov
-        final_pole = PoleCart(x = 0.0, y = 0.0, z = 0.0, fix = fix, mov = mov)
+        final_pole = PoleCart(x=0.0, y=0.0, z=0.0, fix=fix, mov=mov)
 
     elseif length([p for p in poles if (p.fix == fix) & (p.mov == mov)]) == 1
         final_pole = [p for p in poles if (p.fix == fix) & (p.mov == mov)][1]
@@ -447,7 +447,7 @@ function get_vel_vec_from_pole(vel::VelocityVectorSphere, pole::PoleSphere)
 end
 
 
-function check_vel_closures(poles; tol = 1e-5)
+function check_vel_closures(poles; tol=1e-5)
     v_keys = sort(collect(Tuple(keys(poles))))
     block_digraph = make_digraph_from_tuples(v_keys)
     block_ugraph = make_ugraph_from_digraph(block_digraph)
@@ -477,7 +477,7 @@ function check_vel_closures(poles; tol = 1e-5)
 end
 
 
-function get_fault_slip_rates_from_poles(faults, poles; use_path = true)
+function get_fault_slip_rates_from_poles(faults, poles; use_path=true)
     rates = []
     for fault in faults
         fault_key = (fault.fw, fault.hw)
@@ -607,7 +607,7 @@ end
 
 function make_df_from_vel_array(vels)
     lons, lats = get_coords_from_vel_array(vels)
-    vel_df = DataFrame(lon = lons, lat = lats)
+    vel_df = DataFrame(lon=lons, lat=lats)
 
     vel_df.name = [v.name for v in vels]
     vel_df.fix = [v.fix for v in vels]
@@ -628,8 +628,8 @@ function make_gnss_df_from_vel_groups(vel_groups)
 end
 
 
-function tri_priors_from_pole(tris, pole; locking_fraction = 1.0,
-    err_coeff = 1.0, depth_adjust = false, depth_max = 80.0)
+function tri_priors_from_pole(tris, pole; locking_fraction=1.0,
+    err_coeff=1.0, depth_adjust=false, depth_max=80.0)
     #tri_rates = ThreadsX.map(x -> Oiler.Tris.get_tri_rate_from_pole(x, pole), tris)
     #tri_rates = map(x -> Oiler.Tris.get_tri_rate_from_pole(x, pole), tris)
     tri_rates = []
@@ -671,8 +671,8 @@ function find_first_nz_per_row(matrix)
     nr, nc = size(matrix)
     for i in 1:nr
         for j in 1:nc
-            if matrix[i,j] != 0.
-                push!(first_idxs, (i,j))
+            if matrix[i, j] != 0.0
+                push!(first_idxs, (i, j))
                 break
             end
         end
@@ -684,20 +684,53 @@ end
 function sort_sparse_matrix(matrix)
     first_idxs = find_first_nz_per_row(matrix)
 
-    first_idxs = sort!(first_idxs, by=x->x[2])
+    first_idxs = sort!(first_idxs, by=x -> x[2])
     rows = [x[1] for x in first_idxs]
 
-    matrix[rows,:]
+    matrix[rows, :]
 end
 
 
-function get_block_centroids(blocks) end
-
-
-function get_block_centroid_velocities(blocks, results; ref_block = "")
-
-
+function get_block_centroids(block_geoms; epsg=102016)
+    centroids = map(x -> Oiler.Geom.get_polygon_centroid(x; epsg=epsg), block_geoms)
 end
 
+
+function get_block_centroids(block_df::DataFrame; epsg=102016)
+    centroids = get_block_centroids(block_df.geometry; epsg=epsg)
+end
+
+
+function get_block_centroid_velocities(block_df, poles; fix, epsg=102016)
+    # returns velocties at block centroid without locking effects
+    centroids = map(x -> Oiler.Geom.get_polygon_centroid(x; epsg=epsg), block_df.geometry)
+
+    rows_keep = []
+    vels = []
+
+    for (i, centroid) in enumerate(centroids)
+        #try
+        lon, lat = centroid.coords[1], centroid.coords[2]
+        pole = Oiler.Utils.get_path_euler_pole(poles, fix, string(block_df[i, :fid]))
+        vel = Oiler.BlockRotations.predict_block_vel(lon, lat, pole)
+        push!(vels, vel)
+        push!(rows_keep, i)
+        #catch
+        #end
+    end
+
+    fids = string.([block_df[i, :fid] for i in rows_keep])
+    df = DataFrame("fid" => fids)
+    #df[!, "geometry"] = [centroids[i] for i in rows_keep]
+    df[!, "lon"] = [centroids[i].coords[1] for i in rows_keep]
+    df[!, "lat"] = [centroids[i].coords[2] for i in rows_keep]
+    df[!, "ve"] = [vel.ve for vel in vels]
+    df[!, "vn"] = [vel.vn for vel in vels]
+    df[!, "ee"] = [vel.ee for vel in vels]
+    df[!, "en"] = [vel.en for vel in vels]
+    df[!, "cen"] = [vel.cen for vel in vels]
+
+    df
+end
 
 end # module
