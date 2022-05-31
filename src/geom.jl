@@ -56,9 +56,9 @@ function average_azimuth(lons::Array{Float64}, lats::Array{Float64})
         avg_y = mean(dists .* [cos(az) for az in azs])
 
         az = rad2deg(atan(avg_x, avg_y))
-        if az < 0.0
-            az += 360.0
-        end
+    end
+    if az < 0.0
+        az += 360.0
     end
     az
 end
