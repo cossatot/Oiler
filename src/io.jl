@@ -100,11 +100,6 @@ function pole_to_dict(pole::PoleSphere)
 end
 
 
-# function pole_dict_to_df(poles::Dict)
-#
-
-# end
-
 function poles_to_df(poles::Array{PoleSphere,1})
     df = DataFrame()
     df.lon = [p.lon for p in poles]
@@ -133,7 +128,6 @@ function poles_to_df(poles::Array{PoleCart,1};
     end
     df
 end
-
 
 
 function gj_linestring_to_array(gj_coords)
