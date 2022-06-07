@@ -48,7 +48,8 @@ end
 
 
 function calc_okada_locking_effects_per_fault(fault::Fault, lons, lats;
-    elastic_floor = 1e-4, check_nans = false, ss = 1.0, ds = 1.0, ts = 1.0)
+    elastic_floor=1e-4, check_nans=false, fill_nans=true, nan_fill_val=0.0,
+    ss=1.0, ds=1.0, ts=1.0)
 
     # project fault and velocity coordinates
     n_gnss = length(lons)
@@ -61,7 +62,7 @@ function calc_okada_locking_effects_per_fault(fault::Fault, lons, lats;
 
     # calc okada partials
     elastic_partials = distribute_partials(okada(d, ss, ts, ds,
-        xg, yg; floor = elastic_floor))
+        xg, yg; floor=elastic_floor))
 
     if check_nans == true
         for (i, ep) in enumerate(elastic_partials)
@@ -71,6 +72,12 @@ function calc_okada_locking_effects_per_fault(fault::Fault, lons, lats;
                 @warn fault
                 bad_lon, bad_lat = lons[i], lats[i]
                 @warn "$bad_lon, $bad_lat"
+                if fill_nans == true
+                    map!(x -> isnan(x) ? nan_fill_val : x, ep, ep)
+                    if any(isnan, ep)
+                        @warn "Couldn't replace NaN"
+                    end
+                end
             end
         end
     end
@@ -89,7 +96,7 @@ end
 
 
 function calc_locking_effects_segmented_fault(fault::Fault, lons, lats;
-    elastic_floor = 1e-4, check_nans = false)
+    elastic_floor=1e-4, check_nans=false)
     # may have some problems w/ dip dir for highly curved faults
     trace = fault.trace
     simp_trace = Oiler.Geom.simplify_polyline(trace, 0.01)
@@ -98,15 +105,16 @@ function calc_locking_effects_segmented_fault(fault::Fault, lons, lats;
     parts = []
     for i = 1:size(simp_trace, 1)-1
         seg_trace = simp_trace[i:i+1, :]
-        part = calc_okada_locking_effects_per_fault(Oiler.Fault(trace = seg_trace,
-                dip = fault.dip,
-                dip_dir = fault.dip_dir,
-                lsd = fault.lsd,
-                usd = fault.usd
+        part = calc_okada_locking_effects_per_fault(Oiler.Fault(trace=seg_trace,
+                dip=fault.dip,
+                dip_dir=fault.dip_dir,
+                lsd=fault.lsd,
+                usd=fault.usd,
+                check_trace=false,
                 #usd = maximum([fault.usd; 1.0])
             ),
-            lons, lats; elastic_floor = elastic_floor,
-            check_nans = check_nans)
+            lons, lats; elastic_floor=elastic_floor,
+            check_nans=check_nans)
         push!(parts, part)
     end
     sum(parts)
@@ -114,33 +122,34 @@ end
 
 
 function calc_any_fault_locking_effects(fault::Fault, lons, lats;
-    elastic_floor = 1e-4, check_nans = false, dip_threshold = 20.0)
+    elastic_floor=1e-4, check_nans=false, dip_threshold=0.0)
 
     # tri locking calcs are slower and may be a bit more inaccurate;
     # for now they are turned off.
 
     if fault.dip >= dip_threshold
         return calc_locking_effects_segmented_fault(fault, lons, lats;
-            elastic_floor = elastic_floor, check_nans = check_nans)
+            elastic_floor=elastic_floor, check_nans=check_nans)
     else
         return calc_tri_locking_effects_per_fault(fault, lons, lats;
-            elastic_floor = elastic_floor, check_nans = check_nans)
+            elastic_floor=elastic_floor, check_nans=check_nans)
     end
 end
 
 function get_tri_slip_vec(ds, ss, fault_strike, tri_strike)
-    angle_diff = Oiler.Geom.angle_difference(fault_strike, tri_strike, return_abs = false)
+    angle_diff = Oiler.Geom.angle_difference(fault_strike, tri_strike, return_abs=false)
     rad_diff = deg2rad(angle_diff)
     new_ds, new_ss = Oiler.Geom.rotate_velocity(ds, ss, rad_diff)
 end
 
 function calc_tri_locking_effects_per_fault(fault::Fault, lons, lats;
-    ss = 1.0, ds = 1.0, ts = 0.0, elastic_floor = 1e-4, check_nans = false)
+    ss=1.0, ds=1.0, ts=0.0, elastic_floor=1e-4, check_nans=false, fill_nans=true,
+    nan_fill_val=0.0)
 
     trace = fault.trace
     simp_trace = Oiler.Geom.simplify_polyline(trace, 0.2)
-    simp_fault = Fault(trace = simp_trace, dip = fault.dip, lsd = fault.lsd,
-        dip_dir = fault.dip_dir)
+    simp_fault = Fault(trace=simp_trace, dip=fault.dip, lsd=fault.lsd,
+        dip_dir=fault.dip_dir, check_trace=false)
 
     fault_tris = get_fault_tris(simp_fault)
 
@@ -162,7 +171,7 @@ function calc_tri_locking_effects_per_fault(fault::Fault, lons, lats;
 
     for (i, tri) in enumerate(fault_tris)
         de, dn, dv, se, sn, sv = calc_tri_slip(tri, lons, lats;
-            ss = ss_slip_vecs[i], ds = ds_slip_vecs[i], floor = elastic_floor)
+            ss=ss_slip_vecs[i], ds=ds_slip_vecs[i], floor=elastic_floor)
         due .+= de
         dun .+= dn
         duv .+= dv
@@ -182,6 +191,12 @@ function calc_tri_locking_effects_per_fault(fault::Fault, lons, lats;
                 @warn fault
                 bad_lon, bad_lat = lons[i], lats[i]
                 @warn "$bad_lon, $bad_lat"
+                if fill_nans == true
+                    map!(x -> isnan(x) ? nan_fill_val : x, ep, ep)
+                    if any(isnan, ep)
+                        @warn "Couldn't replace NaN"
+                    end
+                end
             end
         end
     end
@@ -208,8 +223,8 @@ function get_fault_tris(fault::Fault)
         t2 = [fault.trace[i+1, 1]; fault.trace[i+1, 2]; 0.0]
         b1 = [lower_trace[i, 1]; lower_trace[i, 2]; -fault.lsd]
         b2 = [lower_trace[i+1, 1]; lower_trace[i+1, 2]; -fault.lsd]
-        tri1 = Oiler.Tris.Tri(p1 = t1, p2 = t2, p3 = b1)
-        tri2 = Oiler.Tris.Tri(p1 = t2, p2 = b1, p3 = b2)
+        tri1 = Oiler.Tris.Tri(p1=t1, p2=t2, p3=b1)
+        tri2 = Oiler.Tris.Tri(p1=t2, p2=b1, p3=b2)
         push!(tris, tri1)
         push!(tris, tri2)
     end
@@ -241,8 +256,8 @@ function make_partials_matrix(partials, i::Integer)
 end
 
 
-function calc_locking_effects(faults, vel_groups; elastic_floor = 1e-4,
-    check_nans = false)
+function calc_locking_effects(faults, vel_groups; elastic_floor=1e-4,
+    check_nans=false)
 
     gnss_vels = get_gnss_vels(vel_groups)
     gnss_lons = [vel["vel"].lon for vel in gnss_vels]
@@ -260,7 +275,7 @@ function calc_locking_effects(faults, vel_groups; elastic_floor = 1e-4,
             locking_partial_groups[vg] = sum([
                 #calc_locking_effects_segmented_fault(fault, gnss_lons, gnss_lats,
                 calc_any_fault_locking_effects(fault, gnss_lons, gnss_lats,
-                    elastic_floor = elastic_floor, check_nans = check_nans)
+                    elastic_floor=elastic_floor, check_nans=check_nans)
                 for fault in fault_groups[vg]
             ])
         else
@@ -290,29 +305,29 @@ Calculates unit strike and dip slip on all GNSS velocities for all tris.
 Returns an 3Mx2T matrix, where M is the number of sites and T is the number
 of tris. Only horizontal components are returned.
 """
-function calc_tri_effects(tris, gnss_lons, gnss_lats; elastic_floor = 1e-4)
+function calc_tri_effects(tris, gnss_lons, gnss_lats; elastic_floor=1e-4)
 
     tri_gnss_partials = hcat(ThreadsX.collect(
         arrange_tri_partials(
             calc_tri_effects_single_tri(tri, gnss_lons, gnss_lats;
-                elastic_floor = elastic_floor)...)
+                elastic_floor=elastic_floor)...)
         for tri in tris
     )...)
 end
 
 
-function calc_tri_effects_single_tri(tri, lons, lats; elastic_floor = 1e-4)
+function calc_tri_effects_single_tri(tri, lons, lats; elastic_floor=1e-4)
 
     ss = 1.# e-3 # mm
     ds = 1.# e-3 # mm
     ts = 0.0 # no tensile slip on tris
 
-    calc_tri_slip(tri, lons, lats; ss = ss, ds = ds,
-        ts = ts, floor = elastic_floor)
+    calc_tri_slip(tri, lons, lats; ss=ss, ds=ds,
+        ts=ts, floor=elastic_floor)
 end
 
 
-function calc_tri_slip(tri, lons, lats; ss = 0.0, ds = 0.0, ts = 0.0, floor = 1e-4)
+function calc_tri_slip(tri, lons, lats; ss=0.0, ds=0.0, ts=0.0, floor=1e-4)
 
     # project coordinates of tri and sites
     x_proj, y_proj = Oiler.Tris.tri_merc(tri, lons, lats)
@@ -351,7 +366,7 @@ function calc_tri_slip(tri, lons, lats; ss = 0.0, ds = 0.0, ts = 0.0, floor = 1e
 end
 
 
-function arrange_tri_partials(due, dun, duv, sue, sun, suv; uv_zero = true)
+function arrange_tri_partials(due, dun, duv, sue, sun, suv; uv_zero=true)
 
     # one 3x2 matrix for each site, stacked vertically
     # due sue
