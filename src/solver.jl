@@ -688,7 +688,6 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     end
 
     if predict_vels == true
-        println("is true")
         results["predicted_vels"] = Oiler.ResultsAnalysis.predict_model_velocities(
             vel_groups,
             block_inv_setup, results["poles"];
