@@ -96,21 +96,61 @@ end
     angle_difference(trend_1, trend_2)
 Calculates the difference between to angles, azimuths or trends, in degrees.
 """
-function angle_difference(trend_1::Float64, trend_2::Float64; return_abs::Bool=true)
+function angle_difference(trend_1::Float64, trend_2::Float64; return_abs::Bool=true,
+    unit="degrees")
+
+    if unit == "radians"
+        wrap_min = -pi
+        wrap_max = 2 * pi
+    elseif unit == "degrees"
+        wrap_min = -180.0
+        wrap_max = 360.0
+    end
 
     difference = trend_2 - trend_1
 
-    while difference < -180.0
-        difference += 360.0
+    while difference < wrap_min
+        difference += wrap_max
     end
-    while difference > 180.0
-        difference -= 360.0
+    while difference > -wrap_min
+        difference -= wrap_max
     end
 
     if return_abs == true
         difference = abs(difference)
     end
     difference
+end
+
+
+function angular_mean_degrees(angles)
+    mean_angle = rad2deg(atan(mean(sind.(angles)), mean(cosd.(angles))))
+end
+
+function angular_mean_radians(angles)
+    mean_angle = atan(mean(sin.(angles)), mean(cos.(angles)))
+end
+
+function angular_mean(angles; unit="radians")
+    if unit == "radians"
+        mean_angle = angular_mean_radians(angles)
+    elseif unit == "degrees"
+        mean_angle = angular_mean_degrees(angles)
+    else
+        throw(ArgumentError("Unit needs to be radians or degrees"))
+    end
+    mean_angle
+end
+
+
+function angular_std(angles; unit="radians")
+    mean = angular_mean(angles; unit=unit)
+
+    diffs = [angle_difference(angle, mean; return_abs=false, unit=unit)
+             for angle in angles]
+
+    var = sum(diffs .^ 2) / (length(diffs) - 1)
+    std = sqrt(var)
 end
 
 
@@ -155,6 +195,15 @@ function rotate_velocity_err(ex, ey, angle; cov=0.0)
     err = [sqrt(var[1, 1]), sqrt(var[2, 2]), var[1, 2]]
 end
 
+
+function rotate_velocity_w_err(vx::Float64, vy::Float64, angle::Float64,
+    ex=0.0, ey=0.0; cov=0.0)
+    Vp = [cos(angle) -sin(angle); sin(angle) cos(angle)] * [vx; vy]
+    Ep = rotate_velocity_err(ex, ey, angle; cov=cov)
+    (Vp, Ep)
+end
+
+
 """
     rotate_xy_vec
 
@@ -166,6 +215,12 @@ function rotate_xy_vec(x, y, alpha_rot)
     return xp, yp
 end
 
+
+function rotate_xy_vec_to_magnitude(x, y; x_err=0.0, y_err=0.0, cov=0.0)
+    angle = atan(-y, x)
+    (vec_rot, err_rot) = rotate_velocity_w_err(x, y, angle, x_err, y_err; cov=cov)
+    (vec_rot[1], err_rot[1])
+end
 
 function get_oblique_merc(lon1, lat1, lon2, lat2)
     # correction for perfectly horizontal lines or lat1 at zero
@@ -368,7 +423,9 @@ function break_polyline_equal(polyline, n_segs)
     new_polylines
 end
 
-
+"""
+   returns 1 for CCW, and -1 for CW 
+"""
 function check_winding_order(coords::Array{Float64,2})
 
     function fun(p1, p2)
@@ -379,6 +436,9 @@ function check_winding_order(coords::Array{Float64,2})
 end
 
 
+"""
+   returns 1 for CCW, and -1 for CW 
+"""
 function check_winding_order(coords)
 
     function fun(p1, p2)

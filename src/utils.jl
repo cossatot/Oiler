@@ -736,4 +736,66 @@ function get_block_centroid_velocities(block_df, poles; fix, epsg=102016)
     df
 end
 
+
+function line_to_segs(coords; digits=4)
+    line = matrix_to_rows(coords)
+    [round.([line[i][1] line[i][2]; line[i+1][1] line[i+1][2]]; digits=digits)
+     for i in 1:length(line)-1]
+end
+
+
+
+function check_fw_hw_all(faults, block_df; verbose=false)
+
+    block_segs = Dict(block.fid => line_to_segs(block.geometry.coords)
+                      for block in eachrow(block_df))
+
+    filter(f -> check_hw_fw(f, block_segs; verbose=verbose), faults)
+end
+
+
+function check_hw_fw(fault::Fault, block_segs::Dict; verbose=false)
+    fault_trace = line_to_segs(fault.trace)
+    test_pass = check_hw_fw(fault_trace, block_segs[fault.hw], block_segs[fault.fw])
+    if !test_pass && verbose
+        fid = fault.fid
+        #@warn "removing $fid: problem with hw and/or fw"
+        println("removing $fid: problem with hw and/or fw")
+    end
+    test_pass
+end
+
+
+function check_hw_fw(fault::Fault, hw_poly::Oiler.Geom.Polygon,
+    fw_poly::Oiler.Geom.Polygon)
+
+    fault_trace = line_to_segs(fault.trace)
+    hw_segs = line_to_segs(hw_poly.coords)
+    fw_segs = line_to_segs(fw_poly.coords)
+
+    check_hw_fw(fault_trace, hw_segs, fw_segs)
+end
+
+
+function check_hw_fw(fault_trace, hw_segs, fw_segs)
+
+    hw_adjacent = false
+    fw_adjacent = false
+
+    for trace_seg in fault_trace
+        if (trace_seg in hw_segs)
+            hw_adjacent = true
+        end
+        if (reverse(trace_seg, dims=1) in fw_segs)
+            fw_adjacent = true
+        end
+    end
+
+    return hw_adjacent && fw_adjacent
+end
+
+
+
+
+
 end # module

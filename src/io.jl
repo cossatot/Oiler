@@ -140,8 +140,22 @@ function gj_linestring_to_array(gj_coords)
 end
 
 
-function gj_polygon_to_array(gj_coords)
-    return gj_linestring_to_array(gj_coords[1])
+function gj_polygon_to_array(gj_coords; check_poly_winding_order=true,
+    epsg=102016)
+
+    coords = gj_linestring_to_array(gj_coords[1])
+
+    if check_poly_winding_order
+        trans = make_trans_from_wgs84(epsg)
+        trans_coords = trans.(Oiler.Utils.matrix_to_rows(coords))
+
+        # geometries should be clockwise for block-fault trace ordering
+        # clockwise is winding order -1
+        if Oiler.Geom.check_winding_order(trans_coords) == 1
+            reverse!(coords, dims=1)
+        end
+    end
+    coords
 end
 
 
@@ -156,14 +170,23 @@ function gj_point_to_array(gj_coords)
 end
 
 
-function reformat_feature(feat; convert_geom=true)
+function reformat_feature(feat; convert_geom=true, check_poly_winding_order=true)
     ref = Dict{String,Any}("geometry" => feat["geometry"]["coordinates"])
     ref["geom_type"] = feat["geometry"]["type"]
     if convert_geom == true
         if ref["geom_type"] == "LineString"
             ref["geometry"] = Oiler.Geom.LineString(gj_linestring_to_array(ref["geometry"]))
         elseif ref["geom_type"] == "Polygon"
-            ref["geometry"] = Oiler.Geom.Polygon(gj_polygon_to_array(ref["geometry"]))
+            if haskey(feat["properties"], "fid") && (feat["properties"]["fid"] == "ant")
+                ref["geometry"] = Oiler.Geom.Polygon(
+                    gj_polygon_to_array(ref["geometry"];
+                        check_poly_winding_order=check_poly_winding_order,
+                        epsg=102019))
+            else
+                ref["geometry"] = Oiler.Geom.Polygon(
+                    gj_polygon_to_array(ref["geometry"];
+                        check_poly_winding_order=check_poly_winding_order))
+            end
         elseif ref["geom_type"] == "Point"
             ref["geometry"] = Oiler.Geom.Point(gj_point_to_array(ref["geometry"]))
         end
@@ -432,12 +455,13 @@ function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v
     e_ex=:e_ex, v_rl=:v_rl, e_rl=:e_rl, dip=:dip,
     hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
     v_default=0.0, e_default=5.0, usd_default=1.0,
-    lsd_default=15.0, fid=:fid, fid_drop=:fid_drop)
+    lsd_default=15.0, fid=:fid, fid_drop=[])
 
     faults = []
-    for i in 1:size(fault_df, 1)
+    #for i in 1:size(fault_df, 1)
+    for row in eachrow(fault_df)
         #try
-        push!(faults, Oiler.IO.row_to_fault(fault_df[i, :];
+        push!(faults, Oiler.IO.row_to_fault(row;
             name=name,
             dip_dir=dip_dir,
             v_ex=v_ex,
@@ -460,9 +484,12 @@ function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v
         #    @warn warn_msg 
         #end 
     end
-    faults = [f for f in faults if f.fw != ""]
-    faults = [f for f in faults if f.hw != ""]
-    faults = [f for f in faults if !(f.fid in fid_drop)]
+
+    faults = convert(Array{Oiler.Faults.Fault}, faults)
+
+    faults = filter(x -> x.fw != "", faults)
+    faults = filter(x -> x.hw != "", faults)
+    faults = filter(x -> !(x.fid in fid_drop), faults)
 
     faults
 end
@@ -550,20 +577,19 @@ function process_faults_from_gis_files(fault_files...;
     name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
     v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
     v_default=0.0, e_default=5.0, usd_default=0.0, lsd_default=20.0, fid=:fid,
-    fid_drop=[], block_df=:block_df,
+    fid_drop=[], block_df=:block_df, check_blocks=false,
     subset_in_bounds=false)
 
     fault_df = load_faults_from_gis_files(fault_files...; layernames)
 
     dropmissing!(fault_df, :hw)
     dropmissing!(fault_df, :fw)
+    fault_df = filter(row -> !(row.hw == ""), fault_df)
+    fault_df = filter(row -> !(row.fw == ""), fault_df)
 
     if subset_in_bounds == true
         fault_df = get_faults_bounding_blocks!(fault_df, block_df)
     end
-
-    fault_df = filter(row -> !(row.hw == ""), fault_df)
-    fault_df = filter(row -> !(row.fw == ""), fault_df)
 
     faults = process_faults_from_df(fault_df; name=name,
         dip_dir=dip_dir,
@@ -582,6 +608,12 @@ function process_faults_from_gis_files(fault_files...;
         lsd_default=lsd_default,
         fid=fid,
         fid_drop=fid_drop)
+
+    if check_blocks
+        faults = Oiler.Utils.check_fw_hw_all(faults, block_df; verbose=true)
+        fault_fids = [f.fid for f in faults]
+        fault_df = filter(r -> r.fid in fault_fids, fault_df)
+    end
 
     fault_vels = make_vels_from_faults(faults)
 
@@ -864,16 +896,17 @@ function write_tri_results_to_gj(tris, results, outfile; name="")
 end
 
 
-function faults_to_geojson(faults; name="")
+function faults_to_geojson(faults; name="", calc_slip_rate=true, calc_rake=true)
     gj = Dict(
         "type" => "FeatureCollection",
         "name" => name,
-        "features" => [fault_to_feature(fault) for fault in faults]
+        "features" => [fault_to_feature(fault, calc_slip_rate=calc_slip_rate,
+            calc_rake=calc_rake) for fault in faults]
     )
 end
 
 
-function fault_to_feature(fault)
+function fault_to_feature(fault; calc_rake=true, calc_slip_rate=true)
     gj_feature = Dict(
         "type" => "Feature",
         "geometry" => Dict(
@@ -881,6 +914,7 @@ function fault_to_feature(fault)
             "coordinates" => fault.trace'
         ),
         "properties" => Dict(
+            "dip" => fault.dip,
             "dip_dir" => fault.dip_dir,
             "extension_rate" => round(fault.extension_rate, digits=3),
             "extension_err" => round(fault.extension_err, digits=3),
@@ -895,11 +929,39 @@ function fault_to_feature(fault)
             "fw" => fault.fw
         )
     )
+
+    if calc_slip_rate == true
+        slip_rate, slip_rate_err = Oiler.Faults.get_net_slip_rate(fault)
+        gj_feature["properties"]["net_slip_rate"] = round(slip_rate, digits=3)
+        gj_feature["properties"]["net_slip_rate_err"] = round(slip_rate_err, digits=3)
+    end
+
+    if calc_rake == true
+        rake, rake_err = Oiler.Faults.get_rake(fault; err=true)
+        gj_feature["properties"]["rake"] = round(rake, digits=1)
+        gj_feature["properties"]["rake_err"] = round(rake_err, digits=1)
+    end
+
+    gj_feature
 end
 
 
-function write_fault_results_to_gj(results, outfile; name="")
-    fault_gj = faults_to_geojson(results["predicted_slip_rates"]; name=name)
+function write_faults_to_gj(faults, outfile; name="", calc_rake=false,
+    calc_slip_rate=false)
+
+    fault_gj = faults_to_geojson(faults; name=name, calc_rake=calc_rake,
+        calc_slip_rate=calc_slip_rate)
+
+    open(outfile, "w") do f
+        JSON.print(f, fault_gj)
+    end
+end
+
+
+function write_fault_results_to_gj(results, outfile; name="", calc_rake=false,
+    calc_slip_rate=true)
+    fault_gj = faults_to_geojson(results["predicted_slip_rates"]; name=name,
+        calc_rake=calc_rake, calc_slip_rate=calc_slip_rate)
 
     open(outfile, "w") do f
         JSON.print(f, fault_gj)

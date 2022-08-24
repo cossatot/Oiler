@@ -4,6 +4,7 @@ export Fault, fault_to_vel, fault_slip_rate_to_ve_vn, ve_vn_to_fault_slip_rate,
     build_velocity_projection_matrix, fault_to_vels
 
 using Parameters
+import Distributions: MvNormal
 
 using Oiler
 using ..Oiler: VelocityVectorSphere, average_azimuth, az_to_angle,
@@ -296,6 +297,37 @@ function get_fault_slip_rate_from_pole(fault::Oiler.Faults.Fault, pole::Oiler.Po
             fault.strike; cen=pred_vel.cen)
     end
     v_rl, v_ex, e_rl, e_ex, cde
+end
+
+
+function get_net_slip_rate(fault::Fault)
+    Oiler.Geom.rotate_xy_vec_to_magnitude(fault.dextral_rate, fault.extension_rate;
+        x_err=fault.dextral_err, y_err=fault.extension_err, cov=fault.cde)
+end
+
+
+function get_rake(fault::Fault; err=false, n_samps=10_000)
+
+    rake = rad2deg(atan(-fault.extension_rate, fault.dextral_rate))
+
+    if err == true
+        C = [fault.dextral_err^2 fault.cde
+            fault.cde fault.extension_err^2]
+
+        rate_dist = MvNormal([fault.dextral_rate; fault.extension_rate], C)
+        rate_samps = rand(rate_dist, n_samps)
+        dex_samps = rate_samps[1, :]
+        ext_samps = rate_samps[2, :]
+
+        rake_samps = ([atan(-ext_samps[i], dex_samp) for (i, dex_samp) in enumerate(dex_samps)])
+
+        #rake_mean = rad2deg(Oiler.Geom.angular_mean(rake_samps; unit="radians"))
+        rake_std = rad2deg(Oiler.Geom.angular_std(rake_samps; unit="radians"))
+
+        return (rake, rake_std)
+    else
+        return rake
+    end
 end
 
 
