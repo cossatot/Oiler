@@ -35,6 +35,9 @@ include("block_rotations.jl")
 using .BlockRotations: build_PvGb_from_vels, build_vel_column_from_vels, predict_block_vels
 export build_PvGb_from_vels, build_vel_column_from_vels, predict_block_vels
 
+include("bounds.jl")
+using .Boundaries
+
 include("io.jl")
 using .IO: vel_from_row, load_vels_from_csv, group_vels_by_fix_mov
 export vel_from_row, load_vels_from_csv, group_vels_by_fix_mov

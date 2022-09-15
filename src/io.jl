@@ -622,6 +622,27 @@ function process_faults_from_gis_files(fault_files...;
 end
 
 
+function get_non_fault_block_bounds(block_df, faults)
+    shared_bound_sets = Oiler.Utils.get_shared_boundaries(block_df)
+    trimmed_bounds = Oiler.Utils.remove_fault_segs_from_bounds(
+        shared_bound_sets, faults
+    )
+
+    non_fault_bounds = Oiler.Utils.sort_bound_sets(trimmed_bounds)
+
+    boundaries = []
+    for ((fix, mov), traces) in non_fault_bounds
+        for trace in traces
+            boundary = Oiler.Boundaries.Boundary(trace, fix, mov)
+            push!(boundaries, boundary)
+        end
+    end
+    boundaries
+end
+
+
+
+
 function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val=1.0,
     weight=1.0, name="name", dip_dir=:dip_dir,
     v_ex=:v_ex, e_ex=:e_ex,

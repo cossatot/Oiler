@@ -348,6 +348,17 @@ function test_sort_sparse_matrix()
     @test A_sort == A_sort_ans
 end
 
+function test_sort_segs()
+    test_set = Set([
+        [-1. -1.; 1. 1.],
+        [1. 1.; 2. 2.],
+        [2. 2.; 3. 3.],
+        ]
+    )
+
+    sorted_ans = [-1. -1.; 1. 1.; 2. 2.; 3. 3.]
+
+end
 
 @testset "test utils.jl" begin
 
