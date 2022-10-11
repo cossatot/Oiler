@@ -311,19 +311,22 @@ function get_rake(fault::Fault; err=false, n_samps=10_000)
     rake = rad2deg(atan(-fault.extension_rate, fault.dextral_rate))
 
     if err == true
-        C = [fault.dextral_err^2 fault.cde
-            fault.cde fault.extension_err^2]
+        rake_std = 0.
+        try
+            C = [fault.dextral_err^2 fault.cde
+                fault.cde fault.extension_err^2]
 
-        rate_dist = MvNormal([fault.dextral_rate; fault.extension_rate], C)
-        rate_samps = rand(rate_dist, n_samps)
-        dex_samps = rate_samps[1, :]
-        ext_samps = rate_samps[2, :]
+            rate_dist = MvNormal([fault.dextral_rate; fault.extension_rate], C)
+            rate_samps = rand(rate_dist, n_samps)
+            dex_samps = rate_samps[1, :]
+            ext_samps = rate_samps[2, :]
 
-        rake_samps = ([atan(-ext_samps[i], dex_samp) for (i, dex_samp) in enumerate(dex_samps)])
+            rake_samps = ([atan(-ext_samps[i], dex_samp) for (i, dex_samp) in enumerate(dex_samps)])
 
-        #rake_mean = rad2deg(Oiler.Geom.angular_mean(rake_samps; unit="radians"))
-        rake_std = rad2deg(Oiler.Geom.angular_std(rake_samps; unit="radians"))
-
+            #rake_mean = rad2deg(Oiler.Geom.angular_mean(rake_samps; unit="radians"))
+            rake_std = rad2deg(Oiler.Geom.angular_std(rake_samps; unit="radians"))
+        catch e
+        end
         return (rake, rake_std)
     else
         return rake

@@ -222,9 +222,8 @@ function gj_to_df(gj; convert_geom=true, fid_drop=[])
     feats = reformat_geojson(gj; convert_geom=convert_geom)
 
     cols = collect(keys(feats[1]))
-
-
     col_dict = Dict{String,Any}()
+
     for col in cols
         #col_dict[col] = [f[col] for f in feats]
         col_dict[col] = [tryget(f, col) for f in feats]
@@ -235,6 +234,8 @@ function gj_to_df(gj; convert_geom=true, fid_drop=[])
     end
 
     df = DataFrame(col_dict)
+
+    df[!, :fid] = string.(df[!, :fid])
 
     if fid_drop != []
         df = filter(row -> !(row.fid in fid_drop), df)
@@ -610,7 +611,7 @@ function process_faults_from_gis_files(fault_files...;
         fid_drop=fid_drop)
 
     if check_blocks
-        faults = Oiler.Utils.check_fw_hw_all(faults, block_df; verbose=true)
+        faults = Oiler.Utils.check_hw_fw_all(faults, block_df; verbose=true)
         fault_fids = [f.fid for f in faults]
         fault_df = filter(r -> r.fid in fault_fids, fault_df)
     end
@@ -622,18 +623,31 @@ function process_faults_from_gis_files(fault_files...;
 end
 
 
-function get_non_fault_block_bounds(block_df, faults)
+function get_non_fault_block_bounds(block_df, faults; verbose=false)
+    if verbose
+        @info "Doing non-fault block boundaries"
+        @info "...getting shared block boundary sets"
+    end
     shared_bound_sets = Oiler.Utils.get_shared_boundaries(block_df)
+    if verbose
+        @info "...removing fault segments"
+    end
     trimmed_bounds = Oiler.Utils.remove_fault_segs_from_bounds(
         shared_bound_sets, faults
     )
 
+    if verbose
+        @info "...sorting segments"
+    end
     non_fault_bounds = Oiler.Utils.sort_bound_sets(trimmed_bounds)
 
+    if verbose
+        @info "...making boundaries"
+    end
     boundaries = []
     for ((fix, mov), traces) in non_fault_bounds
-        for trace in traces
-            boundary = Oiler.Boundaries.Boundary(trace, fix, mov)
+        for (i, trace) in enumerate(traces)
+            boundary = Oiler.Boundaries.Boundary(trace, fix, mov, "$fix-$mov-$i")
             push!(boundaries, boundary)
         end
     end

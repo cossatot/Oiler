@@ -6,11 +6,12 @@ struct Boundary
     trace::Array{Float64,2}
     fix::String
     mov::String
+    fid::String
 end
 
 
 
-function boundary_to_vels(boundary::Boundary; ve=0.0, vn=0.0, ee=5.0, en=5.0,
+function boundary_to_vels(boundary::Boundary; ve=0.0, vn=0.0, ee=1.0, en=1.0,
     simp_dist=2.0)
 
     simp_trace = Oiler.Geom.simplify_polyline(boundary.trace, simp_dist)
@@ -30,7 +31,7 @@ function boundary_to_vels(boundary::Boundary; ve=0.0, vn=0.0, ee=5.0, en=5.0,
 
     midpoints = map(Oiler.Faults.get_midpoint, new_traces)
 
-    vels = map(midpt->Oiler.VelocityVectorSphere(
+    vels = map(midpt -> Oiler.VelocityVectorSphere(
             lon=midpt[1],
             lat=midpt[2],
             ve=ve,
@@ -39,10 +40,10 @@ function boundary_to_vels(boundary::Boundary; ve=0.0, vn=0.0, ee=5.0, en=5.0,
             en=en,
             fix=boundary.fix,
             mov=boundary.mov,
-            vel_type="Boundary"
+            vel_type="Boundary",
         ),
         midpoints
-        )
+    )
 
     vels
 end

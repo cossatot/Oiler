@@ -590,7 +590,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     tri_priors::Bool=false, elastic_floor=1e-4,
     tri_distance_weight::Float64=10.0, check_closures::Bool=true,
     sparse_lhs::Bool=false, predict_vels::Bool=false, constraint_method="kkt_sym",
-    pred_se::Bool=false, factorization="lu", check_nans=false)
+    pred_se::Bool=false, se_iters=1000, factorization="lu", check_nans=false)
 
     @info "setting up unconstrained matrices"
     @time block_inv_setup = set_up_block_inv_no_constraints(vel_groups;
@@ -676,8 +676,9 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             lhs_fact,
             results,
             soln_idx,
-            constraint_method,
-            weighted,
+            constraint_method;
+            n_iters=se_iters,
+            weighted=weighted
         )
         get_pole_uncertainties!(results["poles"], pole_var,
             block_inv_setup["keys"])
@@ -791,8 +792,8 @@ end
 
 
 function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
-    constraint_method,
-    weighted=true; save_stoch_poles=true)
+    constraint_method; n_iters=1000,
+    weighted=true, save_stoch_poles=true)
     PvGb = block_matrices["PvGb"]
     cm = block_matrices["cm"]
     y_obs = block_matrices["Vc"]
@@ -811,7 +812,7 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
     else
         stoch_poles = make_stoch_poles(lhs_fact,
             block_matrices["var_cov_matrix"], y_obs, cm,
-            p, soln_idx, 1000, constraint_method)
+            p, soln_idx, n_iters, constraint_method)
         var_cov = cov(stoch_poles; dims=1)
         if save_stoch_poles == true
             block_matrices["stoch_poles"] = stoch_poles

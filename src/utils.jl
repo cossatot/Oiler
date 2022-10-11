@@ -10,6 +10,7 @@ using ..Oiler: VelocityVectorSphere, PoleCart, PoleSphere, build_PvGb_from_vels,
 using Logging
 using SparseArrays
 using LinearAlgebra
+import Base.Threads.@threads
 
 using ThreadsX
 using Setfield
@@ -745,7 +746,7 @@ end
 
 
 
-function check_fw_hw_all(faults, block_df; verbose=false)
+function check_hw_fw_all(faults, block_df; verbose=false)
 
     block_segs = Dict(block.fid => line_to_segs(block.geometry.coords)
                       for block in eachrow(block_df))
@@ -799,47 +800,47 @@ function get_shared_boundaries(block_df)
     block_seg_sets = Dict(
         block.fid => Set(Oiler.Utils.line_to_segs(block.geometry.coords))
         for block in eachrow(block_df))
-    
+
     block_seg_sets_rev = Dict(block.fid => Set(Oiler.Utils.line_to_segs(
-                reverse(block.geometry.coords, dims=1)))
-        for block in eachrow(block_df))
-    
-    block_ids = block_df[!,:fid]
-    
+        reverse(block.geometry.coords, dims=1)))
+                              for block in eachrow(block_df))
+
+    block_ids = block_df[!, :fid]
+
     shared_boundary_segs = Dict()
     for (i, id) in enumerate(block_ids)
-        for fid in block_ids[i+1 : end]
+        for fid in block_ids[i+1:end]
             shared_segs = intersect(block_seg_sets[id], block_seg_sets_rev[fid])
             if length(shared_segs) > 0
                 shared_boundary_segs[(id, fid)] = shared_segs
             end
         end
     end
-    
+
     shared_boundary_segs
 end
 
 
 function remove_fault_segs_from_bounds(shared_boundary_segs, faults)
-        # duplicate faults frwd and rev, don't worry about winding order rn
+    # duplicate faults frwd and rev, don't worry about winding order rn
     shared_boundary_segs_trimmed = Dict()
-    
+
     for (block_ids, ssegs) in shared_boundary_segs
         shared_boundary_segs_trimmed[block_ids] = ssegs
         for fault in faults
             if (fault.fw in block_ids) & (fault.hw in block_ids)
                 fault_segs = Set(Oiler.Utils.line_to_segs(fault.trace))
                 fault_segs_r = Set(Oiler.Utils.line_to_segs(
-                        reverse(fault.trace, dims=1)))
-                
+                    reverse(fault.trace, dims=1)))
+
                 ssegs_trimmed = setdiff(shared_boundary_segs_trimmed[block_ids], fault_segs)
                 ssegs_trimmed = setdiff(ssegs_trimmed, fault_segs_r)
-                
+
                 shared_boundary_segs_trimmed[block_ids] = ssegs_trimmed
-                
+
                 if length(ssegs) == length(ssegs_trimmed)
                     println("problems with ", block_ids)
-                    
+
                 end
             end
         end
@@ -853,11 +854,11 @@ end
 
 function get_pts_from_segs(segs)
     arr = collect(segs)
-    
+
     pts = []
     for row in eachrow(arr)
-        push!(pts, row[1][1,:])
-        push!(pts, row[1][2,:])
+        push!(pts, row[1][1, :])
+        push!(pts, row[1][2, :])
     end
     pts
 end
@@ -865,9 +866,9 @@ end
 
 function get_endpoints(segs)
     pts = get_pts_from_segs(segs)
-    
+
     counts = Dict()
-    
+
     for pt in pts
         if haskey(counts, Tuple(pt))
             counts[Tuple(pt)] += 1
@@ -875,44 +876,58 @@ function get_endpoints(segs)
             counts[Tuple(pt)] = 1
         end
     end
-    
+
     endpts = []
     for (pt, count) in counts
         if count == 1
             push!(endpts, pt)
         end
     end
-    
+
     endpts
-    
+
 end
 
 
-function sort_segs(segs)
-    
+function sort_segs(segs; debug=false, max_ends=18, max_segs=1_000)
+
     segz = collect(segs)
-    
+
+    if debug
+        println(length(segs), " segments")
+    end
+
+    if length(segz) > max_segs
+        return []
+    end
+
     pts = Tuple.(unique(get_pts_from_segs(segs)))
-    
+
     hash_pts = Dict(pt => i for (i, pt) in enumerate(pts))
-    
+
     endpts = get_endpoints(segs)
-    
+
     ind_ends = [hash_pts[e] for e in endpts]
-    
-    seg_inds = Dict(i=>Dict("start"=> hash_pts[Tuple(seg[1,:])],
-                            "end"=>hash_pts[Tuple(seg[2,:])])
+    if debug
+        println(length(ind_ends), " endpoints")
+    end
+
+    if (length(ind_ends) < 2) || (length(ind_ends) % 2 == 1) || (length(ind_ends) > max_ends)
+        return []
+    end
+
+    seg_inds = Dict(i => Dict("start" => hash_pts[Tuple(seg[1, :])],
+        "end" => hash_pts[Tuple(seg[2, :])])
                     for (i, seg) in enumerate(segz))
-    
-    start_seg_inds = Dict(val["start"]=>key for (key, val) in seg_inds)
-    
+
+    start_seg_inds = Dict(val["start"] => key for (key, val) in seg_inds)
+
     out_segs = []
-    
+
     while length(ind_ends) > 0
 
         first_seg = -1
         for st_ind in ind_ends
-
             for (si, seg) in seg_inds
                 if seg["start"] == st_ind
                     first_seg = si
@@ -922,7 +937,7 @@ function sort_segs(segs)
         end
 
         @label get_going
-                    
+
         inds = [first_seg]
         this_seg = first_seg
 
@@ -932,32 +947,42 @@ function sort_segs(segs)
             this_seg = next_seg
         end
 
-        coords = zeros(length(inds)+1,2)
+        coords = zeros(length(inds) + 1, 2)
 
         for (i, ind) in enumerate(inds)
             coord = pts[seg_inds[ind]["start"]]
-            coords[i,1] = coord[1]
-            coords[i,2] = coord[2]
+            coords[i, 1] = coord[1]
+            coords[i, 2] = coord[2]
         end
 
-        coords[end,1] = pts[seg_inds[last(inds)]["end"]][1]
-        coords[end,2] = pts[seg_inds[last(inds)]["end"]][2]
-        
+        coords[end, 1] = pts[seg_inds[last(inds)]["end"]][1]
+        coords[end, 2] = pts[seg_inds[last(inds)]["end"]][2]
+
         push!(out_segs, coords)
-        
+
         used_ends = [seg_inds[first_seg]["start"], seg_inds[this_seg]["end"]]
         ind_ends = [i for i in ind_ends if !(i in used_ends)]
-     
+
     end
     out_segs
 end
 
-function sort_bound_sets(bound_sets)
+function sort_bound_sets(bound_sets; debug=false)
     dd = Dict()
 
-    for (pair, segs) in bound_sets
+    n_bound_pairs = length(keys(bound_sets))
+
+    if debug
+        println("$n_bound_pairs boundary sets")
+    end
+
+
+    for (i, (pair, segs)) in enumerate(bound_sets)
         try
-            dd[pair] = Oiler.Utils.sort_segs(segs)
+            if debug
+                println("$i / $n_bound_pairs : $pair")
+            end
+            dd[pair] = Oiler.Utils.sort_segs(segs; debug=debug)
         catch e
             warn_msg = "Can't sort $pair"
             @warn warn_msg
