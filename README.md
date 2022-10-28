@@ -6,7 +6,7 @@
 [![Docs](https://img.shields.io/badge/Docs-less%20than%20thorough-blue)](https://cossatot.gitlab.io/oiler/)
 
 *Note: This project is still in rapid development and not sufficiently tested
-for use by those other than me.*
+by those other than me.*
 
 `Oiler` is a program for modeling tectonic block motions on a sphere, in
 particular for solving for best-fit, kinematically-consistent fault slip
@@ -61,3 +61,13 @@ explanations. Additionally, implementation details of certain parts of the
 code here, particularly fault locking or earthquake cycle effects, were modeled
 after the Blocks code by Meade and Loveless. I double thank Meade and Loveless 
 for making their code public and with a permissive license.
+
+## Installation
+
+To install *Oiler*, first install the Julia language.
+
+Then, in a Julia terminal, hit the `]` button to get into the package manager
+command line.  Then type
+```
+add https://github.com/cossatot/Oiler/src/Oiler.jl
+```
