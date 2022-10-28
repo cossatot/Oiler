@@ -10,13 +10,17 @@ using ..Oiler
 function write_web_viewer(; results, block_df, directory::AbstractString, ref_pole,
     block_filename::AbstractString = "blocks.geojson",
     pole_filename::AbstractString = "poles.csv",
+    c_lon::Float64=110.0, c_lat::Float64 = 45.0,
+    use_center::Bool = true,
     time_min = -5.0, time_max = 5.0, time_step = 0.25)
 
     template_file = joinpath(@__DIR__, "web_viewer_template", "web_viewer_template.html")
     blockrot_file = joinpath(@__DIR__, "web_viewer_template", "js", "blockrotations.js")
+    main_template_file = joinpath(@__DIR__, "web_viewer_template", "js", "main_template.js")
     main_file = joinpath(@__DIR__, "web_viewer_template", "js", "main.js")
 
     index_html_template = Mustache.load(template_file)
+    main_js_template = Mustache.load(main_template_file)
 
     block_filepath = joinpath(directory, block_filename)
     pole_filepath = joinpath(directory, pole_filename)
@@ -25,17 +29,29 @@ function write_web_viewer(; results, block_df, directory::AbstractString, ref_po
         time_step = time_step,
         blocks_path = block_filename,
         poles_path = pole_filename)
+    
     get_block_colors(block_df)
+
+    if use_center
+        block_centroids = Oiler.Utils.get_block_centroids(block_df)
+        c_lon = Oiler.Geom.angular_mean_degrees([c.coords[1] for c in block_centroids])
+        c_lat = Oiler.Geom.angular_mean_degrees([c.coords[2] for c in block_centroids])
+    end
+
+    main_js_centered = main_js_template(center_lon = c_lon, center_lat = c_lat)
 
     mkpath(joinpath(directory, "js"))
     cp(blockrot_file, joinpath(directory, "js", "blockrotations.js"); force = true)
-    cp(main_file, joinpath(directory, "js", "main.js"); force = true)
+    #cp(main_file, "joinpath(directory, "js", "main.js")"; force = true)
 
     Oiler.IO.write_solution_poles(pole_filepath, results, block_df, ref_pole)
     Oiler.IO.write_block_df(block_df, block_filepath, simplify = true)
 
     open(joinpath(directory, "index.html"), "w") do f
         write(f, filled_index_html)
+    end
+    open(joinpath(directory, "js", "main.js"), "w") do f
+        write(f, main_js_centered)
     end
 end
 

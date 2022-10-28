@@ -150,8 +150,8 @@ function plot_slip_rate_fig(geol_slip_rate_df, geol_slip_rate_vels,
         lw=0.0,
         alpha=0.1)
 
-    xlabel("observed")
-    ylabel("modeled")
+    xlabel("observed slip rate (mm a⁻¹)")
+    ylabel("modeled slip rate (mm a⁻¹)")
     title("dextral")
     subplot(2, 1, 2)
 
@@ -180,8 +180,8 @@ function plot_slip_rate_fig(geol_slip_rate_df, geol_slip_rate_vels,
         alpha=0.1)
 
 
-    xlabel("observed")
-    ylabel("modeled")
+    xlabel("observed slip rate (mm a⁻¹)")
+    ylabel("modeled slip rate (mm a⁻¹)")
     title("extension")
 
     tight_layout()
