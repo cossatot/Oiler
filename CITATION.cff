@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+title: Oiler
+message: '"'
+type: software
+authors:
+  - given-names: Richard Henry
+    family-names: Styron
+    email: richard.h.styron@gmail.com
+    affiliation: Global Earthquake Model Foundation
+    orcid: 'https://orcid.org/0000-0002-2374-9431'
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.7262453
+    description: v1.0_rc1
+repository-code: 'https://github.com/cossatot/Oiler'
+commit: 3c383ee18379e8f3938d0e49f6728185e23bf192
+version: v.10_rc1
+date-released: '2022-10-28'
