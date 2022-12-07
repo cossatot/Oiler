@@ -405,12 +405,51 @@ end
 
 function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array=[], tris::Array=[], regularize_tris=true, tri_priors=false, tri_distance_weight::Float64=10.0,
-    elastic_floor=1e-4, check_nans=false)
+    elastic_floor=1e-4, check_nans=false, fill_nans=true, nan_fill_val=0.0)
 
     @info " making block inversion matrices"
     @time vd = make_block_inversion_matrices_from_vels(vel_groups)
     PvGb_size = size(vd["PvGb"])
     @info "  raw PvGb size: $PvGb_size"
+
+    if check_nans == true
+        @info " checking for NaNs"
+        NaNs = false
+        if any(isnan, vd["PvGb"])
+            @warn "NaNs in PvGb"
+            NaNs = true
+            if fill_nans == true
+                for i = eachindex(vd["PvGb"])
+                    if isnan(vd["PvGb"][i])
+                        vd["PvGb"][i] = nan_fill_val
+                    end
+                end
+            end
+        end
+        if any(isnan, vd["Vc"])
+            @warn "NaNs in Vc"
+            NaNs = true
+            if fill_nans == true
+                for i = eachindex(vd["Vc"])
+                    if isnan(vd["Vc"][i])
+                        vd["Vc"][i] = nan_fill_val
+                    end
+                end
+            end
+        end
+        if ~NaNs
+            @info "No NaNs in matrices"
+        end
+    end
+
+
+    if length(faults) > 0
+        @info " doing locking"
+        vd["PvGb"] = add_fault_locking_to_PvGb(faults, vel_groups, vd["PvGb"];
+            elastic_floor=elastic_floor, check_nans=check_nans)
+        @info " done doing locking"
+
+    end
 
     if check_nans == true
         @info " checking for NaNs"
@@ -428,15 +467,6 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
         end
     end
 
-
-    if length(faults) > 0
-        @info " doing locking"
-        vd["PvGb"] = add_fault_locking_to_PvGb(faults, vel_groups, vd["PvGb"];
-            elastic_floor=elastic_floor, check_nans=check_nans)
-        @info " done doing locking"
-
-    end
-
     if length(tris) > 0
         @info " doing tris"
         @time vd = add_tris_to_PvGb(tris, vel_groups, vd;
@@ -452,10 +482,30 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
         if any(isnan, vd["PvGb"])
             @warn "NaNs in PvGb"
             NaNs = true
+            if fill_nans == true
+                for i = eachindex(vd["PvGb"])
+                    if isnan(vd["PvGb"][i])
+                        vd["PvGb"][i] = nan_fill_val
+                    end
+                end
+            end
+            if any(isnan, vd["PvGb"])
+                @warn "Couldn't replace NaNs in PvGb"
+            end
         end
         if any(isnan, vd["Vc"])
             @warn "NaNs in Vc"
             NaNs = true
+            if fill_nans == true
+                for i = eachindex(vd["Vc"])
+                    if isnan(vd["Vc"][i])
+                        vd["Vc"][i] = nan_fill_val
+                    end
+                end
+            end
+            if any(isnan, vd["Vc"])
+                @warn "Couldn't replace NaNs in Vc"
+            end
         end
         if ~NaNs
             @info "No NaNs in matrices"
