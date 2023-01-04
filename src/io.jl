@@ -526,7 +526,7 @@ function load_faults_from_gis_files(fault_files...; layernames=[])
     fault_df
 end
 
-function get_blocks_in_bounds!(block_df, bound_df; epsg=0)
+function get_blocks_in_bounds!(block_df, bound_df; epsg=102016)
     bound_orig = collect(eachrow(bound_df[1, :geometry].coords))
     block_geoms_orig = block_df[:, :geometry]
     block_geoms_orig = [collect(eachrow(geom.coords)) for geom in block_geoms_orig]
