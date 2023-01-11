@@ -11,7 +11,7 @@ import Base.Threads.@threads
 
 using CSV
 using JSON
-using Proj4: Transformation
+using Proj: Transformation
 using PolygonOps: inpolygon
 using DataFrames: DataFrame, DataFrameRow
 using DataFramesMeta
