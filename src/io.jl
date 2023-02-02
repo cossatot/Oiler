@@ -423,7 +423,8 @@ end
 
 function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
     v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
-    v_default=0.0, e_default=5.0, usd_default=0.0, lsd_default=20.0, fid=:fid)
+    v_default=0.0, e_default=5.0, usd_default=0.0, lsd_default=20.0, 
+    adjust_err_by_dip=false, dip_adj_remainder=0.2, fid=:fid)
 
     trace = Oiler.IO.get_coords_from_geom(row[:geometry])
     if name in names(row)
@@ -434,13 +435,26 @@ function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex
     else
         _name = ""
     end
+    
+    if adjust_err_by_dip
+        dip = row[dip]
+        e_default_ds = (dip_adj_remainder * e_default) + (1-dip_adj_remainder * e_default * cosd(dip))
+        e_default_ss = (dip_adj_remainder * e_default) + (1-dip_adj_remainder * e_default * sind(dip))
+        println(dip)
+        println(e_default_ds)
+        println(e_default_ss)
+    else
+        e_default_ds = e_default
+        e_default_ss = e_default
+    end
+
 
     Oiler.Fault(trace=trace,
         dip_dir=row[dip_dir],
         extension_rate=val_nothing_fix(row[v_ex], return_val=v_default),
-        extension_err=err_nothing_fix(row[e_ex], return_val=e_default),
+        extension_err=err_nothing_fix(row[e_ex], return_val=e_default_ds),
         dextral_rate=val_nothing_fix(row[v_rl], return_val=v_default),
-        dextral_err=err_nothing_fix(row[e_rl], return_val=e_default),
+        dextral_err=err_nothing_fix(row[e_rl], return_val=e_default_ss),
         dip=row[dip],
         name=_name,
         hw=row[hw],
@@ -456,6 +470,7 @@ function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v
     e_ex=:e_ex, v_rl=:v_rl, e_rl=:e_rl, dip=:dip,
     hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
     v_default=0.0, e_default=5.0, usd_default=1.0,
+    adjust_err_by_dip=false, dip_adj_remainder=0.2,
     lsd_default=15.0, fid=:fid, fid_drop=[])
 
     faults = []
@@ -478,6 +493,8 @@ function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v
             e_default=e_default,
             usd_default=usd_default,
             lsd_default=lsd_default,
+            adjust_err_by_dip=adjust_err_by_dip,
+            dip_adj_remainder=dip_adj_remainder,
             fid=fid))
         #catch
         #    prob_row = fault_df[i,:]
@@ -578,6 +595,7 @@ function process_faults_from_gis_files(fault_files...;
     name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
     v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
     v_default=0.0, e_default=5.0, usd_default=0.0, lsd_default=20.0, fid=:fid,
+    adjust_err_by_dip=false, dip_adj_remainder=0.2,
     fid_drop=[], block_df=:block_df, check_blocks=false,
     subset_in_bounds=false)
 
@@ -607,6 +625,8 @@ function process_faults_from_gis_files(fault_files...;
         e_default=e_default,
         usd_default=usd_default,
         lsd_default=lsd_default,
+        adjust_err_by_dip=adjust_err_by_dip,
+        dip_adj_remainder=dip_adj_remainder,
         fid=fid,
         fid_drop=fid_drop)
 
