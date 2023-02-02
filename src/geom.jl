@@ -514,7 +514,7 @@ function get_polygon_centroid(poly::Polygon; epsg=102016, algorithm=polygon_cent
         trans = Oiler.IO.make_trans_from_wgs84(epsg)
         poly_zeros = zeros(size(poly_pts))
         for (i, row) in enumerate(eachrow(poly_pts))
-            poly_zeros[i, :] = trans(row)
+            poly_zeros[i, :] = collect(trans(row))
         end
         poly_pts = poly_zeros
     end

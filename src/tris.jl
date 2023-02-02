@@ -89,7 +89,6 @@ function get_tri_center(tri::Oiler.Tris.Tri)
     
     wgs84 = "+proj=longlat +datum=WGS84 +nodefs"
     omerc = Oiler.Geom.get_oblique_merc(ps1[1], ps1[2], ps2[1], ps2[2])
-    println(omerc)
     trans = Transformation(wgs84, omerc; always_xy=true)
 
     xy = [trans(lon, lats[i]) for (i, lon) in enumerate(lons)]
