@@ -437,17 +437,13 @@ function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex
     end
     
     if adjust_err_by_dip
-        dip = row[dip]
-        e_default_ds = (dip_adj_remainder * e_default) + (1-dip_adj_remainder * e_default * cosd(dip))
-        e_default_ss = (dip_adj_remainder * e_default) + (1-dip_adj_remainder * e_default * sind(dip))
-        println(dip)
-        println(e_default_ds)
-        println(e_default_ss)
+        dp = row[dip]
+        e_default_ds = (dip_adj_remainder * e_default) + (1-dip_adj_remainder * e_default * cosd(dp))
+        e_default_ss = (dip_adj_remainder * e_default) + (1-dip_adj_remainder * e_default * sind(dp))
     else
         e_default_ds = e_default
         e_default_ss = e_default
     end
-
 
     Oiler.Fault(trace=trace,
         dip_dir=row[dip_dir],
@@ -463,6 +459,7 @@ function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex
         lsd=val_nothing_fix(row[lsd], return_val=lsd_default),
         fid=row[fid]
     )
+
 end
 
 
