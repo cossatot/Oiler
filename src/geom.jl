@@ -123,6 +123,11 @@ function angle_difference(trend_1::Float64, trend_2::Float64; return_abs::Bool=t
 end
 
 
+function colatitude(latitude)
+    return angle_difference(90., latitude)
+end
+
+
 function angular_mean_degrees(angles)
     mean_angle = rad2deg(atan(mean(sind.(angles)), mean(cosd.(angles))))
 end
@@ -220,6 +225,35 @@ function rotate_xy_vec_to_magnitude(x, y; x_err=0.0, y_err=0.0, cov=0.0)
     angle = atan(-y, x)
     (vec_rot, err_rot) = rotate_velocity_w_err(x, y, angle, x_err, y_err; cov=cov)
     (vec_rot[1], err_rot[1])
+end
+
+function rotate_xy_vec_to_magnitude(x::Array{Float64}, y::Array{Float64}; 
+        x_err=nothing, y_err=nothing, cov=nothing)
+    angle = atan.(-y, x)
+
+    if isnothing(x_err)
+        x_err = zeros(size(x))
+    end
+    if isnothing(y_err)
+        y_err = zeros(size(x))
+    end
+    if isnothing(cov)
+        cov = zeros(size(x))
+    end
+
+    mags = zeros(size(x))
+    errs = zeros(size(x))
+
+    for (i, x_) in enumerate(x)
+
+        (vec_rot, err_rot) = rotate_velocity_w_err(x_, y[i], angle[i], 
+                                                   x_err[i], y_err[i]; 
+                                                   cov=cov[i])
+        mags[i] = vec_rot[1]
+        errs[i] = err_rot[1]
+
+    end
+    mags, errs
 end
 
 function get_oblique_merc(lon1, lat1, lon2, lat2)
@@ -478,6 +512,14 @@ end
 
 struct Point
     coords::Array{Float64,2}
+end
+
+
+function get_coord_vecs(coords::Array{Point})
+    lons = collect(p.coords[1] for p in coords)
+    lats = collect(p.coords[2] for p in coords)
+
+    lons, lats
 end
 
 

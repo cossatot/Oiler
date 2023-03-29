@@ -523,6 +523,27 @@ function group_faults(faults, vel_group_keys)
 end
 
 
+function get_n_blocks_from_vel_groups(vel_groups)
+    vgk = collect(keys(vel_groups))
+
+    vel_refs = []
+    for vg in vgk
+        r1 = vg[1]
+        r2 = vg[2]
+
+        if !(r1 in vel_refs)
+            push!(vel_refs, r1)
+        end
+        if !(r2 in vel_refs)
+            push!(vel_refs, r2)
+        end
+    end
+
+    n_blocks = length(vel_refs) - 1 # assuming 1 reference frame
+end
+
+
+
 """
     get_fault_vels(vel_groups)
 
@@ -590,6 +611,30 @@ function get_gnss_vels(vel_groups)
         end # for
     end # for
     gnss_vels
+end
+
+
+function get_geol_slip_rate_vels(vel_groups)
+    geol_slip_rate_vels = []
+    row_set_num = 0
+    vg_keys = sort(collect(Tuple(keys(vel_groups))))
+
+    for (i, key) in enumerate(vg_keys)
+        group = vel_groups[key]
+        col_idx = 3 * (i - 1) + 1
+        for vel in group
+            row_set_num += 1
+            if vel.vel_type == "geol_slip_rate"
+                row_idx = 3 * (row_set_num - 1) + 1
+                vel_idx = [row_idx:row_idx+2, col_idx:col_idx+2]
+                vd = Dict()
+                vd["vel"] = vel
+                vd["idx"] = vel_idx
+                push!(geol_slip_rate_vels, vd)
+            end # if
+        end # for
+    end # for
+    geol_slip_rate_vels
 end
 
 

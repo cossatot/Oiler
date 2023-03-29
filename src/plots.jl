@@ -2,6 +2,7 @@ module Plots
 
 using PyPlot
 using DataFrames, DataFramesMeta
+import Statistics: quantile
 
 using Oiler
 
@@ -187,6 +188,188 @@ function plot_slip_rate_fig(geol_slip_rate_df, geol_slip_rate_vels,
     tight_layout()
 
     return fig
+end
+
+
+function plot_resid_dists(obs, pred; obs_err=nothing, pred_err=nothing, norm=false,
+    histogram=false, cum_hist=false, pct_lines = (0.1, 0.25, 0.5, 0.75, 0.9), abs=false,
+    trim_axes=false, trim_val=0.99)
+
+    resids = obs .- pred
+
+    if abs
+        resids = abs.(resids)
+    end
+
+    sort_idx = sortperm(resids)
+
+    x_arr = collect(1:length(obs))
+    
+    if (isnothing(obs_err) & isnothing(pred_err))
+        errs = nothing
+    elseif !isnothing(obs_err) & isnothing(pred_err)
+        errs = obs_err
+    elseif !isnothing(pred_err) & isnothing(obs_err)
+        errs = pred_err
+    else
+        errs = sqrt.(obs_err.^2 .+ pred_err.^2)
+    end
+    
+    if norm == false
+        resid_plot = resids[sort_idx]
+        if !isnothing(errs)
+            errs_plot = errs[sort_idx]
+        else
+            errs_plot = errs
+        end
+    else
+        resid_plot = (resids ./ abs.(obs))[sort_idx]
+        if !isnothing(errs)
+            errs_plot = (errs./ abs.(obs))[sort_idx]
+        else
+            errs_plot = errs
+        end
+    end
+
+    mean_resids = sum(resid_plot) / length(resids)
+    sd_resids = std(resid_plot)
+    println("mean resids: $mean_resids")
+    println("std resids: $sd_resids")
+
+    if (histogram == false) & (cum_hist == false)
+        #errorbar(x_arr, resid_plot, yerr=errs_plot, fmt=",", elinewidth=0.3)
+        errorbar(resid_plot, x_arr, xerr=errs_plot, fmt=",", elinewidth=0.3)
+    elseif (histogram == false) & (cum_hist == true)
+        n_bins = Int(ceil(length(resid_plot) / 5))
+        hist(resid_plot, bins=n_bins, cumulative=true)
+    elseif (histogram == true) & (cum_hist == false)
+        n_bins = Int(ceil(length(resid_plot) / 5))
+        hist(resid_plot, bins=n_bins)
+    elseif (histogram == true) & (cum_hist == true)
+        n_bins = Int(ceil(length(resid_plot) / 5))
+        hist(resid_plot, bins=n_bins, density=false)
+        ax2 = gca().twinx()
+        plot(resid_plot, collect(1:length(obs))./length(obs),
+             color="C1", lw=0.5)
+        for pct in pct_lines
+            axhline(pct, color="grey", lw=0.25)
+        end
+    end
+
+end
+
+
+function plot_geol_resids(dex_geol_obs, dex_geol_err, dex_geol_pred, ext_geol_obs, 
+    ext_geol_err, ext_geol_pred)
+
+    fig = figure(figsize=(7,7))
+    
+    subplot(3,2,1)
+    plot_resid_dists(dex_geol_obs, dex_geol_pred; obs_err=dex_geol_err)
+    xlabel("residuals (mm/yr)")
+    title("strike-slip residuals")
+
+    subplot(3,2,3)
+    plot_resid_dists(dex_geol_obs, dex_geol_pred; obs_err=dex_geol_err, norm=true)
+    xlabel("relative residuals")
+    title("strike-slip residuals\n(normalized to observation rate)")
+    
+    subplot(3,2,5)
+    plot_resid_dists(dex_geol_obs, dex_geol_pred; obs_err=dex_geol_err, histogram=true)
+    xlabel("residuals (mm/yr)")
+    title("strike-slip residuals")
+
+    subplot(3,2,2)
+    plot_resid_dists(ext_geol_obs, ext_geol_pred; obs_err=ext_geol_err)
+    xlabel("residuals (mm/yr)")
+    title("extension residuals")
+
+    subplot(3,2,4)
+    plot_resid_dists(ext_geol_obs, ext_geol_pred; obs_err=ext_geol_err, norm=true)
+    xlabel("relative residuals")
+    title("extension residuals\n(normalized to observation rate)")
+
+    return fig
+end
+
+
+function plot_gnss_component_resids(e_obs, e_err, e_pred, n_obs, 
+    n_err, n_pred)
+
+    fig = figure(figsize=(7,7))
+    
+    subplot(2,2,1)
+    plot_resid_dists(n_obs, n_pred; obs_err=n_err)
+    ylabel("residuals (mm/yr)")
+    title("Vn residuals")
+
+    subplot(2,2,3)
+    plot_resid_dists(n_obs, n_pred; obs_err=n_err, norm=true)
+    ylabel("relative residuals")
+    title("Vn residuals\n(normalized to observation rate)")
+
+    subplot(2,2,2)
+    plot_resid_dists(e_obs, e_pred; obs_err=e_err)
+    ylabel("residuals (mm/yr)")
+    title("Ve residuals")
+
+    subplot(2,2,4)
+    plot_resid_dists(e_obs, e_pred; obs_err=e_err, norm=true)
+    ylabel("relative residuals")
+    title("Ve residuals\n(normalized to observation rate)")
+
+    return fig
+end
+
+
+function plot_gnss_vector_resids(e_obs, e_err, e_pred, n_obs, 
+    n_err, n_pred)
+
+    e_misfit = e_obs .- e_pred
+    n_misfit = n_obs .- n_pred
+
+    pred_mags = sqrt.(e_obs.^2 .+ n_obs.^2)
+
+    misfits, misfit_errs = Oiler.Geom.rotate_xy_vec_to_magnitude(
+        e_misfit, n_misfit; x_err=e_err, y_err=n_err
+    )
+
+    println(misfits[1:5])
+    println(misfit_errs[1:5])
+
+    fig = figure()#figsize=(7,7))
+
+    subplot(2,1,1)
+    plot_resid_dists(misfits, zeros(size(misfits)); obs_err=misfit_errs,
+        histogram=true, cum_hist=true)
+        xlabel("GNSS misfit magnitude (mm/yr)")
+
+    subplot(2,1,2)
+    plot_resid_dists((misfits ./ pred_mags), zeros(size(misfits)); obs_err=misfit_errs,
+        histogram=true, cum_hist=true, norm=false)
+        xlabel("normalized GNSS misfit magnitude (mm/yr)")
+
+    return fig
+end
+
+
+function plot_residuals(results)
+
+    vels = results["data"]["gnss_results"]
+    vel_fig = plot_gnss_component_resids(vels.obs_ve, vels.obs_ee, vels.pred_ve,
+    vels.obs_vn, vels.obs_en, vels.pred_vn)
+
+    # obs_ve, pred_ve
+    #vel_df.obs_ve, vel_df.obs_ee, vel_df.obs_ee)
+
+    #plot_geol_resids()
+    #return vel_fig
+
+    vel_mag_fig = plot_gnss_vector_resids(vels.obs_ve, vels.obs_ee, vels.pred_ve,
+    vels.obs_vn, vels.obs_en, vels.pred_vn)
+
+    return vel_fig, vel_mag_fig
+    #return vel_mag_fig
 end
 
 

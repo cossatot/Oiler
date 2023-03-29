@@ -2,6 +2,8 @@ using Test
 
 using Oiler
 
+using PyPlot
+
 
 # from https://stackoverflow.com/questions/66801702/
 # deriving-equality-for-julia-structs-with-mutable-members
@@ -273,6 +275,31 @@ function test_process_faults_from_gis_files_w_bounds()
     @test struct_equals(faults[1], fault_ans_1)
     @test struct_equals(faults[2], fault_ans_3)
 end
+
+function plot_adjust_fault_err_by_dip()
+    dips = collect(0. : 5 : 90.)
+
+    ds_old = []
+    ss_old = []
+
+    for dip in dips
+        res_old = Oiler.IO.adjust_fault_err_by_dip(dip, 5., 5., 0.2)
+        push!(ds_old, res_old[1])
+        push!(ss_old, res_old[2])
+
+    end
+
+    plot(dips, ds_old, ".-", label="ds")
+    plot(dips, ss_old, "--", label="ss")
+
+    plot(dips, sqrt.(ds_old.^2 .+ ss_old.^2), ".", label="err mag")
+
+    legend()
+
+    show()
+
+end
+
 
 function test_make_vels_from_faults()
     fault_df = Oiler.IO.gis_vec_file_to_df(test_gj_faults)

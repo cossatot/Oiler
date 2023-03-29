@@ -308,7 +308,7 @@ end
 
 function get_rake(fault::Fault; err=false, n_samps=10_000)
 
-    rake = rad2deg(atan(-fault.extension_rate, fault.dextral_rate))
+    rake = rad2deg(atan(-fault.extension_rate, -fault.dextral_rate))
 
     if err == true
         rake_std = 0.

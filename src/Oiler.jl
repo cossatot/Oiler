@@ -62,6 +62,9 @@ include("elastic.jl")
 using .Elastic:fault_to_okada
 export fault_to_okada
 
+include("strain.jl")
+using .Strain
+
 include("results_analysis.jl")
 using .ResultsAnalysis
 

@@ -710,9 +710,14 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     )
     RMSE_string = "RMSE: " * string(results["stats_info"]["RMSE"])
     @info RMSE_string
-    results["stats_info"]["n_obs"], results["stats_info"]["n_params"] = size(
-        block_inv_setup["PvGb"]
-    )
+    #results["stats_info"]["n_obs"], results["stats_info"]["n_params"] = size(
+    #    block_inv_setup["PvGb"]
+    #)
+    
+    results["stats_info"]["n_obs"] = length(Oiler.Utils.get_gnss_vels(vel_groups)) + 
+                                     length(Oiler.Utils.get_geol_slip_rate_vels(vel_groups))
+    results["stats_info"]["n_params"] = 3 * Oiler.Utils.get_n_blocks_from_vel_groups(vel_groups) + nt
+    
 
 
     if pred_se == true

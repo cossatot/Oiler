@@ -81,6 +81,35 @@ function get_geol_pred_slip_rates(geol_slip_rate_vels, fault_df, results;
 end
 
 
+function make_geol_slip_rate_obs_res_table(geol_slip_rate_vels, geol_slip_rate_df, fault_df, results;
+    usd=:usd, lsd=:lsd)
+
+    pr = get_geol_pred_slip_rates(geol_slip_rate_vels, fault_df, results; usd=usd, lsd=lsd)
+
+    v_rl_pred = collect(p[1] for p in pr)
+    e_rl_pred = collect(p[3] for p in pr)
+    v_ex_pred = collect(p[2] for p in pr)
+    e_ex_pred = collect(p[4] for p in pr)
+    cde_pred  = collect(p[5] for p in pr)
+
+    new_rate_df = copy(geol_slip_rate_df)
+
+    new_rate_df[!, :dextral_rate_pred] = v_rl_pred
+    new_rate_df[!, :dextral_err_pred] = e_rl_pred
+    new_rate_df[!, :extension_rate_pred] = v_ex_pred
+    new_rate_df[!, :extension_err_pred] = e_ex_pred
+    new_rate_df[!, :cde_pred] = cde_pred
+
+    new_rate_df[!,:lon], new_rate_df[!, :lat] = Oiler.Geom.get_coord_vecs(geol_slip_rate_df[!, :geometry])
+    
+    new_rate_df = new_rate_df[!,
+        [:dextral_rate, :dextral_err, :dextral_rate_pred, :dextral_err_pred, 
+        :extension_rate, :extension_err, :extension_rate_pred, :extension_err_pred, 
+        :cde_pred, :lon, :lat, :source
+        ]]
+end
+
+
 function filter_geol_pred_rates(geol_pred_slip_rates, include_idx,
     dex_has_rate_idx, ext_has_rate_idx)
 
@@ -250,7 +279,7 @@ function predict_slip_rates(faults, poles)
 end
 
 
-function compare_data_results(; results,
+function _get_obs_pred_vecs(; results,
     vel_groups,
     geol_slip_rate_df,
     geol_slip_rate_vels,
@@ -273,6 +302,40 @@ function compare_data_results(; results,
         geol_data_obs["dex_geol_err"], geol_data_obs["ext_geol_err"])
     pred_vec = vcat(gnss_results.pred_ve, gnss_results.pred_vn,
         geol_data_pred["dex_geol_pred"], geol_data_pred["ext_geol_pred"])
+    #pred_err_vec = vcat(gnss_results.pred_ee, gnss_results.pred_en, 
+    #               geol_data_pred["dex_geol_pred_err"], geol_data_pred["ext_geol_pred_err"])
+
+    out = Dict("geol_obs"=>geol_data_obs, "geol_pred"=>geol_data_pred, "gnss"=>gnss_results)
+end
+
+
+function compare_data_results(; results,
+    vel_groups,
+    geol_slip_rate_df,
+    geol_slip_rate_vels,
+    fault_df,
+    usd=:usd, lsd=:lsd
+)
+
+    geol_data_obs, geol_data_pred = get_obs_pred_geol_rate_vecs(
+        geol_slip_rate_df=geol_slip_rate_df,
+        geol_slip_rate_vels=geol_slip_rate_vels,
+        fault_df=fault_df,
+        results=results,
+        usd=usd, lsd=lsd)
+
+    geol_rates_table = make_geol_slip_rate_obs_res_table(geol_slip_rate_vels, 
+        geol_slip_rate_df, fault_df, results)
+    gnss_results = get_gnss_results(results, vel_groups)
+
+    obs_vec = vcat(gnss_results.obs_ve, gnss_results.obs_vn,
+        geol_data_obs["dex_geol_obs"], geol_data_obs["ext_geol_obs"])
+    obs_err_vec = vcat(gnss_results.obs_ee, gnss_results.obs_en,
+        geol_data_obs["dex_geol_err"], geol_data_obs["ext_geol_err"])
+    pred_vec = vcat(gnss_results.pred_ve, gnss_results.pred_vn,
+        geol_data_pred["dex_geol_pred"], geol_data_pred["ext_geol_pred"])
+
+
     # pred_err_vec = vcat(gnss_results.pred_ee, gnss_results.pred_en, 
     #               geol_data_pred["dex_geol_pred_err"], geol_data_pred["ext_geol_pred_err"])
 
@@ -280,11 +343,23 @@ function compare_data_results(; results,
 
     # results["stats_info"]["summary_stats"]
 
-    results["stats_info"]["reduced_chi_sq"] = Oiler.Stats.reduced_chi_sq(
-        obs_vec, pred_vec, obs_err_vec, results["stats_info"]["n_params"]
+    gnss_misfits = gnss_chi_sq_misfits(gnss_results)
+    geol_misfits = geol_chi_sq_misfits(obs_vec, pred_vec, obs_err_vec)
+
+    misfits = vcat(gnss_misfits, geol_misfits)
+
+    results["stats_info"]["reduced_chi_sq"] = Oiler.Stats.reduced_chi_sq_mccaffrey(
+        misfits, results["stats_info"]["n_params"]
     )
 
     resid_summary = StatsBase.summarystats(abs.(resid_vec))
+
+    results["data"] = Dict(
+        "geol_data_obs" => geol_data_obs,
+        "geol_data_pred" => geol_data_pred,
+        "gnss_results" => gnss_results,
+        "geol_rates_table" => geol_rates_table,
+    )
 
     results["stats_info"]["resid_summary"] = Dict(
         "mean" => resid_summary.mean,
@@ -300,6 +375,19 @@ end
 
 function get_gnss_results(results, vel_groups)
     get_gnss_results_per_iter(results["predicted_vels"], vel_groups)
+end
+
+
+function gnss_chi_sq_misfits(gnss_results)
+    misfits = map(x->Oiler.Stats.vector_misfit(
+        x.obs_ve, x.obs_vn, x.pred_ve, x.pred_vn,
+        x.obs_ee, x.obs_en, x.cen),
+        eachrow(gnss_results))
+end
+    
+
+function geol_chi_sq_misfits(geol_obs, geol_pred, geol_err)
+    return (geol_obs .- geol_pred).^2 ./ geol_err .^ 2
 end
 
 
@@ -372,6 +460,52 @@ function get_block_centroid_vels(results, block_df; fix)
     results["block_centroids"] = centroid_df
     return
 end
+
+
+function calculate_resid_block_strain_rates(results; min_stations=5.)
+    if !(haskey(results, "block_centroids"))
+        error("Must calculate block centroids first")
+    end
+
+    blocks = results["block_centroids"]
+    vels = results["data"]["gnss_results"]
+
+    n_blocks = size(blocks, 1)
+
+    strain_ee = zeros(n_blocks)
+    strain_en = zeros(n_blocks)
+    strain_nn = zeros(n_blocks)
+    mc_az = zeros(n_blocks)
+    mc_stress = zeros(n_blocks)
+    lc_stress = zeros(n_blocks)
+
+    for (i, block) in enumerate(eachrow(blocks))
+        block_strain = Oiler.Strain.get_block_strain_rates(block.fid, vels, blocks; 
+                                              min_stations=min_stations,
+            ve=:resid_e, vn=:resid_n)
+    
+        strain_ee[i] = block_strain.ee
+        strain_en[i] = block_strain.en
+        strain_nn[i] = block_strain.nn
+
+        E = [block_strain.ee block_strain.en; block_strain.en block_strain.nn]
+        mc_az[i] = Oiler.Geom.angle_to_az(
+            Oiler.Strain.get_principal_orientation(E)
+        )
+
+        princ_stresses = Oiler.Strain.get_principal_stresses(E)
+        mc_stress[i] = princ_stresses[1]
+        lc_stress[i] = princ_stresses[2]
+    end
+
+    blocks[!,"mc_stress"] = mc_stress
+    blocks[!,"lc_stress"] = lc_stress
+    blocks[!,"mc_azimuth"] = mc_az
+    return
+end
+
+
+
 
 
 end # module

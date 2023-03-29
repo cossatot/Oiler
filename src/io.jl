@@ -421,6 +421,37 @@ function err_nothing_fix(err; return_val=1.0, weight=1.0)
 end
 
 
+function adjust_fault_err_by_dip(dip, ds_err, ss_err, dip_adj_remainder)
+
+    new_ds = (dip_adj_remainder * ds_err) + ((1. - dip_adj_remainder) * ds_err * cosd(dip))
+    new_ss = (dip_adj_remainder * ss_err) + ((1. - dip_adj_remainder) * ss_err * sind(dip))
+
+    (new_ds, new_ss)
+end
+
+function adjust_fault_err_by_dip_proj(dip, ds_err, ss_err, dip_adj_remainder)
+
+
+    ds_remain =  dip_adj_remainder * ds_err
+    ss_remain =  dip_adj_remainder * ss_err
+
+    ds_mod =  (1. - dip_adj_remainder) * ds_err
+    ss_mod =  (1. - dip_adj_remainder) * ss_err
+
+    #ds_proj = ds_mod * cosd(dip) - ss_mod * sind(dip)
+    #ss_proj = ds_mod * sind(dip) + ss_mod * cosd(dip)
+    
+    err_proj = Oiler.Geom.rotate_velocity(ds_mod, ss_mod, deg2rad(dip - 90.))
+
+    ds_proj = err_proj[1]
+    ss_proj = err_proj[2]
+
+    new_ds = 0. * ds_remain + ds_proj
+    new_ss = 0. * ss_remain + abs(ss_proj)
+
+    (new_ds, new_ss)
+end
+
 function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
     v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
     v_default=0.0, e_default=5.0, usd_default=0.0, lsd_default=20.0, 
@@ -438,8 +469,9 @@ function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex
     
     if adjust_err_by_dip
         dp = row[dip]
-        e_default_ds = (dip_adj_remainder * e_default) + (1-dip_adj_remainder * e_default * cosd(dp))
-        e_default_ss = (dip_adj_remainder * e_default) + (1-dip_adj_remainder * e_default * sind(dp))
+        #e_default_ds = (dip_adj_remainder * e_default) + (1-dip_adj_remainder * e_default * cosd(dp))
+        #e_default_ss = (dip_adj_remainder * e_default) + (1-dip_adj_remainder * e_default * sind(dp))
+        e_default_ds, e_default_ss = adjust_fault_err_by_dip(dp, e_default, e_default, dip_adj_remainder)
     else
         e_default_ds = e_default
         e_default_ss = e_default
@@ -731,7 +763,7 @@ function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val=1.0,
 
     VelocityVectorSphere(lon=lon, lat=lat, ve=ve, vn=vn, fix=fault.hw,
         ee=ee, en=en, cen=cen,
-        mov=fault.fw, vel_type="fault", name=fault_seg)
+        mov=fault.fw, vel_type="geol_slip_rate", name=fault_seg)
 end
 
 
@@ -1249,6 +1281,12 @@ function write_block_centroid_vels_to_csv(results, block_df=nothing; outfile, fi
     end
 
     CSV.write(outfile, results["block_centroids"])
+end
+
+
+function write_geol_slip_rate_results_to_csv(results; outfile)
+    slip_rates = results["data"]["geol_rates_table"]
+    CSV.write(outfile, slip_rates)
 end
 
 
