@@ -275,7 +275,8 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
     #@info "    doing regularization"
     # Priors and regularization
     tri_reg_matrix = zeros(0, nt * 2)
-    tri_reg_weights = zeros(0)
+    #tri_reg_weights = zeros(0)
+    tri_reg_weights = ones(0)
     tri_reg_vels = zeros(0)
 
     # @info "    making regularization matrices"
@@ -292,6 +293,8 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
         tri_reg_matrix = vcat(tri_reg_matrix, priors)
         tri_reg_vels = vcat(tri_reg_vels, prior_vels)
         tri_reg_weights = vcat(tri_reg_weights, prior_weights)
+    else
+        prior_weights = ones(size(tri_reg_weights))
     end
 
     #@info "    finalizing"
@@ -300,7 +303,8 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
     PvGb = vcat(PvGb, tri_reg_block)
 
     #@info "    done"
-    vd["weights"] = vcat(vd["weights"], zeros(size(tri_reg_weights))) # maybe 1s?
+    vd["weights"] = vcat(vd["weights"], prior_weights)
+    #vd["weights"] = vcat(vd["weights"], zeros(size(tri_reg_weights))) # maybe 1s?
     vd["tri_weights"] = tri_reg_weights
     vd["Vc"] = vcat(vd["Vc"], tri_reg_vels)
     vd["PvGb"] = PvGb
