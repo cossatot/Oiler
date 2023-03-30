@@ -6,6 +6,30 @@ using DataFrames, DataFramesMeta
 using Oiler
 
 
+function plot_tri_prior_post(tris, results)
+
+    fig = figure()
+
+    prior_rates = [sqrt(tri.dip_slip_rate^2 + tri.strike_slip_rate^2) for tri in tris]
+    post_rates = [get_tri_total_rate(tri, results) for tri in tris]
+
+    plot(prior_rates, post_rates)
+
+    data_min = min(minimum(prior_rates), minimum(post_rates))
+    data_max = max(maximum(prior_rates), maximum(post_rates))
+
+    plot([data_min, data_max], [data_min, data_max], "C1--", lw=0.5)
+
+    axis("equal")
+
+    xlabel("prior rate")
+    ylabel("posterior rate")
+
+    title("tri results")
+
+    return fig
+end
+
 
 function plot_results_map(results, vel_groups, faults, tris=[])
     vel_df = Oiler.ResultsAnalysis.get_gnss_results(results, vel_groups)
@@ -24,11 +48,13 @@ function plot_results_map(results, vel_groups, faults, tris=[])
         tri_rate_max = maximum(tri_rates)
 
         #clim(tri_rate_min, tri_rate_max)
+        norm = PyPlot.matplotlib.colors.Normalize(tri_rate_min, tri_rate_max)
+        mappable = PyPlot.matplotlib.cm.ScalarMappable(norm=norm, cmap=cm)
 
         for tri in tris
             plot_tri(tri, results; vmin=tri_rate_min, vmax=tri_rate_max, cm=cm)
         end
-        #colorbar()
+        colorbar(mappable)
     end
 
     quiver(vel_df.lon, vel_df.lat,
