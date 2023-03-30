@@ -38,7 +38,7 @@ function test_gis_vec_file_to_df_gpkg_faults()
         layername="faults")
 
     @test size(fault_df) == (3, 15)
-    @test fault_df[:, :fid] == [1, 2, 4]
+    @test fault_df[:, :fid] == ["1", "2", "4"]
     @test fault_df[:, :dip_dir] == ["E", "NW", "E"]
 end
 
@@ -85,7 +85,7 @@ function test_row_to_fault()
         name="f1",
         hw="3",
         fw="5",
-        fid=1
+        fid="1"
     )
 
     @test struct_equals(fault, fault_ans)
@@ -111,7 +111,7 @@ function test_process_faults_from_df()
         name="f1",
         hw="3",
         fw="5",
-        fid=1
+        fid="1"
     )
 
     fault_ans_2 = Oiler.Fault(; trace=[1.649009542461562 2.233798832072941
@@ -128,7 +128,7 @@ function test_process_faults_from_df()
         name="f2",
         hw="1",
         fw="2",
-        fid=2
+        fid="2"
     )
 
     fault_ans_3 = Oiler.Fault(; trace=[0.928805756862081 1.290433310090521
@@ -144,7 +144,7 @@ function test_process_faults_from_df()
         name="",
         hw="1",
         fw="3",
-        fid=4
+        fid="4"
     )
 
     faults_ans = [fault_ans_1 fault_ans_2 fault_ans_3]
@@ -173,7 +173,7 @@ function test_process_faults_from_gis_files_onefile()
         name="f1",
         hw="3",
         fw="5",
-        fid=1
+        fid="1"
     )
 
     fault_ans_2 = Oiler.Fault(; trace=[1.649009542461562 2.233798832072941
@@ -190,7 +190,7 @@ function test_process_faults_from_gis_files_onefile()
         name="f2",
         hw="1",
         fw="2",
-        fid=2
+        fid="2"
     )
 
     fault_ans_3 = Oiler.Fault(; trace=[0.928805756862081 1.290433310090521
@@ -206,7 +206,7 @@ function test_process_faults_from_gis_files_onefile()
         name="",
         hw="1",
         fw="3",
-        fid=4
+        fid="4"
     )
 
     faults_ans = [fault_ans_1 fault_ans_2 fault_ans_3]
@@ -224,7 +224,7 @@ function test_get_blocks_in_bounds()
 
     block_df = Oiler.IO.get_blocks_in_bounds!(block_df, bound_df)
 
-    @test block_df[:, :fid] == [1, 3, 5]
+    @test block_df[:, :fid] == ["1", "3", "5"]
 end
 
 
@@ -251,7 +251,7 @@ function test_process_faults_from_gis_files_w_bounds()
         name="f1",
         hw="3",
         fw="5",
-        fid=1
+        fid="1"
     )
 
     fault_ans_3 = Oiler.Fault(; trace=[0.928805756862081 1.290433310090521
@@ -267,7 +267,7 @@ function test_process_faults_from_gis_files_w_bounds()
         name="",
         hw="1",
         fw="3",
-        fid=4
+        fid="4"
     )
 
     @test struct_equals(faults[1], fault_ans_1)
@@ -385,9 +385,9 @@ function test_get_block_idx_for_points()
     fault_df, block_df, gnss_df = load_geodataframes()
     bx = Oiler.IO.get_block_idx_for_points(gnss_df, block_df)
     @test ismissing(bx[1])
-    @test bx[2] == 5
-    @test bx[3] == 5
-    @test bx[4] == 1
+    @test bx[2] == "5"
+    @test bx[3] == "5"
+    @test bx[4] == "1"
 end
 
 @testset "io.jl unit tests" begin

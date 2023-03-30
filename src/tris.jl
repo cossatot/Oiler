@@ -5,7 +5,7 @@ export Tri
 using Setfield
 using LinearAlgebra
 
-import Proj4: Projection, transform
+import Proj: Transformation#Projection, transform
 
 using ..Oiler
 
@@ -87,10 +87,12 @@ function get_tri_center(tri::Oiler.Tris.Tri)
     
     ps1, ps2 = get_tri_strike_line(tri.p1, tri.p2, tri.p3)
     
-    wgs84 = Projection("+proj=longlat +datum=WGS84 +nodefs")
+    wgs84 = "+proj=longlat +datum=WGS84 +nodefs"
     omerc = Oiler.Geom.get_oblique_merc(ps1[1], ps1[2], ps2[1], ps2[2])
+    println(omerc)
+    trans = Transformation(wgs84, omerc; always_xy=true)
 
-    xy = [transform(wgs84, omerc, [lon, lats[i]]) for (i, lon) in enumerate(lons)]
+    xy = [trans(lon, lats[i]) for (i, lon) in enumerate(lons)]
     xs = [c[1] for c in xy]
     ys = [c[2] for c in xy]
 
@@ -98,7 +100,8 @@ function get_tri_center(tri::Oiler.Tris.Tri)
     yc = sum(ys) / 3.
     zc = sum(zs) / 3.
 
-    ll = transform(omerc, wgs84, [xc, yc])
+    untrans = Transformation(omerc, wgs84; always_xy=true)
+    ll = untrans(xc, yc)
 
     [ll[1], ll[2], zc]
 end

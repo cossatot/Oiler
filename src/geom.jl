@@ -4,7 +4,7 @@ export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
     angle_difference, rotate_velocity, rotate_xy_vec, oblique_merc
 
 import Statistics: mean
-import Proj4: Projection, transform
+import Proj: CRS, Transformation
 
 using Oiler
 using ..Oiler: EARTH_RAD_KM
@@ -229,15 +229,15 @@ function get_oblique_merc(lon1, lat1, lon2, lat2)
     end
 
     init_str = "+proj=omerc +lat_1=$lat1 +lon_1=$lon1 +lat_2=$lat2 +lon_2=$lon2 +ellps=WGS84"
-    omerc = Projection(init_str)
 end
 
 
 function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
-    wgs84 = Projection("+proj=longlat +datum=WGS84 +nodefs")
+    wgs84 = "+proj=longlat +datum=WGS84 +nodefs"
     omerc = get_oblique_merc(lon1, lat1, lon2, lat2)
+    trans = Transformation(wgs84, omerc; always_xy=true)
 
-    xy = [transform(wgs84, omerc, [lon, lats[i]]) for (i, lon) in enumerate(lons)]
+    xy = [trans(lon, lats[i]) for (i, lon) in enumerate(lons)]
     x = [c[1] for c in xy]
     y = [c[2] for c in xy]
 

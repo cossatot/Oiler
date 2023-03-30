@@ -18,7 +18,6 @@ function test_get_tri_center()
 end
 
 
-
 function test_tri_merc_1()
 
     tri = Oiler.Tris.Tri(;
