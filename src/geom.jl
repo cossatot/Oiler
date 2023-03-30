@@ -258,8 +258,8 @@ end
 
 function get_oblique_merc(lon1, lat1, lon2, lat2)
     # correction for perfectly horizontal lines or lat1 at zero
-    if (abs(lat1 - lat2) < 1e-3) || (lat1 == 0.0)
-        lat1 = lat1 + 1e-3
+    if (abs(lat1 - lat2) < 2e-3) || (lat1 == 0.0)
+        lat1 = lat1 + 2e-3
     end
 
     init_str = "+proj=omerc +lat_1=$lat1 +lon_1=$lon1 +lat_2=$lat2 +lon_2=$lon2 +ellps=WGS84"
