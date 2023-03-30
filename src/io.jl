@@ -887,10 +887,18 @@ end
 function tri_from_feature(feat)
     props = feat["properties"]
     kps = keys(props)
+    
     if "fw" in kps
         fw = string(props["fw"])
     else
         fw = ""
+    end
+
+    extra_args = Dict{Symbol, Any}()
+    for kw in kps
+        if (kw in string.(fieldnames(Oiler.Tris.Tri))) & ((kw != "fw"))
+            extra_args[Symbol(kw)] = props[kw]
+        end
     end
 
     tri = Oiler.Tris.Tri(;
@@ -898,7 +906,8 @@ function tri_from_feature(feat)
         p2=Float64.(feat["geometry"]["coordinates"][1][2]),
         p3=Float64.(feat["geometry"]["coordinates"][1][3]),
         name=string(feat["properties"]["fid"]),
-        fw=fw
+        fw=fw,
+        extra_args...
     )
 end
 
