@@ -234,9 +234,9 @@ function make_tri_prior_matrices(tris)
         ss_ind = 2 * i
 
         vels[ds_ind] = tri.dip_slip_rate
-        weights[ds_ind] = weight_from_error(tri.dip_slip_err)
+        weights[ds_ind] = weight_from_error(tri.dip_slip_err^-1)
         vels[ss_ind] = tri.strike_slip_rate
-        weights[ss_ind] = weight_from_error(tri.strike_slip_err)
+        weights[ss_ind] = weight_from_error(tri.strike_slip_err^-1)
     end
     (lhs, vels, weights)
 end

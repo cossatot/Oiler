@@ -14,7 +14,7 @@ function plot_tri_prior_post(tris, results)
     prior_rates = [sqrt(tri.dip_slip_rate^2 + tri.strike_slip_rate^2) for tri in tris]
     post_rates = [get_tri_total_rate(tri, results) for tri in tris]
 
-    plot(prior_rates, post_rates)
+    plot(prior_rates, post_rates, ".")
 
     data_min = min(minimum(prior_rates), minimum(post_rates))
     data_max = max(maximum(prior_rates), maximum(post_rates))
