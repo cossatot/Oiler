@@ -401,7 +401,8 @@ function fault_oblique_merc(fault::Fault, lons::Array{Float64},
     lon2 = fault.trace[end, 1]
     lat2 = fault.trace[end, 2]
 
-    oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
+    #oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
+    Oiler.Geom.oblique_mercator_projection(lons, lats, lon1, lat1, lon2, lat2)
 
 end
 

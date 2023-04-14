@@ -185,6 +185,26 @@ function point_sphere_to_cart(pos; R=EARTH_RAD_KM)
 end
 
 
+function point_cart_to_sphere(pos; R=EARTH_RAD_KM)
+    x = pos[1]
+    y = pos[2]
+    z = pos[3]
+
+    point_cart_to_sphere(x, y, z; R=R)
+end
+
+
+function point_cart_to_sphere(x, y, z; R=EARTH_RAD_KM)
+    r = sqrt(x^2 + y^2 + z^2)
+    depth = r - R
+
+    lon = rad2deg(atan(y, x))
+    lat = rad2deg(asin(z / r))
+
+    [lon, lat, depth]
+end
+
+
 function rotate_velocity(vx::Float64, vy::Float64, angle::Float64)
     Vp = [cos(angle) -sin(angle); sin(angle) cos(angle)] * [vx; vy]
 end
@@ -277,6 +297,97 @@ function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
 
     (x, y)
 end
+
+
+
+function oblique_mercator_projection(longitudes::Array{Float64}, latitudes::Array{Float64}, 
+        lon1, lat1, lon2, lat2, 
+        R::Float64 = EARTH_RAD_KM * 1000.0)
+    
+    if (abs(lat1 - lat2) < 2e-3) || (lat1 == 0.0)
+        lat1 = lat1 + 2e-3
+    end
+
+    if (abs(lon1 - lon2) < 2e-3) || (lat1 == 0.0)
+        lon1 += 2e-3
+    end
+    
+    rad(d::Float64) = d * π / 180
+    deg(r::Float64) = r * 180 / π
+
+    lat1, lon1 = rad.((lat1, lon1))
+    lat2, lon2 = rad.((lat2, lon2))
+
+    B0 = asin(cos(lat1) * cos(lat2) * cos(lon2 - lon1) + sin(lat1) * sin(lat2))
+    lon0 = atan(sin(lon2 - lon1) / (cos(lat1) * tan(lat2) - sin(lat1) * cos(lon2 - lon1)))
+    lon0 = lon1 + lon0
+
+    k0 = sqrt(2) / (1 + sin(B0) * sin(lat1) + cos(B0) * cos(lat1) * cos(lon1 - lon0))
+
+    pproj(lon::Float64, lat::Float64) = begin
+        S = 0.5 * log((1 + sin(lat) * sin(B0) + cos(lat) * cos(B0) * cos(lon - lon0)) / (1 - sin(lat) * sin(B0) - cos(lat) * cos(B0) * cos(lon - lon0)))
+        T = atan((cos(lat) * sin(lon - lon0)) / (cos(lat1) * sin(lat) - sin(lat1) * cos(lat) * cos(lon - lon0)))
+        k0 * R * T, k0 * R * S
+    end
+
+    x = Vector{Float64}(undef, length(latitudes))
+    y = Vector{Float64}(undef, length(latitudes))
+
+    for i in 1:length(latitudes)
+        lat, lon = rad(latitudes[i]), rad(longitudes[i])
+        x[i], y[i] = pproj(lon, lat)
+    end
+
+    return x, y
+end
+
+
+
+function inverse_oblique_mercator_projection(x::Array{Float64}, y::Array{Float64}, lon1, lat1, lon2, lat2, 
+    R::Float64 = EARTH_RAD_KM * 1000.0)
+
+    if (abs(lat1 - lat2) < 2e-3) || (lat1 == 0.0)
+        lat1 = lat1 + 2e-3
+    end
+
+    if (abs(lon1 - lon2) < 2e-3) || (lat1 == 0.0)
+        lon1 += 2e-3
+    end
+    
+    rad(d::Float64) = d * π / 180
+    deg(r::Float64) = r * 180 / π
+
+    lat1, lon1 = rad.((lat1, lon1))
+    lat2, lon2 = rad.((lat2, lon2))
+
+    B0 = asin(cos(lat1) * cos(lat2) * cos(lon2 - lon1) + sin(lat1) * sin(lat2))
+    lon0 = atan(sin(lon2 - lon1) / (cos(lat1) * tan(lat2) - sin(lat1) * cos(lon2 - lon1)))
+    lon0 = lon1 + lon0
+
+    k0 = sqrt(2) / (1 + sin(B0) * sin(lat1) + cos(B0) * cos(lat1) * cos(lon1 - lon0))
+
+    ipproj(x::Float64, y::Float64) = begin
+        T = x / (k0 * R)
+        S = y / (k0 * R)
+        chi = 2 * (atan(exp(S)) - π / 4)
+        lon = lon0 + atan(sin(T) / (cos(B0) * cos(T) - sin(B0) * sin(chi)))
+        lat = asin(sin(B0) * sin(chi) + cos(B0) * cos(chi) * cos(T))
+        deg(lon), deg(lat)
+    end
+
+    latitudes = Vector{Float64}(undef, length(x))
+    longitudes = Vector{Float64}(undef, length(x))
+
+    for i in 1:length(x)
+        lon, lat = ipproj(x[i], y[i])
+        latitudes[i], longitudes[i] = lat, lon
+    end
+
+    return longitudes, latitudes
+end
+
+
+
 
 
 """

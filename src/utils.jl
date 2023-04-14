@@ -706,7 +706,7 @@ function tri_priors_from_pole(tris, pole; locking_fraction=1.0,
         tri = @set tri.cds = rate_array[5]
     end
 
-    for (i, tri) in enumerate(tris)
+    @threads for (i, tri) in collect(enumerate(tris))
         tris[i] = set_tri_rates(tri, tri_rates[i], locking_fraction, err_coeff,
             depth_adjust, depth_max)
     end

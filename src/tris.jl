@@ -71,38 +71,51 @@ end
 Returns the centroid of the tri.
 """
 function get_tri_center(tri::Oiler.Tris.Tri)
-    lon1 = tri.p1[1]
-    lat1 = tri.p1[2]
-    lon2 = tri.p2[1]
-    lat2 = tri.p2[2]
-    lon3 = tri.p3[1]
-    lat3 = tri.p3[2]
-    z1 = tri.p1[3]
-    z2 = tri.p2[3]
-    z3 = tri.p3[3]
+    #lon1 = tri.p1[1]
+    #lat1 = tri.p1[2]
+    #lon2 = tri.p2[1]
+    #lat2 = tri.p2[2]
+    #lon3 = tri.p3[1]
+    #lat3 = tri.p3[2]
+    #z1 = tri.p1[3]
+    #z2 = tri.p2[3]
+    #z3 = tri.p3[3]
 
-    lons = [lon1 lon2 lon3]
-    lats = [lat1 lat2 lat3]
-    zs = [z1 z2 z3]
+    #lons = [lon1 lon2 lon3]
+    #lats = [lat1 lat2 lat3]
+    #zs = [z1 z2 z3]
     
-    ps1, ps2 = get_tri_strike_line(tri.p1, tri.p2, tri.p3)
+    #ps1, ps2 = get_tri_strike_line(tri.p1, tri.p2, tri.p3)
     
-    wgs84 = "+proj=longlat +datum=WGS84 +nodefs"
-    omerc = Oiler.Geom.get_oblique_merc(ps1[1], ps1[2], ps2[1], ps2[2])
-    trans = Transformation(wgs84, omerc; always_xy=true)
+    #wgs84 = "+proj=longlat +datum=WGS84 +nodefs"
+    #omerc = Oiler.Geom.get_oblique_merc(ps1[1], ps1[2], ps2[1], ps2[2])
+    #trans = Transformation(wgs84, omerc; always_xy=true)
 
-    xy = [trans(lon, lats[i]) for (i, lon) in enumerate(lons)]
-    xs = [c[1] for c in xy]
-    ys = [c[2] for c in xy]
+    #xy = [trans(lon, lats[i]) for (i, lon) in enumerate(lons)]
+    #xs = [c[1] for c in xy]
+    #ys = [c[2] for c in xy]
+
+    #xs, ys = tri_merc(tri, lons, lats)
+
+    p1c = Oiler.Geom.point_sphere_to_cart(tri.p1)
+    p2c = Oiler.Geom.point_sphere_to_cart(tri.p2)
+    p3c = Oiler.Geom.point_sphere_to_cart(tri.p3)
+
+    xs = [p1c[1] p2c[1] p3c[1]]
+    ys = [p1c[2] p2c[2] p3c[2]]
+    zs = [p1c[3] p2c[3] p3c[3]]
+
 
     xc = sum(xs) / 3.
     yc = sum(ys) / 3.
     zc = sum(zs) / 3.
 
-    untrans = Transformation(omerc, wgs84; always_xy=true)
-    ll = untrans(xc, yc)
+    lon, lat, depth = Oiler.Geom.point_cart_to_sphere(xc, yc, zc)
 
-    [ll[1], ll[2], zc]
+    #untrans = Transformation(omerc, wgs84; always_xy=true)
+    #ll = untrans(xc, yc)
+
+    #[ll[1], ll[2], zc]
 end
 
 
@@ -132,7 +145,7 @@ function tri_merc(tri, lons, lats)
 
     ps1, ps2 = get_tri_strike_line(tri.p1, tri.p2, tri.p3)
 
-    xp, yp = Oiler.Geom.oblique_merc(lons_w_tri_pts, lats_w_tri_pts, ps1[1],
+    xp, yp = Oiler.Geom.oblique_mercator_projection(lons_w_tri_pts, lats_w_tri_pts, ps1[1],
         ps1[2], ps2[1], ps2[2])
 end
 
@@ -184,7 +197,7 @@ end
 
 
 function get_tri_strike_dip(tri::Tri)
-    proj_x, proj_y = tri_merc(tri, [], [])
+    proj_x, proj_y = tri_merc(tri, [0.], [0.])
     xp1 = [proj_x[1] proj_y[1] tri.p1[3] * 1000]
     xp2 = [proj_x[2] proj_y[2] tri.p2[3] * 1000]
     xp3 = [proj_x[3] proj_y[3] tri.p3[3] * 1000]
