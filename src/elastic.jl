@@ -308,8 +308,8 @@ of tris. Only horizontal components are returned.
 """
 function calc_tri_effects(tris, gnss_lons, gnss_lats; elastic_floor=1e-4)
 
-    #tri_gnss_partials = hcat(ThreadsX.collect(
-    tri_gnss_partials = hcat(collect(
+    tri_gnss_partials = hcat(ThreadsX.collect(
+    #tri_gnss_partials = hcat(collect(
         arrange_tri_partials(
             calc_tri_effects_single_tri(tri, gnss_lons, gnss_lats;
                 elastic_floor=elastic_floor)...)

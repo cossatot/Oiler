@@ -233,6 +233,13 @@ function tri_centroid_distance(tri1::Oiler.Tris.Tri, tri2::Oiler.Tris.Tri)
 end
 
 
+function point_colocation(p1, p2; horiz_decimal=4, vert_decimal=1)
+    (round(p1[1], digits=horiz_decimal) == round(p2[1], digits=horiz_decimal)) & 
+    (round(p1[2], digits=horiz_decimal) == round(p2[2], digits=horiz_decimal)) & 
+    (round(p1[3], digits=vert_decimal) == round(p2[3],  digits=vert_decimal))
+end
+
+
 """
     check_tri_adjacence()
 
@@ -243,7 +250,7 @@ edge.
     - `tri1`: An Oiler.Tris.Tri instance
     - `tri2`: An Oiler.Tris.Tri instance
     - `n_common_pts`: Number of points in common to define adjacence. Should be 
-      `1` (a single shared vertex means tris are adjacent) or `2` (a shared
+      `1` (a singl shared vertex means tris are adjacent) or `2` (a shared
        edge is required for tri adjacence). Defaults to `2`.
     - `self_adjacence`: A boolean to determine whether a tri can be adjacent
        to itself, or another tri with the same geometry. Defaults to `false`.
@@ -252,7 +259,8 @@ edge.
     - bool, `true` or `false`
 """
 function check_tri_adjacence(tri1, tri2; n_common_pts::Int=2, 
-                             self_adjacence=false)
+                             self_adjacence=false,
+                             horiz_decimal=5, vert_decimal=1)
     if (n_common_pts != 1) & (n_common_pts != 2)
         throw(ArgumentError("$n_common_pts must be 1 or 2"))
     end
@@ -260,7 +268,7 @@ function check_tri_adjacence(tri1, tri2; n_common_pts::Int=2,
     common_pts = 0
     for pp in [tri1.p1, tri1.p2, tri1.p3]
         for cc in [tri2.p1, tri2.p2, tri2.p3]
-            if pp == cc
+            if point_colocation(pp, cc)
                 common_pts += 1
             end
         end
