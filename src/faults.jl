@@ -386,25 +386,49 @@ See USGS "Map Projections - A Working Manual" p. 69 for mathematical reference.
 function fault_oblique_merc(fault::Fault, lons::Array{Float64},
     lats::Array{Float64})
 
-    n_stations = length(lons)
-
     lons = [lons; fault.trace[1, 1]; fault.trace[end, 1]]
     lats = [lats; fault.trace[1, 2]; fault.trace[end, 2]]
-
-    # lon1 = ones(n_stations + 2) .* fault.trace[1,1]
-    # lat1 = ones(n_stations + 2) .* fault.trace[1,2]
-    # lon2 = ones(n_stations + 2) .* fault.trace[end,1]
-    # lat2 = ones(n_stations + 2) .* fault.trace[end,2]
 
     lon1 = fault.trace[1, 1]
     lat1 = fault.trace[1, 2]
     lon2 = fault.trace[end, 1]
     lat2 = fault.trace[end, 2]
 
-    #oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
-    Oiler.Geom.oblique_mercator_projection(lons, lats, lon1, lat1, lon2, lat2)
+    oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
+    #Oiler.Geom.oblique_mercator_projection(lons, lats, lon1, lat1, lon2, lat2)
+    #Oiler.Geom.azimuthal_equidistant_proj(lons, lats, lon1, lat1, lon2, lat2)
 
 end
+
+
+function fault_azimuthal(fault::Fault, lons::Array{Float64},
+    lats::Array{Float64})
+
+    lons = [lons; fault.trace[1, 1]; fault.trace[end, 1]]
+    lats = [lats; fault.trace[1, 2]; fault.trace[end, 2]]
+
+    lon1 = fault.trace[1, 1]
+    lat1 = fault.trace[1, 2]
+    lon2 = fault.trace[end, 1]
+    lat2 = fault.trace[end, 2]
+
+    Oiler.Geom.azimuthal_equidistant_proj(lons, lats, lon1, lat1, lon2, lat2)
+end
+
+
+function fault_proj(fault::Fault, lons::Array{Float64},
+    lats::Array{Float64}; proj="azimuthal")
+
+    if proj == "azimuthal"
+        results = fault_azimuthal(fault, lons, lats)
+    elseif proj == "omerc"
+        results = fault_oblique_merc(fault, lons, lats)
+    end
+
+    results
+end
+
+
 
 
 """

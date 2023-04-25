@@ -63,6 +63,7 @@ function average_azimuth(lons::Array{Float64}, lats::Array{Float64})
     az
 end
 
+
 function check_duplicates(arr, name="")
     for i = 1:size(arr, 1)-1
         if arr[i] == arr[i+1]
@@ -70,9 +71,6 @@ function check_duplicates(arr, name="")
         end
     end
 end
-
-
-function remove_duplicates(arr) end
 
 
 function az_to_angle(az::Float64)
@@ -91,6 +89,7 @@ function angle_to_az(angle::Float64)
     end
     az
 end
+
 
 """
     angle_difference(trend_1, trend_2)
@@ -291,103 +290,52 @@ function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
     omerc = get_oblique_merc(lon1, lat1, lon2, lat2)
     trans = Transformation(wgs84, omerc; always_xy=true)
 
-    xy = [trans(lon, lats[i]) for (i, lon) in enumerate(lons)]
-    x = [c[1] for c in xy]
-    y = [c[2] for c in xy]
+
+    x = zeros(size(lons))
+    y = zeros(size(lons))
+
+    for i in eachindex(lons)
+        @inbounds x[i], y[i] = trans(lons[i], lats[i])
+    end
 
     (x, y)
 end
 
 
+function bearing(final_lon, final_lat, start_lon, start_lat)
 
-function oblique_mercator_projection(longitudes::Array{Float64}, latitudes::Array{Float64}, 
-        lon1, lat1, lon2, lat2, 
-        R::Float64 = EARTH_RAD_KM * 1000.0)
-    
-    if (abs(lat1 - lat2) < 2e-3) || (lat1 == 0.0)
-        lat1 = lat1 + 2e-3
-    end
+    y = sind(final_lon - start_lon) * cosd(final_lat)
+    x = cosd(start_lat) * sind(final_lat) - sind(start_lat) * cosd(final_lat) * cosd(final_lon-start_lon)
 
-    if (abs(lon1 - lon2) < 2e-3) || (lat1 == 0.0)
-        lon1 += 2e-3
-    end
-    
-    rad(d::Float64) = d * π / 180
-    deg(r::Float64) = r * 180 / π
-
-    lat1, lon1 = rad.((lat1, lon1))
-    lat2, lon2 = rad.((lat2, lon2))
-
-    B0 = asin(cos(lat1) * cos(lat2) * cos(lon2 - lon1) + sin(lat1) * sin(lat2))
-    lon0 = atan(sin(lon2 - lon1) / (cos(lat1) * tan(lat2) - sin(lat1) * cos(lon2 - lon1)))
-    lon0 = lon1 + lon0
-
-    k0 = sqrt(2) / (1 + sin(B0) * sin(lat1) + cos(B0) * cos(lat1) * cos(lon1 - lon0))
-
-    pproj(lon::Float64, lat::Float64) = begin
-        S = 0.5 * log((1 + sin(lat) * sin(B0) + cos(lat) * cos(B0) * cos(lon - lon0)) / (1 - sin(lat) * sin(B0) - cos(lat) * cos(B0) * cos(lon - lon0)))
-        T = atan((cos(lat) * sin(lon - lon0)) / (cos(lat1) * sin(lat) - sin(lat1) * cos(lat) * cos(lon - lon0)))
-        k0 * R * T, k0 * R * S
-    end
-
-    x = Vector{Float64}(undef, length(latitudes))
-    y = Vector{Float64}(undef, length(latitudes))
-
-    for i in 1:length(latitudes)
-        lat, lon = rad(latitudes[i]), rad(longitudes[i])
-        x[i], y[i] = pproj(lon, lat)
-    end
-
-    return x, y
+    atand(y,x)
 end
 
 
+function azimuthal_equidistant_proj(lons, lats, clon, clat)
 
-function inverse_oblique_mercator_projection(x::Array{Float64}, y::Array{Float64}, lon1, lat1, lon2, lat2, 
-    R::Float64 = EARTH_RAD_KM * 1000.0)
 
-    if (abs(lat1 - lat2) < 2e-3) || (lat1 == 0.0)
-        lat1 = lat1 + 2e-3
+    dists = zeros(size(lons))
+    angles = zeros(size(lons))
+
+    #dists = [gc_distance(lon, lats[i], clon, clat) for (i, lon) in enumerate(lons)]
+    for (i, lon) in enumerate(lons)
+        @inbounds dists[i] += gc_distance(lon, lats[i], clon, clat) * 1000.
+        @inbounds angles[i] += az_to_angle(bearing(lon, lats[i], clon, clat))
     end
 
-    if (abs(lon1 - lon2) < 2e-3) || (lat1 == 0.0)
-        lon1 += 2e-3
-    end
-    
-    rad(d::Float64) = d * π / 180
-    deg(r::Float64) = r * 180 / π
+    xs = dists .* cos.(angles)
+    ys = dists .* sin.(angles)
 
-    lat1, lon1 = rad.((lat1, lon1))
-    lat2, lon2 = rad.((lat2, lon2))
-
-    B0 = asin(cos(lat1) * cos(lat2) * cos(lon2 - lon1) + sin(lat1) * sin(lat2))
-    lon0 = atan(sin(lon2 - lon1) / (cos(lat1) * tan(lat2) - sin(lat1) * cos(lon2 - lon1)))
-    lon0 = lon1 + lon0
-
-    k0 = sqrt(2) / (1 + sin(B0) * sin(lat1) + cos(B0) * cos(lat1) * cos(lon1 - lon0))
-
-    ipproj(x::Float64, y::Float64) = begin
-        T = x / (k0 * R)
-        S = y / (k0 * R)
-        chi = 2 * (atan(exp(S)) - π / 4)
-        lon = lon0 + atan(sin(T) / (cos(B0) * cos(T) - sin(B0) * sin(chi)))
-        lat = asin(sin(B0) * sin(chi) + cos(B0) * cos(chi) * cos(T))
-        deg(lon), deg(lat)
-    end
-
-    latitudes = Vector{Float64}(undef, length(x))
-    longitudes = Vector{Float64}(undef, length(x))
-
-    for i in 1:length(x)
-        lon, lat = ipproj(x[i], y[i])
-        latitudes[i], longitudes[i] = lat, lon
-    end
-
-    return longitudes, latitudes
+    xs, ys
 end
 
 
+function azimuthal_equidistant_proj(lons, lats, lon1, lat1, lon2, lat2)
+    clon, clat = sample_polyline([lon1 lat1; lon2 lat2], 
+                                 [gc_distance(lon1, lat1, lon2, lat2)/2.])[1]
 
+    azimuthal_equidistant_proj(lons, lats, clon, clat)
+end
 
 
 """

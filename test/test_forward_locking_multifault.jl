@@ -13,7 +13,7 @@ pv = [pole.x; pole.y; pole.z];
 
 
 # load vel points
-vels = CSV.read("./test_data/fake_na_ca/ca_na_fake_pts.csv")
+vels = CSV.read("./test_data/fake_na_ca/ca_na_fake_pts.csv", DataFrame)
 vlon = [vels[i,:].X for i in 1:size(vels, 1)]
 vlat = [vels[i,:].Y for i in 1:size(vels, 1)]
 
@@ -72,8 +72,8 @@ th1 = Oiler.Fault(trace=[ -79.798 18.430; -78.76 17.54; -78.08 14.72],
 faults = [ss1; ss2; th1]
 # calc partials for each fault
 
-ss1_part = Oiler.Elastic.calc_locking_effects_per_fault(ss1, vlon, vlat)
-ss2_part = Oiler.Elastic.calc_locking_effects_per_fault(ss2, vlon, vlat)
+ss1_part = Oiler.Elastic.calc_okada_locking_effects_per_fault(ss1, vlon, vlat)
+ss2_part = Oiler.Elastic.calc_okada_locking_effects_per_fault(ss2, vlon, vlat)
 th1_part = Oiler.Elastic.calc_locking_effects_segmented_fault(th1, vlon, vlat)
 
 # add together
@@ -111,10 +111,12 @@ all_vels = vcat(final_vels, fault_vels)
 # vel_groups = Oiler.group_vels_by_fix_mov(final_vels)
 vel_groups = Oiler.group_vels_by_fix_mov(all_vels)
 
-poles = Oiler.solve_block_invs_from_vel_groups(vel_groups, 
+results = Oiler.solve_block_invs_from_vel_groups(vel_groups, 
     faults=faults, 
     # faults=[], 
     weighted=false)
+
+poles = results["poles"]
 
 poles[("na", "ca")] = -poles[("ca", "na")]
 

@@ -145,9 +145,44 @@ function tri_merc(tri, lons, lats)
 
     ps1, ps2 = get_tri_strike_line(tri.p1, tri.p2, tri.p3)
 
-    xp, yp = Oiler.Geom.oblique_mercator_projection(lons_w_tri_pts, lats_w_tri_pts, ps1[1],
+    xp, yp = Oiler.Geom.oblique_merc(lons_w_tri_pts, lats_w_tri_pts, ps1[1],
         ps1[2], ps2[1], ps2[2])
 end
+
+
+function tri_azimuthal(tri, lons, lats)
+    lon1 = tri.p1[1]
+    lat1 = tri.p1[2]
+    lon2 = tri.p2[1]
+    lat2 = tri.p2[2]
+    lon3 = tri.p3[1]
+    lat3 = tri.p3[2]
+    z1 = tri.p1[3]
+    z2 = tri.p2[3]
+    z3 = tri.p3[3]
+
+    lons_w_tri_pts = lons[:]
+    lats_w_tri_pts = lats[:]
+    append!(lons_w_tri_pts, [lon1 lon2 lon3])
+    append!(lats_w_tri_pts, [lat1 lat2 lat3])
+
+    ps1, ps2 = get_tri_strike_line(tri.p1, tri.p2, tri.p3)
+
+    xp, yp = Oiler.Geom.azimuthal_equidistant_proj(lons_w_tri_pts, lats_w_tri_pts, ps1[1],
+        ps1[2], ps2[1], ps2[2])
+end
+
+
+function tri_proj(tri, lons, lats; proj=:azimuthal)
+    if proj == :mercator
+        xp, yp = tri_merc(tri, lons, lats)
+    elseif proj == :azimuthal
+        xp, yp = tri_azimuthal(tri, lons, lats)
+    end
+
+    xp, yp
+end
+
 
 """
     get_tri_strike_line()

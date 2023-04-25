@@ -53,7 +53,7 @@ function calc_okada_locking_effects_per_fault(fault::Fault, lons, lats;
 
     # project fault and velocity coordinates
     n_gnss = length(lons)
-    xp, yp = fault_oblique_merc(fault, lons, lats)
+    xp, yp = Oiler.Faults.fault_proj(fault, lons, lats)
     xg, yg = xp[1:n_gnss], yp[1:n_gnss] # gnss
     sx1, sy1, sx2, sy2 = xp[end-1], yp[end-1], xp[end], yp[end] # fault 
 
@@ -332,7 +332,7 @@ end
 function calc_tri_slip(tri, lons, lats; ss=0.0, ds=0.0, ts=0.0, floor=1e-4)
 
     # project coordinates of tri and sites
-    x_proj, y_proj = Oiler.Tris.tri_merc(tri, lons, lats)
+    x_proj, y_proj = Oiler.Tris.tri_proj(tri, lons, lats)
     x_gnss, y_gnss = x_proj[1:length(lons)], y_proj[1:length(lats)]
     z_gnss = zeros(length(x_gnss))
 
