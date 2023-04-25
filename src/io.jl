@@ -499,7 +499,7 @@ function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v
     e_ex=:e_ex, v_rl=:v_rl, e_rl=:e_rl, dip=:dip,
     hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
     v_default=0.0, e_default=5.0, usd_default=1.0,
-    adjust_err_by_dip=false, dip_adj_remainder=0.2,
+    adjust_err_by_dip=false, dip_adj_remainder=0.1,
     lsd_default=15.0, fid=:fid, fid_drop=[])
 
     faults = []

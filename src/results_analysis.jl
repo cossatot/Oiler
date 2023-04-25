@@ -325,7 +325,7 @@ function compare_data_results(; results,
         usd=usd, lsd=lsd)
 
     geol_rates_table = make_geol_slip_rate_obs_res_table(geol_slip_rate_vels, 
-        geol_slip_rate_df, fault_df, results)
+        geol_slip_rate_df, fault_df, results, usd=usd, lsd=lsd)
     gnss_results = get_gnss_results(results, vel_groups)
 
     obs_vec = vcat(gnss_results.obs_ve, gnss_results.obs_vn,
