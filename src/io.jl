@@ -1068,13 +1068,18 @@ function write_gnss_vel_results_to_csv(results, vel_groups; name="")
 end
 
 
-function gnss_vel_from_row(row, block; ve=:ve, vn=:vn, ee=:ee, en=:en,
+function gnss_vel_from_row(row, block; ve=:ve, vn=:vn, ee=:ee, en=:en, cen=:cen,
     fix="1111", name=:station)
     pt = Oiler.IO.get_coords_from_geom(row[:geometry])
     lon = pt[1]
     lat = pt[2]
+    try
+        _cen = row[cen]
+    except
+        _cen = 0.
+    end
     Oiler.VelocityVectorSphere(lon=lon, lat=lat, ve=row[ve],
-        vn=row[vn], ee=row[ee], en=row[en], name=row[name],
+        vn=row[vn], ee=row[ee], en=row[en], cen=_cen, name=row[name],
         fix=fix, mov=string(block), vel_type="GNSS")
 end
 
