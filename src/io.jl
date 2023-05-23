@@ -263,6 +263,7 @@ function gis_vec_file_to_df(filename::AbstractString; fid_drop=[], lon=:lon, lat
 
     if last(split(filename, ".")) == "csv"
         df_raw = CSV.read(filename, DataFrame)
+        if 
         return georeference_csv!(df_raw, lon=lon, lat=lat)
     
     else
