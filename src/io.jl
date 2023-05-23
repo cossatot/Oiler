@@ -21,6 +21,18 @@ using DataFramesMeta
 function vel_from_row(row::DataFrameRow)
     # maybe use dict here to match keys
 
+    if :ve in names(row)
+        ve = row.ve
+    else
+        ve = 0.0
+    end
+
+    if :vn in names(row)
+        vn = row.vn
+    else
+        vn = 0.0
+    end
+
     if :ee in names(row)
         ee = row.ee
     else
@@ -34,13 +46,13 @@ function vel_from_row(row::DataFrameRow)
     end
 
     VelocityVectorSphere(lon=row.lon, lat=row.lat, ee=ee, en=en,
-        ve=row.ve, vn=row.vn, fix=row.fix, mov=row.mov)
+        ve=ve, vn=vn, fix=row.fix, mov=row.mov)
 end
 
 
 function load_vels_from_csv(filepath)
     # will need, eventually, to support velocity weights
-    vels = CSV.read(filepath)
+    vels = CSV.read(filepath, DataFrame)
 
     vel_array = [vel_from_row(vels[i, :]) for i in 1:size(vels, 1)]
 end
@@ -244,15 +256,26 @@ function gj_to_df(gj; convert_geom=true, fid_drop=[])
 end
 
 
-function gis_vec_file_to_df(filename::AbstractString; fid_drop=[])
-    if !(last(split(filename, ".")) in ["json", "geojson"])
-        throw(ArgumentError("only geojson files implemented"))
+function gis_vec_file_to_df(filename::AbstractString; fid_drop=[], lon=:lon, lat=:lat)
+    if !(last(split(filename, ".")) in ["json", "geojson", "csv"])
+        throw(ArgumentError("only geojson and csv files currently implemented"))
     end
 
-    gj = JSON.parsefile(filename)
-    return gj_to_df(gj; fid_drop=fid_drop)
+    if last(split(filename, ".")) == "csv"
+        df_raw = CSV.read(filename, DataFrame)
+        return georeference_csv!(df_raw, lon=lon, lat=lat)
+    
+    else
+        gj = JSON.parsefile(filename)
+        return gj_to_df(gj; fid_drop=fid_drop)
+    end
 end
 
+
+function georeference_csv!(df; lon=:lon, lat=:lat)
+    df[!, "geometry"] = [Oiler.Geom.Point([row.lon row.lat]) for row in eachrow(df)]
+    df
+end
 
 
 function get_coords_from_geom(geom::Oiler.Geom.Point)
@@ -1068,19 +1091,36 @@ function write_gnss_vel_results_to_csv(results, vel_groups; name="")
 end
 
 
-function gnss_vel_from_row(row, block; ve=:ve, vn=:vn, ee=:ee, en=:en,
+function gnss_vel_from_row(row, block; ve=:ve, vn=:vn, ee=:ee, en=:en, cen=:cen,
     fix="1111", name=:station)
     pt = Oiler.IO.get_coords_from_geom(row[:geometry])
     lon = pt[1]
     lat = pt[2]
-    Oiler.VelocityVectorSphere(lon=lon, lat=lat, ve=row[ve],
-        vn=row[vn], ee=row[ee], en=row[en], name=row[name],
+
+    vel_field_names = [ve vn ee en cen name]
+    vel_fields = [:ve :vn :ee :en :cen :name]
+    
+    defaults = Dict{Any, Any}(field => 0.0 for field in vel_fields if field != :name)
+    defaults[:name] = ""
+    vel_vals = Dict()
+
+    for (i, name) in enumerate(vel_field_names)
+        vf = vel_fields[i]
+        if (name in names(row)) | (string(name) in names(row))
+            vel_vals[vf] = row[name]
+        else
+            vel_vals[vf] = defaults[vf]
+        end
+    end
+
+    Oiler.VelocityVectorSphere(lon=lon, lat=lat, ve=vel_vals[:ve], vn=vel_vals[:vn], 
+        ee=vel_vals[:ee], en=vel_vals[:en], cen=vel_vals[:cen], name=vel_vals[:name],
         fix=fix, mov=string(block), vel_type="GNSS")
 end
 
 
-function make_vels_from_gnss_and_blocks(gnss_df, block_df; ve=:ve, vn=:vn, ee=:ee, en=:en,
-    fix="1111", name=:station, epsg=102016)
+function make_vels_from_gnss_and_blocks(gnss_df, block_df; ve=:ve, vn=:vn, ee=:ee, en=:en, 
+        cen=:cen, fix="1111", name=:station, epsg=102016)
 
     if epsg != 4326
         block_idx = get_block_idx_for_points(gnss_df, block_df, epsg)
@@ -1093,7 +1133,7 @@ function make_vels_from_gnss_and_blocks(gnss_df, block_df; ve=:ve, vn=:vn, ee=:e
     for (i, block) in enumerate(block_idx)
         if !ismissing(block)
             gv = gnss_vel_from_row(gnss_df[i, :], block; ve=ve, vn=vn, ee=ee,
-                en=en, fix=fix, name=name)
+                en=en, cen=cen, fix=fix, name=name)
             push!(gnss_vels, gv)
         end
     end

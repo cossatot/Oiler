@@ -19,7 +19,7 @@ using Distributions
 import Base.Threads.@threads
 
 LinearAlgebra.BLAS.set_num_threads(Threads.nthreads())
-SuiteSparse.UMFPACK.umf_ctrl[8] = 0
+#SuiteSparse.UMFPACK.umf_ctrl[8] = 0
 
 """
     build_constraint_matrix(cycle, vel_group_keys)
