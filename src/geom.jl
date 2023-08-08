@@ -4,11 +4,24 @@ export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
     angle_difference, rotate_velocity, rotate_xy_vec, oblique_merc
 
 import Statistics: mean
-import Proj: CRS, Transformation
+#import Proj: CRS, Transformation
 
 using Oiler
 using ..Oiler: EARTH_RAD_KM
 using LinearAlgebra
+
+struct LineString
+    coords::Array{Float64,2}
+end
+
+struct Polygon
+    coords::Array{Float64,2}
+end
+
+struct Point
+    coords::Array{Float64,2}
+end
+
 
 function azimuth(lon1::Float64, lat1::Float64,
     lon2::Float64, lat2::Float64)
@@ -38,6 +51,18 @@ function gc_distance(lon1::Float64, lat1::Float64,
 end
 
 
+function angle_fixer_deg(ang)
+    while ang < 0
+        ang += 360.0
+    end
+
+    while ang > 360.0
+        ang -= 360.0
+    end
+    ang
+end
+
+
 function average_azimuth(lons::Array{Float64}, lats::Array{Float64})
 
     if length(lons) == 2
@@ -57,10 +82,18 @@ function average_azimuth(lons::Array{Float64}, lats::Array{Float64})
 
         az = rad2deg(atan(avg_x, avg_y))
     end
-    if az < 0.0
-        az += 360.0
-    end
+
+    az = angle_fixer_deg(az)
+
     az
+end
+
+
+function average_azimuth(linestring::LineString)
+    
+    coords = linestring.coords
+    
+    return Oiler.Geom.average_azimuth(coords[:, 1], coords[:, 2])
 end
 
 
@@ -79,14 +112,7 @@ end
 
 function angle_to_az(angle::Float64)
     az = -(rad2deg(angle) - 90.0)
-
-    while az < 0
-        az += 360.0
-    end
-
-    while az > 360.0
-        az -= 360.0
-    end
+    az = angle_fixer_deg(az)
     az
 end
 
@@ -275,6 +301,7 @@ function rotate_xy_vec_to_magnitude(x::Array{Float64}, y::Array{Float64};
     mags, errs
 end
 
+
 function get_oblique_merc(lon1, lat1, lon2, lat2)
     # correction for perfectly horizontal lines or lat1 at zero
     if (abs(lat1 - lat2) < 2e-3) || (lat1 == 0.0)
@@ -285,21 +312,22 @@ function get_oblique_merc(lon1, lat1, lon2, lat2)
 end
 
 
-function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
-    wgs84 = "+proj=longlat +datum=WGS84 +nodefs"
-    omerc = get_oblique_merc(lon1, lat1, lon2, lat2)
-    trans = Transformation(wgs84, omerc; always_xy=true)
-
-
-    x = zeros(size(lons))
-    y = zeros(size(lons))
-
-    for i in eachindex(lons)
-        @inbounds x[i], y[i] = trans(lons[i], lats[i])
-    end
-
-    (x, y)
-end
+# deprecated but don't want to delete quite yet
+#function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
+#    wgs84 = "+proj=longlat +datum=WGS84 +nodefs"
+#    omerc = get_oblique_merc(lon1, lat1, lon2, lat2)
+#    trans = Transformation(wgs84, omerc; always_xy=true)
+#
+#
+#    x = zeros(size(lons))
+#    y = zeros(size(lons))
+#
+#    for i in eachindex(lons)
+#        @inbounds x[i], y[i] = trans(lons[i], lats[i])
+#    end
+#
+#    (x, y)
+#end
 
 
 function bearing(final_lon, final_lat, start_lon, start_lat)
@@ -335,6 +363,34 @@ function azimuthal_equidistant_proj(lons, lats, lon1, lat1, lon2, lat2)
                                  [gc_distance(lon1, lat1, lon2, lat2)/2.])[1]
 
     azimuthal_equidistant_proj(lons, lats, clon, clat)
+end
+
+
+function calculate_central_meridian(point1, point2, point3)
+    longitudes_rad = deg2rad.([point1[1], point2[1], point3[1]])
+
+    mean_sin = mean(sin.(longitudes_rad))
+    mean_cos = mean(cos.(longitudes_rad))
+    
+    central_meridian = rad2deg(atan(mean_sin, mean_cos))
+    
+    # Normalize to the range [-180, 180)
+    central_meridian = (central_meridian + 180) % 360 - 180
+
+    return central_meridian
+end
+
+
+function transverse_mercator_projection(lon, lat, central_meridian)
+    R = EARTH_RAD_KM * 1000.
+    phi = deg2rad(lat)
+    lambda_ = deg2rad(lon)
+    lambda_0 = deg2rad(central_meridian)
+
+    x = R * (lambda_ - lambda_0) * cos(phi)
+    y = R * log(tan(π/4 + phi/2))
+
+    return x, y
 end
 
 
@@ -559,18 +615,6 @@ function strike_dip_from_3_pts(pt1, pt2, pt3)
 
     strike, dip
 
-end
-
-struct LineString
-    coords::Array{Float64,2}
-end
-
-struct Polygon
-    coords::Array{Float64,2}
-end
-
-struct Point
-    coords::Array{Float64,2}
 end
 
 

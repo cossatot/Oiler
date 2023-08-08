@@ -143,10 +143,18 @@ function tri_merc(tri, lons, lats)
     append!(lons_w_tri_pts, [lon1 lon2 lon3])
     append!(lats_w_tri_pts, [lat1 lat2 lat3])
 
-    ps1, ps2 = get_tri_strike_line(tri.p1, tri.p2, tri.p3)
+    central_meridian = Oiler.Geom.calculate_central_meridian(tri.p1, tri.p2, tri.p3)
 
-    xp, yp = Oiler.Geom.oblique_merc(lons_w_tri_pts, lats_w_tri_pts, ps1[1],
-        ps1[2], ps2[1], ps2[2])
+    xp = zeros(size(lons_w_tri_pts))
+    yp = zeros(size(lons_w_tri_pts))
+
+    for (i, lon) in enumerate(lons_w_tri_pts)
+        xp[i], yp[i] = Oiler.Geom.transverse_mercator_projection(lon, lats_w_tri_pts[i],
+                                                                 central_meridian)
+    end
+
+    xp, yp
+
 end
 
 
@@ -232,10 +240,15 @@ end
 
 
 function get_tri_strike_dip(tri::Tri)
-    proj_x, proj_y = tri_merc(tri, [0.], [0.])
-    xp1 = [proj_x[1] proj_y[1] tri.p1[3] * 1000]
-    xp2 = [proj_x[2] proj_y[2] tri.p2[3] * 1000]
-    xp3 = [proj_x[3] proj_y[3] tri.p3[3] * 1000]
+    central_meridian = Oiler.Geom.calculate_central_meridian(tri.p1, tri.p2, tri.p3)
+
+    xp1 = Oiler.Geom.transverse_mercator_projection(tri.p1[1], tri.p1[2], central_meridian)
+    xp2 = Oiler.Geom.transverse_mercator_projection(tri.p2[1], tri.p2[2], central_meridian)
+    xp3 = Oiler.Geom.transverse_mercator_projection(tri.p3[1], tri.p3[2], central_meridian)
+
+    xp1 = [xp1[1] xp1[2] tri.p1[3] * 1000]
+    xp2 = [xp2[1] xp2[2] tri.p2[3] * 1000]
+    xp3 = [xp3[1] xp3[2] tri.p3[3] * 1000]
 
     strike, dip = Oiler.Geom.strike_dip_from_3_pts(xp1, xp2, xp3)
 end

@@ -215,12 +215,12 @@ end
 
 
 function check_right_hand_rule(trace::Array{Float64,2}, dip_dir::String;
-    reverse_angle_threshold::Float64=90.0)
+    reverse_angle_threshold::Float64=90.0, verbose=true)
     # Modified from the OQ-MBTK tools, (c) Global Earthquake Model Foundation
 
     strike = average_azimuth(trace[:, 1], trace[:, 2])
 
-    trace_dip_trend = strike + 90.0
+    trace_dip_trend = Oiler.Geom.angle_fixer_deg(strike + 90.0)
 
     fault_dip_trend = direction_map[dip_dir]
 
@@ -228,6 +228,11 @@ function check_right_hand_rule(trace::Array{Float64,2}, dip_dir::String;
 
     # TODO: warn if trend_angle_difference < 15 (or some other low threshold)
     if trend_angle_difference > reverse_angle_threshold
+
+        if verbose
+            @warn("$trace_dip_trend mismatch with $fault_dip_trend ($dip_dir)")
+        end
+
         trace = reverse(trace, dims=1)
     end
     trace

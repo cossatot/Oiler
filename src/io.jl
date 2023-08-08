@@ -263,7 +263,6 @@ function gis_vec_file_to_df(filename::AbstractString; fid_drop=[], lon=:lon, lat
 
     if last(split(filename, ".")) == "csv"
         df_raw = CSV.read(filename, DataFrame)
-        if 
         return georeference_csv!(df_raw, lon=lon, lat=lat)
     
     else
@@ -479,6 +478,8 @@ end
 function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
     v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
     v_default=0.0, e_default=5.0, usd_default=0.0, lsd_default=20.0, 
+    ridge_usd_default=1.0, ridge_lsd_default=2.0,
+    transform_usd_default=1.0, transform_lsd_default=10.0,
     adjust_err_by_dip=false, dip_adj_remainder=0.2, fid=:fid)
 
     trace = Oiler.IO.get_coords_from_geom(row[:geometry])
@@ -500,6 +501,18 @@ function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex
         e_default_ds = e_default
         e_default_ss = e_default
     end
+
+    if "type" in names(row)
+        if row[:type] == "ridge"
+            usd_default = ridge_usd_default
+            lsd_default = ridge_lsd_default
+        elseif row[:type] == "transform"
+            usd_default = transform_usd_default
+            lsd_default = transform_lsd_default
+        end
+    end
+
+
 
     Oiler.Fault(trace=trace,
         dip_dir=row[dip_dir],
@@ -524,7 +537,9 @@ function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v
     hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
     v_default=0.0, e_default=5.0, usd_default=1.0,
     adjust_err_by_dip=false, dip_adj_remainder=0.1,
-    lsd_default=15.0, fid=:fid, fid_drop=[])
+    lsd_default=15.0, ridge_usd_default=1.0, ridge_lsd_default=2.0,
+    transform_usd_default=1.0, transform_lsd_default=10.0,
+    fid=:fid, fid_drop=[])
 
     faults = []
     #for i in 1:size(fault_df, 1)
@@ -546,6 +561,10 @@ function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v
             e_default=e_default,
             usd_default=usd_default,
             lsd_default=lsd_default,
+            ridge_usd_default=ridge_usd_default,
+            ridge_lsd_default=ridge_lsd_default,
+            transform_usd_default=transform_usd_default,
+            transform_lsd_default=transform_lsd_default,
             adjust_err_by_dip=adjust_err_by_dip,
             dip_adj_remainder=dip_adj_remainder,
             fid=fid))

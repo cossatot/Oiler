@@ -371,7 +371,7 @@ function test_make_vel_from_slip_rate()
         "3",
         "5",
         "1",
-        "fault"
+        "geol_slip_rate"
     )
 
     @test vel == vel_ans
@@ -386,10 +386,10 @@ function test_make_geol_slip_rate_vels()
     vels = Oiler.IO.make_geol_slip_rate_vels(slip_rate_df, fault_df)
     vels_ans = [VelocityVectorSphere(0.837754007475755, 1.432051925242457,
             -0.1678871580639106, -0.10869177594106878, 0.0, 0.54990369919767,
-            0.8411931535674303, 0.0, -0.45163684584971814, "1", "3", "4", "fault"),
+            0.8411931535674303, 0.0, -0.45163684584971814, "1", "3", "4", "geol_slip_rate"),
         VelocityVectorSphere(1.482047800040411, 1.414778633216595,
             0.09829170611540894, -0.20084506593123488, 0.0, 0.017015853616702464,
-            0.014507264583475196, 0.0, -0.00014469500954570033, "1", "2", "2", "fault")]
+            0.014507264583475196, 0.0, -0.00014469500954570033, "1", "2", "2", "geol_slip_rate")]
 
     for (i, vel) in enumerate(vels)
         @test struct_equals(vel, vels_ans[i])
