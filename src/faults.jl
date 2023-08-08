@@ -8,7 +8,7 @@ import Distributions: MvNormal
 
 using Oiler
 using ..Oiler: VelocityVectorSphere, average_azimuth, az_to_angle,
-    angle_difference, rotate_velocity, EARTH_RAD_KM, oblique_merc, PoleCart,
+    angle_difference, rotate_velocity, EARTH_RAD_KM, PoleCart,
     PoleSphere
 
 const direction_map = Dict{String,Float64}("N" => 0.0,

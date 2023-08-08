@@ -7,7 +7,7 @@ import Base.Threads.@spawn
 import Base.Threads.@threads
 
 using ..Oiler
-using ..Oiler: Fault, VelocityVectorSphere, fault_oblique_merc, get_gnss_vels,
+using ..Oiler: Fault, VelocityVectorSphere, get_gnss_vels,
     get_coords_from_vel_array, az_to_angle, okada
 
 

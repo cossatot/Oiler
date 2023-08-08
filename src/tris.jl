@@ -5,7 +5,7 @@ export Tri
 using Setfield
 using LinearAlgebra
 
-import Proj: Transformation#Projection, transform
+# import Proj: Transformation#Projection, transform
 
 using ..Oiler
 

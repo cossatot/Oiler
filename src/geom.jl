@@ -2,13 +2,14 @@ module Geom
 
 export azimuth, gc_distance, average_azimuth, az_to_angle, angle_to_az,
     angle_difference, rotate_velocity, rotate_xy_vec, oblique_merc
-
 import Statistics: mean
 #import Proj: CRS, Transformation
 
 using Oiler
 using ..Oiler: EARTH_RAD_KM
 using LinearAlgebra
+
+using Proj: CRS, Transformation
 
 struct LineString
     coords::Array{Float64,2}
@@ -312,22 +313,21 @@ function get_oblique_merc(lon1, lat1, lon2, lat2)
 end
 
 
-# deprecated but don't want to delete quite yet
-#function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
-#    wgs84 = "+proj=longlat +datum=WGS84 +nodefs"
-#    omerc = get_oblique_merc(lon1, lat1, lon2, lat2)
-#    trans = Transformation(wgs84, omerc; always_xy=true)
-#
-#
-#    x = zeros(size(lons))
-#    y = zeros(size(lons))
-#
-#    for i in eachindex(lons)
-#        @inbounds x[i], y[i] = trans(lons[i], lats[i])
-#    end
-#
-#    (x, y)
-#end
+function oblique_merc(lons, lats, lon1, lat1, lon2, lat2)
+    wgs84 = "+proj=longlat +datum=WGS84 +nodefs"
+    omerc = get_oblique_merc(lon1, lat1, lon2, lat2)
+    trans = Transformation(wgs84, omerc; always_xy=true)
+
+
+    x = zeros(size(lons))
+    y = zeros(size(lons))
+
+    for i in eachindex(lons)
+        @inbounds x[i], y[i] = trans(lons[i], lats[i])
+    end
+
+    (x, y)
+end
 
 
 function bearing(final_lon, final_lat, start_lon, start_lat)
