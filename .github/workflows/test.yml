@@ -17,10 +17,22 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+
+      # Set up Python and install Matplotlib
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Install Matplotlib
+        run: pip install matplotlib
+
+      # Continue with existing Julia setup
       - uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
+
       - uses: actions/cache@v1
         env:
           cache-name: cache-artifacts
@@ -31,9 +43,11 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
+
       - uses: julia-actions/julia-buildpkg@v1
         env:
           PYTHON: ""
+
       - uses: julia-actions/julia-runtest@v1
         env:
           PYTHON: ""
