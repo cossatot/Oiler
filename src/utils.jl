@@ -801,12 +801,17 @@ end
 
 
 function check_hw_fw(fault::Fault, block_segs::Dict; verbose=false)
-    fault_trace = line_to_segs(fault.trace)
-    test_pass = check_hw_fw(fault_trace, block_segs[fault.hw], block_segs[fault.fw])
+    
+    if !(haskey(block_segs, fault.hw)) || !(haskey(block_segs, fault.fw))
+        test_pass = false
+    else
+        fault_trace = line_to_segs(fault.trace)
+        test_pass = check_hw_fw(fault_trace, block_segs[fault.hw], block_segs[fault.fw])
+    end
+
     if !test_pass && verbose
         fid = fault.fid
-        #@warn "removing $fid: problem with hw and/or fw"
-        println("removing $fid: problem with hw and/or fw")
+        @info "removing $fid: problem with hw and/or fw"
     end
     test_pass
 end
