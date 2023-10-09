@@ -498,6 +498,9 @@ function calculate_resid_block_strain_rates(results; min_stations=5.)
         lc_stress[i] = princ_stresses[2]
     end
 
+    blocks[!,"strain_ee"] = strain_ee
+    blocks[!,"strain_en"] = strain_en
+    blocks[!,"strain_nn"] = strain_nn
     blocks[!,"mc_stress"] = mc_stress
     blocks[!,"lc_stress"] = lc_stress
     blocks[!,"mc_azimuth"] = mc_az
