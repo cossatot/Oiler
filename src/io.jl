@@ -679,7 +679,7 @@ function process_faults_from_gis_files(fault_files...;
     name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex,
     v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
     v_default=0.0, e_default=5.0, usd_default=0.0, lsd_default=15.0, 
-    ridge_usd_default=1l0, ridge_lsd_default=2.0, 
+    ridge_usd_default=1.0, ridge_lsd_default=2.0, 
     transform_usd_default=1.0, transform_lsd_default=10.0,
     ridge_v_rl=0.0, ridge_e_rl=0.5,
     transform_v_ex=0.0, transform_e_ex=0.5,
