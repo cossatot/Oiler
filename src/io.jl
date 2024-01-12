@@ -340,11 +340,12 @@ end
 
 
 function get_block_idx_for_points(point_df, block_df, to_epsg)
-    point_geoms = [p.coords for p in point_df[:, :geometry]]
+    point_geoms = [tuple(p.coords...) for p in point_df[:, :geometry]]
 
     trans = make_trans_from_wgs84(to_epsg)
 
     point_geoms = trans.(point_geoms)
+    point_geoms = [collect(pg) for pg in point_geoms]
 
     idxs = Array{Any}(missing, length(point_geoms))
 
@@ -365,34 +366,6 @@ function get_block_idx_for_points(point_df, block_df, to_epsg)
         end
     end
     idxs
-end
-
-
-function get_block_idx_for_point(point, block_df; epsg=4326)
-    @warn "won't work without archgdal"
-    point_geom = AG.createpoint(point[1], point[2])
-
-    if epsg != 4326
-        point_geom = AG.reproject(point_geom,
-            ProjString("+proj=longlat +datum=WGS84 +no_defs"), EPSG(epsg))
-    end
-
-    idx = missing
-
-    for i_b in 1:size(block_df, 1)
-        block_geom = AG.clone(block_df[i_b, :geometry])
-        if epsg != 4326
-            block_geom = AG.reproject(block_geom,
-                ProjString("+proj=longlat +datum=WGS84 +no_defs"), EPSG(epsg))
-        end
-
-        block_fid = block_df[i_b, :fid]
-
-        if AG.contains(block_geom, point_geom)
-            idx = block_fid
-        end
-    end
-    idx
 end
 
 
