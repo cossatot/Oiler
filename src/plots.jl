@@ -35,7 +35,7 @@ end
 function plot_results_map(results, vel_groups, faults, tris=[])
     vel_df = Oiler.ResultsAnalysis.get_gnss_results(results, vel_groups)
 
-    fig = figure(figsize=(14, 14))
+    fig, ax = subplots(figsize=(14, 14))
 
     for fault in faults
         plot(fault.trace[:, 1], fault.trace[:, 2], "k-", lw=0.5)
@@ -55,8 +55,11 @@ function plot_results_map(results, vel_groups, faults, tris=[])
         for tri in tris
             plot_tri(tri, results; vmin=tri_rate_min, vmax=tri_rate_max, cm=cm)
         end
-        colorbar(mappable)
+        colorbar(mappable, ax=ax)
     end
+
+    x_limits = xlim()
+    y_limits = ylim()
 
     quiver(vel_df.lon, vel_df.lat,
         vel_df.obs_ve, vel_df.obs_vn,
@@ -65,8 +68,10 @@ function plot_results_map(results, vel_groups, faults, tris=[])
         vel_df.pred_ve, vel_df.pred_vn,
         color="r", scale=300, label="pred GNSS")
 
-    legend()
     axis("equal")
+    xlim(x_limits)
+    ylim(y_limits)
+    legend()
 
     return fig
 end
