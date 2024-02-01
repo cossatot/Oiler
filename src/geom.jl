@@ -273,6 +273,7 @@ function rotate_xy_vec_to_magnitude(x, y; x_err=0.0, y_err=0.0, cov=0.0)
     (vec_rot[1], err_rot[1])
 end
 
+
 function rotate_xy_vec_to_magnitude(x::Array{Float64}, y::Array{Float64}; 
         x_err=nothing, y_err=nothing, cov=nothing)
     angle = atan.(-y, x)
@@ -300,6 +301,40 @@ function rotate_xy_vec_to_magnitude(x::Array{Float64}, y::Array{Float64};
 
     end
     mags, errs
+end
+
+
+function beta_from_dip_rake(dip, rake)
+    beta = atand(sind(-rake) * cosd(dip), cosd(-rake))
+end
+
+
+function az_from_strike_dip_rake(strike, dip, rake)
+    beta = beta_from_dip_rake(dip, rake)
+    az = strike + beta
+    az = mod(az, 360.) 
+end
+
+
+function rake_from_az_strike_dip(az, strike, dip)
+    beta = mod(az-strike, 360.)
+    rake = -atand(tand(beta), cosd(dip))
+    if (180. >= beta > 90.)
+        rake -= 180.
+    elseif (270. > beta > 180.)
+        rake += 180.
+    end
+    if rake == -180.
+        rake = 180.
+    end
+
+    if rake > 180.
+        rake -= 360.
+    elseif rake < -180.
+        rake += 360.
+    end
+
+    rake
 end
 
 

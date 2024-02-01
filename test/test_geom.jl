@@ -37,6 +37,69 @@ function test_average_azimuth()
 end
 
 
+function test_beta_from_dip_rake()
+    rakes = collect(-180.:45.:180.)
+    #rakes[1] = -179.999
+
+    @test rakes == -Oiler.Geom.beta_from_dip_rake.(0., rakes)
+
+    betas_45 = [180.0 
+        144.73561031724535
+        90.0
+        35.26438968275466
+        -0.0
+        -35.26438968275466
+        -90.0
+        -144.73561031724535
+        -180.0]
+
+    @test isapprox(betas_45, Oiler.Geom.beta_from_dip_rake.(45, rakes))
+
+end
+
+
+function test_az_from_strike_dip_rake()
+    rakes = collect(-180.:45.:180.)
+    rakes[1] = -179.999
+    
+    @test isapprox(rakes, -Oiler.Geom.az_from_strike_dip_rake.(0., 45., rakes))
+    
+    azs_0_45 = [179.99929289321878, 144.73561031724535, 90.0, 35.26438968275466, 
+    0.0, 324.73561031724535, 270.0, 215.26438968275465, 180.0]
+
+    @test isapprox(azs_0_45, Oiler.Geom.az_from_strike_dip_rake.(0., 45., rakes))
+
+    azs_45_45 = azs_0_45 .+ 0.0
+
+    @test isapprox(azs_45_45, Oiler.Geom.az_from_strike_dip_rake.(45., 45., rakes))
+
+end
+
+
+function test_rake_from_az_strike_dip()
+    rakes = collect((-179:180))
+    #azs = collect(0.:359.)
+    strikes = collect(0.:45.:270.)
+    dips = [1, 20, 45, 60, 89]
+
+    for rake in rakes
+        for strike in strikes
+            for dip in dips
+                az = Oiler.Geom.az_from_strike_dip_rake(strike, dip, rake)
+                test_rake = Oiler.Geom.rake_from_az_strike_dip(az, strike, dip)
+                test_pass = isapprox(rake, test_rake)
+                if !test_pass
+                    beta = az-strike
+                    println(
+                    "rake: $rake, test_rake: $test_rake, az: $az, strike: $strike, beta: $beta")
+                end
+                @test isapprox(rake, test_rake)
+            end
+        end
+    end
+end
+                    
+
 function test_oblique_merc_2()
     lat1 = 0.00001
     lat2 = -0.00001
@@ -194,6 +257,9 @@ end
     test_gc_dist()
     test_azimuth_1()
     test_average_azimuth()
+    test_beta_from_dip_rake()
+    test_az_from_strike_dip_rake()
+    test_rake_from_az_strike_dip()
     test_oblique_merc_2()
     test_terminal_coords_from_bearing_dist_1()
     test_terminal_coords_from_bearing_dist_2()
