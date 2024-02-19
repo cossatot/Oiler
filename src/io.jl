@@ -1357,4 +1357,127 @@ function write_geol_slip_rate_results_to_csv(results; outfile)
 end
 
 
+function tri_rake_constraint_from_eq(tri, eq; constraint_slip_rate=0.0,
+        constraint_slip_rate_err=50.0, constraint_normal_rate=0.0, constraint_normal_rate_err=1e-1)
+
+    tri_strike, tri_dip = Oiler.Tris.get_tri_strike_dip(tri)
+    slip_az = Oiler.Geom.az_from_strike_dip_rake(eq.strike, eq.dip, eq.rake)
+
+    tri_rake = Oiler.Geom.rake_from_az_strike_dip(slip_az, tri_strike, tri_dip)
+    
+    v_tri, v_tri_err = Oiler.Geom.rotate_velocity_w_err(-constraint_slip_rate,
+            constraint_normal_rate, -deg2rad(tri_rake), constraint_slip_rate_err,
+            constraint_normal_rate_err)
+    tri_constraint = (dip_slip_rate=v_tri[2], strike_slip_rate=v_tri[1],
+            dip_slip_err=v_tri_err[2], strike_slip_err=v_tri_err[1], cds=v_tri_err[3],
+            name=tri.name)
+    tri_constraint
+end
+
+
+function make_tri_rake_constraints_from_earthquakes(earthquake_df, tris;
+    constraint_slip_rate=0.0, constraint_slip_rate_err=50.0,
+    constraint_normal_rate=0.0, constraint_normal_rate_err=1e-1,
+    )
+
+    tri_constraints = []
+
+    for row in eachrow(earthquake_df)
+        eq = make_eq_from_row(row)
+        tri_w_idx = get_tri_from_tris(tris, eq.tri)
+        tri=nothing
+        if !isnothing(tri_w_idx)
+            tri_idx, tri = tri_w_idx
+        end
+
+        if !isnothing(tri)
+            trc = tri_rake_constraint_from_eq(tri, eq;
+                    constraint_slip_rate=constraint_slip_rate,
+                    constraint_slip_rate_err=constraint_slip_rate_err,
+                    constraint_normal_rate=constraint_normal_rate,
+                    constraint_normal_rate_err=constraint_normal_rate_err)
+            push!(tri_constraints, trc)
+        end
+    end
+    tri_constraints
+end
+
+
+
+function make_rake_constraint_vel_from_earthquake(earthquake; fault=nothing, 
+    constraint_slip_rate=0.0, constraint_slip_rate_err=50.0,
+    constraint_normal_rate=0.0, constraint_normal_rate_err=1e-1,
+    )
+
+    slip_az = Oiler.Geom.az_from_strike_dip_rake(earthquake.strike,
+        earthquake.dip, earthquake.rake)
+
+
+    if !isnothing(fault)
+        fix = fault.hw
+        mov = fault.fw
+    else
+        fix = earthquake.hw
+        mov = earthquake.fw
+    end
+
+    v_, v_err = Oiler.Geom.rotate_velocity_w_err(constraint_slip_rate,
+        constraint_normal_rate, Oiler.Geom.az_to_angle(slip_az), constraint_slip_rate_err,
+        constraint_normal_rate_err)
+
+    vel_constraint = Oiler.VelocityVectorSphere(lon=earthquake.lon, lat=earthquake.lat,
+        ve=v_[1], vn=v_[2], ee=v_err[1], en=v_err[2], cen=v_err[3],
+        fix=fix, mov=mov, vel_type="earthquake_slip_vector")
+    vel_constraint
+end
+
+
+function make_eq_from_row(row)
+    return (
+        lon=row[:geometry].coords[1],
+        lat=row[:geometry].coords[2],
+        fid=row[:fid],
+        strike=row[:strike],
+        dip=row[:dip],
+        rake=row[:rake],
+        hw=row[:hw],
+        fw=row[:fw],
+        tri=row[:tri],
+        mag=row[:mag],
+        )
+end
+
+
+function get_tri_from_tris(tris, tri_fid)
+    for (i, tri) in enumerate(tris)
+        if tri.name == tri_fid
+            return (i, tri)
+        end
+    end
+end
+
+
+function make_rake_constraint_vels_from_earthquakes(earthquake_df; faults=nothing,
+    constraint_slip_rate=0.0, constraint_slip_rate_err=50.0,
+    constraint_normal_rate=0.0, constraint_normal_rate_err=1e-1)
+
+    # can't do faults yet
+
+    vel_constraints = Array{VelocityVectorSphere,1}()
+
+    for row in eachrow(earthquake_df)
+        eq = make_eq_from_row(row)
+        constraint = make_rake_constraint_vel_from_earthquake(eq,
+            constraint_slip_rate=constraint_slip_rate,
+            constraint_slip_rate_err=constraint_slip_rate_err,
+            constraint_normal_rate=constraint_normal_rate,
+            constraint_normal_rate_err=constraint_normal_rate_err,
+            )
+
+        push!(vel_constraints, constraint)
+    end
+
+    vel_constraints
+end
+
 end # module

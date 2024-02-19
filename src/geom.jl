@@ -338,6 +338,12 @@ function rake_from_az_strike_dip(az, strike, dip)
 end
 
 
+function rake_from_dip_slip_strike_slip(dip_slip, strike_slip)
+    # positive dip slip is reverse sense, as in Tris, contra Fault.extension_rate
+    # positive strike slip is dextral sense, as in Fault.dextral_rate
+    return rad2deg(atan(dip_slip, -strike_slip))
+end
+
 function get_oblique_merc(lon1, lat1, lon2, lat2)
     # correction for perfectly horizontal lines or lat1 at zero
     if (abs(lat1 - lat2) < 2e-3) || (lat1 == 0.0)
