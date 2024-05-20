@@ -1102,6 +1102,38 @@ function write_fault_results_to_gj(results, outfile; name="", calc_rake=false,
     end
 end
 
+function boundary_to_feature(boundary)
+    gj_feature = Dict(
+        "type" => "Feature",
+        "geometry" => Dict(
+            "type" => "LineString",
+            "coordinates" => boundary.trace'
+        ),
+        "properties" => Dict(
+            "fix" => boundary.fix,
+            "mov" => boundary.mov,
+            "fid" => boundary.fid
+        )
+    )
+end
+
+
+function boundaries_to_geojson(boundaries; name="")
+    gj = Dict(
+        "type" => "FeatureCollection",
+        "name" => name,
+        "features" => [boundary_to_feature(boundary) for boundary in boundaries]
+    )
+end
+
+function write_boundaries_to_gj(boundaries, outfile; name="")
+    boundary_gj = boundaries_to_geojson(boundaries; name=name)
+
+    open(outfile, "w") do f
+        JSON.print(f, boundary_gj)
+    end
+end
+
 
 function write_gnss_vel_results_to_csv(results, vel_groups; name="")
     pred_gnss_df = Oiler.ResultsAnalysis.get_gnss_results(results, vel_groups)
