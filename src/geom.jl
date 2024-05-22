@@ -24,6 +24,22 @@ struct Point
 end
 
 
+function Point(coords::Vector{Float64})
+    pt = nothing
+    n = length(coords)
+    if n == 2
+        pt = Point([coords[1] coords[2]])
+    elseif n == 3
+        pt = Point([coords[1] coords[2] coords[3]])
+    else
+
+        err_msg = "coords must have 2 or 3 values, not $n"
+        throw(ArgumentError(err_msg))
+    end
+    pt
+end
+
+
 function azimuth(lon1::Float64, lat1::Float64,
     lon2::Float64, lat2::Float64)
 

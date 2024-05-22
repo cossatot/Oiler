@@ -241,7 +241,7 @@ function make_tri_regularization_matrix(tris, distance_weight)
 end
 
 
-function make_tri_prior_matrices(tris)
+function make_tri_prior_matrices_old(tris)
     lhs = diagm(ones(2 * length(tris)))
     vels = ones(2 * length(tris))
     #weights = ones(2 * length(tris))
@@ -260,6 +260,52 @@ function make_tri_prior_matrices(tris)
     )
     lhs, vels, weights
 end
+
+
+function make_tri_prior_matrices(tris)
+    function is_default(tri)
+        rates = [tri.dip_slip_rate, tri.dip_slip_err, tri.strike_slip_rate, tri.strike_slip_err]
+        all(rates .== 0.0)
+    end
+
+    function get_tri_ind(tri, tris)
+        for (i, t) in enumerate(tris)
+            if t == tri
+                return i
+            end
+        end
+    end
+
+    non_default_tris = filter(!is_default, tris)
+
+    nt = length(tris)
+    np = length(non_default_tris)
+    lhs = zeros(np * 2, nt* 2)
+    rhs = zeros(size(lhs)[1])
+    var_covs = []
+
+    for (i, tri) in enumerate(tris) #cols
+        if !is_default(tri)
+            ds_col_ind = 2 * i - 1
+            ss_col_ind = 2 * i
+
+            nd_tri_idx = get_tri_ind(tri, non_default_tris)
+            ds_row_ind = 2 * nd_tri_idx - 1
+            ss_row_ind = ds_row_ind + 1
+
+            lhs[ds_row_ind, ds_col_ind] = 1.0
+            lhs[ss_row_ind, ss_col_ind] = 1.0
+
+            rhs[ds_row_ind] = tri.dip_slip_rate
+            rhs[ss_row_ind] = tri.strike_slip_rate
+
+            push!(var_covs, var_cov_from_tri(tri))
+        end
+    end
+    weights = diagonalize_matrices(var_covs)
+    lhs, rhs, weights
+end
+
 
 
 function make_tri_priors_from_rake_constraints(tri_rake_constraints, tris)
