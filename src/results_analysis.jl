@@ -1,6 +1,7 @@
 module ResultsAnalysis
 
 using Setfield
+using Statistics
 using StatsBase# , DataAPI
 import Base.Threads.@threads
 using DataFrames, DataFramesMeta
@@ -278,6 +279,40 @@ function predict_slip_rates(faults, poles)
     new_faults
 end
 
+
+function get_stoch_slip_rates(faults, stoch_poles)
+    stoch_faults_w_rates = map(pole_set -> predict_slip_rates(faults, pole_set), 
+        stoch_poles)
+end
+
+
+function fault_covariance_matrix(stoch_faults_w_rates)
+
+    n_iters = length(stoch_faults_w_rates)
+    n_faults = length(stoch_faults_w_rates[1])
+    all_vels = zeros((n_iters,n_faults))
+
+    for i in 1:n_iters
+        for j in 1:n_faults
+            f = stoch_faults_w_rates[i][j]
+            all_vels[i,j] = sqrt(f.dextral_rate^2 + f.extension_rate^2)
+        end
+    end
+
+    cov_matrix_all_vels = cov(all_vels, dims=1)
+end
+
+
+function fault_covariance(stoch_faults_w_rates)
+    cov_matrix = fault_covariance_matrix(stoch_faults_w_rates)
+
+    labels = map(fault->fault.fid, stoch_faults_w_rates[1])
+
+    cov_df = DataFrame(cov_matrix, labels)
+
+    insertcols!(cov_df, 1, :Fault => labels)
+    cov_df
+end
 
 function _get_obs_pred_vecs(; results,
     vel_groups,
