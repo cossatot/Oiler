@@ -1186,16 +1186,23 @@ function random_sample_vel(vel::VelocityVectorSphere)
 end
 
 
-function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int)
+function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int; only_data_vels=true)
     rnd_ve_block = randn((length(vels), n_samps))
     rnd_vn_block = randn((length(vels), n_samps))
 
     ve_out = zeros(size(rnd_ve_block))
     vn_out = zeros(size(rnd_vn_block))
 
+    not_data_vel_types = ["Boundary", "fault", "tri"]
+
     for (row, vel) in enumerate(vels)
-        ve_out[row, :] = vel.ve .+ rnd_ve_block[row, :] .* vel.ee
-        vn_out[row, :] = vel.vn .+ rnd_ve_block[row, :] .* vel.en
+        if only_data_vels == true && vel.vel_type in not_data_vel_types
+            ve_out[row, :] = vel.ve
+            vn_out[row, :] = vel.vn
+        else
+            ve_out[row, :] = vel.ve .+ rnd_ve_block[row, :] .* vel.ee
+            vn_out[row, :] = vel.vn .+ rnd_ve_block[row, :] .* vel.en
+        end
     end
     (ve_out, vn_out)
 end
