@@ -760,7 +760,8 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     elastic_floor=1e-4,
     tri_distance_weight::Float64=10.0, check_closures::Bool=true,
     sparse_lhs::Bool=false, predict_vels::Bool=false, constraint_method="kkt_sym",
-    pred_se::Bool=false, se_iters=1000, factorization="lu", check_nans=false)
+    pred_se::Bool=false, se_iters=1000, factorization="lu", check_nans=false,
+    stoch_slip_rates::Bool=false)
 
     @info "setting up unconstrained matrices"
     @time block_inv_setup = set_up_block_inv_no_constraints(vel_groups;
@@ -840,8 +841,6 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
                                      length(Oiler.Utils.get_geol_slip_rate_vels(vel_groups))
     results["stats_info"]["n_params"] = 3 * Oiler.Utils.get_n_blocks_from_vel_groups(vel_groups) + nt
     
-
-
     if pred_se == true
         if weighted == true
             se_weights = block_inv_setup["weights"]
@@ -863,6 +862,18 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             get_tri_uncertainties!(pole_var, tris, results["tri_slip_rates"],
                 tri_soln_idx)
         end
+
+        if stoch_slip_rates == true
+            @info "getting stochastic slip rates"
+            stoch_pole_set = map(x->get_poles_from_soln(block_inv_setup["keys"], x),
+                eachrow(block_inv_setup["stoch_poles"]))
+            results["stoch_pole_array"] = block_inv_setup["stoch_poles"] #debugging
+            results["stoch_pole_set"] = stoch_pole_set #debugging
+            @time results["stoch_slip_rates"] = Oiler.ResultsAnalysis.get_stoch_slip_rates(
+                faults, stoch_pole_set
+            )
+        end
+
     end
 
     if predict_vels == true
@@ -936,6 +947,7 @@ end
 
 function make_stoch_poles(lhs, var_cov_matrix, Vc, cm, n_pole_vars, soln_idx,
     n_iters, constraint_method)
+
     # this one is for CWLS
 
     p, q = size(cm)
@@ -952,6 +964,7 @@ function make_stoch_poles(lhs, var_cov_matrix, Vc, cm, n_pole_vars, soln_idx,
     stoch_poles = zeros((n_iters, n_pole_vars)) # we want each soln to be a row
 
     @threads for i = 1:n_iters
+    #for i = 1:n_iters
         # Vc_stochastic = Vc + vel_stds .* rand_vel_noise[:,i]
         Vc_stochastic = Vc + vcat(vel_stds[:, i], zeros_remaining)
         if constraint_method == "kkt_sym"
@@ -965,6 +978,38 @@ function make_stoch_poles(lhs, var_cov_matrix, Vc, cm, n_pole_vars, soln_idx,
         stoch_poles[i, :] = soln'
     end
     stoch_poles
+end
+
+function make_stoch_poles_(lhs, var_cov_matrix, Vc, cm, n_pole_vars, soln_idx,
+    n_iters, constraint_method; batch_fraction=0.1)
+    p, q = size(cm)
+    n_remaining = length(Vc) - size(var_cov_matrix, 1)
+    zeros_remaining = zeros(n_remaining)
+    stoch_poles = zeros((n_iters, n_pole_vars))
+    
+    # Calculate batch size as a fraction of n_iters, ensuring at least 1 iteration per batch
+    batch_size = max(1, round(Int, n_iters * batch_fraction))
+    
+    for batch_start in 1:batch_size:n_iters
+        batch_end = min(batch_start + batch_size - 1, n_iters)
+        batch_size_actual = batch_end - batch_start + 1
+        
+        vel_stds = rand(Distributions.MvNormal(Matrix(var_cov_matrix)), batch_size_actual)
+        
+        Threads.@threads for i in batch_start:batch_end
+            Vc_stochastic = Vc + vcat(vel_stds[:, i - batch_start + 1], zeros_remaining)
+            if constraint_method == "kkt_sym"
+                rhs = [zeros(p); Vc_stochastic; zeros(q)]
+            else
+                rhs = [Vc_stochastic; zeros(p); zeros(q)]
+            end
+            full_soln = lhs \ rhs
+            soln = full_soln[soln_idx]
+            stoch_poles[i, :] = soln'
+        end
+    end
+    
+    return stoch_poles
 end
 
 

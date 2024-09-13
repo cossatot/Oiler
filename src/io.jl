@@ -774,8 +774,6 @@ function get_non_fault_block_bounds(block_df, faults; verbose=false)
 end
 
 
-
-
 function make_vel_from_slip_rate(slip_rate_row, fault_df; err_return_val=1.0,
     weight=1.0, name="name", dip_dir=:dip_dir,
     v_ex=:v_ex, e_ex=:e_ex,
@@ -951,6 +949,25 @@ function make_geol_slip_rate_vels!(geol_slip_rate_df, fault_df;
 
     geol_slip_rate_vels = convert(Array{VelocityVectorSphere}, geol_slip_rate_vels)
     geol_slip_rate_df, geol_slip_rate_vels
+end
+
+
+function get_stoch_slip_rate_dict(stoch_slip_rates)
+    n_iters = size(stoch_slip_rates,1)
+    rates_out = Dict{String, Dict{String, Array{Float64}}}()
+    for flt in stoch_slip_rates[1]
+        rates_out[flt.fid] = Dict(
+            "dextral_rate"=>Array{Float64}(undef, n_iters),
+            "extension_rate"=>Array{Float64}(undef, n_iters),
+        )
+    end
+    for (i, iter) in enumerate(stoch_slip_rates)
+        for flt in iter
+            rates_out[flt.fid]["dextral_rate"][i] += flt.dextral_rate
+            rates_out[flt.fid]["extension_rate"][i] += flt.extension_rate
+        end
+    end
+    rates_out
 end
 
 
@@ -1164,9 +1181,21 @@ function write_boundaries_to_gj(boundaries, outfile; name="")
 end
 
 
+function write_stoch_slip_rates_to_gj(stoch_rates, outfile)
+    open(outfile, "w") do f
+        JSON.print(f, stoch_rates)
+    end
+end
+
+
 function write_gnss_vel_results_to_csv(results, vel_groups; name="")
     pred_gnss_df = Oiler.ResultsAnalysis.get_gnss_results(results, vel_groups)
     CSV.write(name, pred_gnss_df)
+end
+
+
+function write_fault_covariance_to_csv(cov_df, outfile)
+    CSV.write(outfile, cov_df)
 end
 
 

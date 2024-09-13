@@ -259,18 +259,23 @@ end
 function calc_locking_effects(faults, vel_groups; elastic_floor=1e-4,
     check_nans=false)
 
+    @info "\tprepping vels"
     gnss_vels = get_gnss_vels(vel_groups)
     gnss_lons = [vel["vel"].lon for vel in gnss_vels]
     gnss_lats = [vel["vel"].lat for vel in gnss_vels]
     gnss_idxs = [vel["idx"] for vel in gnss_vels]
 
+    @info "\tsorting keys and grouping faults"
     vg_keys = sort(collect(Tuple(keys(vel_groups))))
     fault_groups = Oiler.Utils.group_faults(faults, vg_keys)
     locking_partial_groups = Dict()
 
     # calculate locking effects from each fault at each site
     # locking effects for faults in each vel_group sum
+    @info "\tcalculating locking per fault group (parallel?)"
     #for vg in vg_keys
+    n_threads = Threads.nthreads()
+    @info "$n_threads threads"
     @threads for vg in vg_keys
         if haskey(fault_groups, vg)
             locking_partial_groups[vg] = sum([
@@ -285,6 +290,7 @@ function calc_locking_effects(faults, vel_groups; elastic_floor=1e-4,
 
     # make a new dictionary with keys as the indices of the sub-array in
     # the model matrix
+    @info "\t\tmaking partials dicts"
     locking_partials = Dict()
     for (i, vg) in enumerate(vg_keys)
         if haskey(locking_partial_groups, vg)
@@ -295,7 +301,7 @@ function calc_locking_effects(faults, vel_groups; elastic_floor=1e-4,
             end
         end
     end
-    # @info "done calculating locking partials"
+    @info "\tdone calculating locking partials"
     locking_partials
 end
 
