@@ -835,9 +835,9 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     results["tri_slip_rates"] = get_tri_rates(tri_soln, tris)
 
     results["stats_info"] = Dict{Any,Any}(
-        "RMSE" => Oiler.ResultsAnalysis.calc_RMSE_from_G(block_inv_setup, results)
+        "RMSE_df" => Oiler.ResultsAnalysis.calc_RMSE_from_G(block_inv_setup, results)
     )
-    RMSE_string = "RMSE: " * string(results["stats_info"]["RMSE"])
+    RMSE_string = "RMSE: " * string(results["stats_info"]["RMSE_df"])
     @info RMSE_string
     #results["stats_info"]["n_obs"], results["stats_info"]["n_params"] = size(
     #    block_inv_setup["PvGb"]
@@ -1047,7 +1047,7 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
         end
     end
 
-    var = results["stats_info"]["RMSE"]^2 * var_cov
+    var = results["stats_info"]["RMSE_df"]^2 * var_cov
     standard_error_vec = sqrt.(diag(var))
 
     SE_string = "mean standard error: " * string(
