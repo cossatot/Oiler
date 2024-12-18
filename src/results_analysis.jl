@@ -283,6 +283,20 @@ end
 function get_stoch_slip_rates(faults, stoch_poles)
     stoch_faults_w_rates = map(pole_set -> predict_slip_rates(faults, pole_set), 
         stoch_poles)
+
+    n_iters = length(stoch_faults_w_rates)
+    stoch_rates = Dict(fault.fid => Dict("dextral_rate" => zeros(n_iters),
+                                         "extension_rate" => zeros(n_iters))
+                       for fault in stoch_faults_w_rates[1] )
+
+    for (i, iter) in enumerate(stoch_faults_w_rates)
+        for fault in iter
+            stoch_rates[fault.fid]["dextral_rate"][i] = fault.dextral_rate
+            stoch_rates[fault.fid]["extension_rate"][i] = fault.extension_rate
+        end
+    end
+
+    return stoch_rates
 end
 
 
@@ -349,7 +363,8 @@ function compare_data_results(; results,
     geol_slip_rate_df,
     geol_slip_rate_vels,
     fault_df,
-    usd=:usd, lsd=:lsd
+    usd=:usd, lsd=:lsd,
+    e_default=5.0
 )
 
     geol_data_obs, geol_data_pred = get_obs_pred_geol_rate_vecs(
@@ -363,13 +378,23 @@ function compare_data_results(; results,
         geol_slip_rate_df, fault_df, results, usd=usd, lsd=lsd)
     gnss_results = get_gnss_results(results, vel_groups)
 
-    obs_vec = vcat(gnss_results.obs_ve, gnss_results.obs_vn,
-        geol_data_obs["dex_geol_obs"], geol_data_obs["ext_geol_obs"])
-    obs_err_vec = vcat(gnss_results.obs_ee, gnss_results.obs_en,
-        geol_data_obs["dex_geol_err"], geol_data_obs["ext_geol_err"])
-    pred_vec = vcat(gnss_results.pred_ve, gnss_results.pred_vn,
-        geol_data_pred["dex_geol_pred"], geol_data_pred["ext_geol_pred"])
+    #obs_vec = vcat(gnss_results.obs_ve, gnss_results.obs_vn,
+    #    geol_data_obs["dex_geol_obs"], geol_data_obs["ext_geol_obs"])
+    #obs_err_vec = vcat(gnss_results.obs_ee, gnss_results.obs_en,
+    #    geol_data_obs["dex_geol_err"], geol_data_obs["ext_geol_err"])
+    #pred_vec = vcat(gnss_results.pred_ve, gnss_results.pred_vn,
+    #    geol_data_pred["dex_geol_pred"], geol_data_pred["ext_geol_pred"])
 
+
+    geol_obs_vec = vcat(geol_data_obs["dex_geol_obs"], geol_data_obs["ext_geol_obs"])
+    geol_pred_vec = vcat(geol_data_pred["dex_geol_pred"], geol_data_pred["ext_geol_pred"])
+    geol_err_vec = vcat(geol_data_obs["dex_geol_err"], geol_data_obs["ext_geol_err"])
+
+    geol_err_vec[geol_err_vec .== 0.0] .= e_default
+
+    obs_vec = vcat(gnss_results.obs_ve, gnss_results.obs_vn, geol_obs_vec)
+    obs_err_vec = vcat(gnss_results.obs_ee, gnss_results.obs_en, geol_err_vec)
+    pred_vec = vcat(gnss_results.pred_ve, gnss_results.pred_vn, geol_pred_vec)
 
     # pred_err_vec = vcat(gnss_results.pred_ee, gnss_results.pred_en, 
     #               geol_data_pred["dex_geol_pred_err"], geol_data_pred["ext_geol_pred_err"])
@@ -379,21 +404,41 @@ function compare_data_results(; results,
     # results["stats_info"]["summary_stats"]
 
     gnss_misfits = gnss_chi_sq_misfits(gnss_results)
-    geol_misfits = geol_chi_sq_misfits(obs_vec, pred_vec, obs_err_vec)
+    geol_misfits = geol_chi_sq_misfits(geol_obs_vec, geol_pred_vec, geol_err_vec)
 
     misfits = vcat(gnss_misfits, geol_misfits)
 
-    results["stats_info"]["reduced_chi_sq"] = Oiler.Stats.reduced_chi_sq_mccaffrey(
+    gnss_mags = sqrt.(gnss_results.obs_ve.^2 .+ gnss_results.obs_vn.^2)
+    gnss_resid_mags = Oiler.Stats.vector_misfit.(gnss_results.obs_ve,
+        gnss_results.obs_vn, gnss_results.pred_ve, gnss_results.pred_vn)
+
+    geol_resids = geol_obs_vec .- geol_pred_vec
+
+    resids = vcat(gnss_resid_mags, geol_resids)
+    mags = vcat(gnss_mags, geol_obs_vec)
+
+    results["stats_info"]["RMSE_straight"] = sqrt(sum(resids.^2)/length(resids))
+
+
+    results["stats_info"]["reduced_chi_sq_mcc"] = Oiler.Stats.reduced_chi_sq_mccaffrey(
         misfits, results["stats_info"]["n_params"]
     )
+    
+    results["stats_info"]["reduced_chi_sq"] = Oiler.Stats.reduced_chi_sq(
+        obs_vec, pred_vec, obs_err_vec, results["stats_info"]["n_params"]
+    )
 
-    resid_summary = StatsBase.summarystats(abs.(resid_vec))
+    #resid_summary = StatsBase.summarystats(abs.(resid_vec))
+    resid_summary = StatsBase.summarystats(abs.(resids))
 
     results["data"] = Dict(
         "geol_data_obs" => geol_data_obs,
         "geol_data_pred" => geol_data_pred,
+        "geol_data_err" => geol_err_vec,
         "gnss_results" => gnss_results,
         "geol_rates_table" => geol_rates_table,
+        "mags" => mags,
+        "resids" => resids
     )
 
     results["stats_info"]["resid_summary"] = Dict(
@@ -414,12 +459,15 @@ end
 
 
 function gnss_chi_sq_misfits(gnss_results)
-    misfits = map(x->Oiler.Stats.vector_misfit(
+    misfits = map(x->Oiler.Stats.vector_chi_sq_misfit(
         x.obs_ve, x.obs_vn, x.pred_ve, x.pred_vn,
         x.obs_ee, x.obs_en, x.cen),
         eachrow(gnss_results))
 end
     
+
+
+
 
 function geol_chi_sq_misfits(geol_obs, geol_pred, geol_err)
     return (geol_obs .- geol_pred).^2 ./ geol_err .^ 2
