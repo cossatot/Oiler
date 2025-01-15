@@ -18,7 +18,7 @@ using DataFramesMeta
 
 
 
-function vel_from_row(row::DataFrameRow)
+function vel_from_row(row::DataFrameRow; vel_type="")
     # maybe use dict here to match keys
 
     if :ve in names(row)
@@ -46,7 +46,7 @@ function vel_from_row(row::DataFrameRow)
     end
 
     VelocityVectorSphere(lon=row.lon, lat=row.lat, ee=ee, en=en,
-        ve=ve, vn=vn, fix=row.fix, mov=row.mov)
+        ve=ve, vn=vn, fix=row.fix, mov=row.mov, vel_type=vel_type)
 end
 
 

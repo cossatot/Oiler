@@ -409,7 +409,7 @@ end
 
 function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array=[], tris::Array=[], regularize_tris=true, tri_priors=false, tri_distance_weight::Float64=10.0,
-    elastic_floor=1e-4, check_nans=false, fill_nans=true, nan_fill_val=0.0)
+    elastic_floor=1e-4, check_nans=false, fill_nans=true, nan_fill_val=0.0, bound_faults=[])
 
     @info " making block inversion matrices"
     @time vd = make_block_inversion_matrices_from_vels(vel_groups)
@@ -452,8 +452,16 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
         vd["PvGb"] = add_fault_locking_to_PvGb(faults, vel_groups, vd["PvGb"];
             elastic_floor=elastic_floor, check_nans=check_nans)
         @info " done doing locking"
-
     end
+
+
+    if length(bound_faults) > 0
+        @info " doing off-fault boundary locking"
+        vd["PvGb"] = add_fault_locking_to_PvGb(bound_faults, vel_groups, vd["PvGb"];
+            elastic_floor=elastic_floor, check_nans=check_nans)
+        @info " done doing off-fault boundary locking"
+    end
+
 
     if check_nans == true
         @info " checking for NaNs"

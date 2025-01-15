@@ -214,14 +214,42 @@ function get_midpoint_old(trace::Array{Float64,2})
 end
 
 
+function get_closest_dir(az)
+    closest_dir = ""
+    closest_angle = 360.0
+
+    for (dir, trend) in direction_map
+        angle_diff = Oiler.Geom.angle_difference(az, trend)
+        if angle_diff < closest_angle
+            closest_angle = angle_diff
+            closest_dir = dir
+        end
+    end
+    closest_dir
+end
+
+
+function get_trace_dip_trend_rhr(trace::Array{Float64,2})
+    # Modified from the OQ-MBTK tools, (c) Global Earthquake Model Foundation
+    strike = average_azimuth(trace[:, 1], trace[:, 2])
+    trace_dip_trend = Oiler.Geom.angle_fixer_deg(strike + 90.0)
+end
+
+function get_trace_dip_dir_rhr(trace::Array{Float64,2})
+
+    dip_trend = get_trace_dip_trend_rhr(trace)
+
+    closest_dir = get_closest_dir(dip_trend)
+
+    return closest_dir
+end
+
 function check_right_hand_rule(trace::Array{Float64,2}, dip_dir::String;
     reverse_angle_threshold::Float64=90.0, verbose=true)
     # Modified from the OQ-MBTK tools, (c) Global Earthquake Model Foundation
 
-    strike = average_azimuth(trace[:, 1], trace[:, 2])
-
-    trace_dip_trend = Oiler.Geom.angle_fixer_deg(strike + 90.0)
-
+    trace_dip_trend = get_trace_dip_trend_rhr(trace)
+    
     fault_dip_trend = direction_map[dip_dir]
 
     trend_angle_difference = angle_difference(trace_dip_trend, fault_dip_trend)

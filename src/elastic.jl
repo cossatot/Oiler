@@ -276,7 +276,8 @@ function calc_locking_effects(faults, vel_groups; elastic_floor=1e-4,
     #for vg in vg_keys
     n_threads = Threads.nthreads()
     @info "$n_threads threads"
-    @threads for vg in vg_keys
+    #@threads for vg in vg_keys
+    for vg in vg_keys
         if haskey(fault_groups, vg)
             locking_partial_groups[vg] = sum([
                 #calc_locking_effects_segmented_fault(fault, gnss_lons, gnss_lats,
