@@ -482,8 +482,8 @@ function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex
     v_default=0.0, e_default=5.0, usd_default=0.0, lsd_default=20.0, 
     ridge_usd_default=1.0, ridge_lsd_default=2.0,
     transform_usd_default=1.0, transform_lsd_default=10.0,
-    ridge_v_rl=0.0, ridge_e_rl=0.5,
-    transform_v_ex=0.0, transform_e_ex=0.5,
+    ridge_e_rl=0.5, ridge_e_ex=40.,
+    transform_e_rl=40., transform_e_ex=0.5,
     adjust_err_by_dip=false, dip_adj_remainder=0.2, fid=:fid)
 
     trace = Oiler.IO.get_coords_from_geom(row[:geometry])
@@ -506,18 +506,28 @@ function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex
         e_default_ss = e_default
     end
 
-    if "type" in names(row)
-        if row[:type] == "ridge"
+    fault_type = ""
+    if "fault_type" in names(row)
+        if ismissing(row[:fault_type])
+            #pass
+        elseif row[:fault_type] == "ridge"
             usd_default = ridge_usd_default
             lsd_default = ridge_lsd_default
-            v_rl = ridge_v_rl
-            e_rl = ridge_e_rl
-        elseif row[:type] == "transform"
+            e_default_ss = ridge_e_rl
+            e_default_ds = ridge_e_ex
+            fault_type = row[:fault_type]
+        elseif row[:fault_type] == "transform"
             usd_default = transform_usd_default
             lsd_default = transform_lsd_default
-            v_ex = transform_v_ex
-            v_rl = transform_e_ex
+            e_default_ss = transform_e_rl
+            e_default_ds = transform_e_ex
+            fault_type = row[:fault_type]
+        #else
+        #    fault_type = ""
+
         end
+     #else
+     #    fault_type = ""
     end
 
 
@@ -534,6 +544,7 @@ function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex
         fw=row[fw],
         usd=val_nothing_fix(row[usd], return_val=usd_default),
         lsd=val_nothing_fix(row[lsd], return_val=lsd_default),
+        #fault_type=fault_type,
         fid=row[fid]
     )
 
@@ -546,9 +557,9 @@ function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v
     v_default=0.0, e_default=5.0, usd_default=1.0,
     adjust_err_by_dip=false, dip_adj_remainder=0.1,
     lsd_default=15.0, ridge_usd_default=1.0, ridge_lsd_default=2.0,
+    ridge_e_rl=0.5, ridge_e_ex=40.,
+    transform_e_rl=40., transform_e_ex=0.5,
     transform_usd_default=1.0, transform_lsd_default=10.0,
-    ridge_v_rl=0.0, ridge_e_rl=0.5,
-    transform_v_ex=0.0, transform_e_ex=0.5,
     fid=:fid, fid_drop=[])
 
     faults = []
@@ -575,9 +586,9 @@ function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v
             ridge_lsd_default=ridge_lsd_default,
             transform_usd_default=transform_usd_default,
             transform_lsd_default=transform_lsd_default,
-            ridge_v_rl=ridge_v_rl,
+            ridge_e_ex=ridge_e_ex,
             ridge_e_rl=ridge_e_rl,
-            transform_v_ex=transform_v_ex,
+            transform_e_rl=transform_e_rl,
             transform_e_ex=transform_e_ex,
             adjust_err_by_dip=adjust_err_by_dip,
             dip_adj_remainder=dip_adj_remainder,
@@ -682,9 +693,9 @@ function process_faults_from_gis_files(fault_files...;
     v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
     v_default=0.0, e_default=5.0, usd_default=0.0, lsd_default=15.0, 
     ridge_usd_default=1.0, ridge_lsd_default=2.0, 
+    ridge_e_rl=0.5, ridge_e_ex=40.,
+    transform_e_rl=40., transform_e_ex=0.5,
     transform_usd_default=1.0, transform_lsd_default=10.0,
-    ridge_v_rl=0.0, ridge_e_rl=0.5,
-    transform_v_ex=0.0, transform_e_ex=0.5,
     fid=:fid,
     adjust_err_by_dip=false, dip_adj_remainder=0.2,
     fid_drop=[], block_df=:block_df, check_blocks=false,
@@ -720,9 +731,9 @@ function process_faults_from_gis_files(fault_files...;
         ridge_lsd_default=ridge_lsd_default,
         transform_usd_default=transform_usd_default,
         transform_lsd_default=transform_lsd_default,
-        ridge_v_rl=ridge_v_rl,
+        ridge_e_ex=ridge_e_ex,
         ridge_e_rl=ridge_e_rl,
-        transform_v_ex=transform_v_ex,
+        transform_e_rl=transform_e_rl,
         transform_e_ex=transform_e_ex,
         adjust_err_by_dip=adjust_err_by_dip,
         dip_adj_remainder=dip_adj_remainder,
@@ -1106,7 +1117,8 @@ function fault_to_feature(fault; calc_rake=true, calc_slip_rate=true)
             "name" => fault.name,
             "fid" => fault.fid,
             "hw" => fault.hw,
-            "fw" => fault.fw
+            "fw" => fault.fw,
+            "fault_type" => fault.fault_type
         )
     )
 
