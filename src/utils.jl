@@ -118,6 +118,26 @@ function lin_indep_rows(X; tol=1e-10)
 end
 
 
+function replacenan!(A::Array{Float64}; replacement::Float64=0.)
+    @info "\tdense"
+    for i in eachindex(A)[1]
+        @inbounds A[i] = ifelse(isnan(A[i]), replacement, A[i])
+    end
+end
+
+function replacenan!(A::SparseMatrixCSC{Float64}; replacement::Float64=0.)
+    @info "\tsparse"
+    for i in findnz(A)[1]
+        @inbounds A[i] = ifelse(isnan(A[i]), replacement, A[i])
+    end
+end
+
+function replacenan_multi!(A::Array{Float64}; replacement::Float64=0.)
+    @threads for i in eachindex(A)
+        @inbounds A[i] = ifelse(isnan(A[i]), replacement, A[i])
+    end
+end
+
 function make_digraph_from_vels(vels::VelocityVectorSphere...)
     vel_array = collect(vels)
     make_digraph_from_vels(vel_array)

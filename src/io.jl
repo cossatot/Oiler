@@ -712,6 +712,13 @@ function process_faults_from_gis_files(fault_files...;
         fault_df = get_faults_bounding_blocks!(fault_df, block_df)
     end
 
+    dipmissing = filter(row -> ismissing(row.dip), fault_df)
+    if size(dipmissing, 1) > 0
+        println("missing dip:")
+        println(dipmissing)
+        fault_df = filter(row -> !ismissing(row.dip), fault_df)
+    end
+
     faults = process_faults_from_df(fault_df; name=name,
         dip_dir=dip_dir,
         v_ex=v_ex,
