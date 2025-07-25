@@ -73,7 +73,9 @@ function calc_okada_locking_effects_per_fault(fault::Fault, lons, lats;
                 bad_lon, bad_lat = lons[i], lats[i]
                 @warn "$bad_lon, $bad_lat"
                 if fill_nans == true
-                    map!(x -> isnan(x) ? nan_fill_val : x, ep, ep)
+                    #map!(x -> isnan(x) ? nan_fill_val : x, ep, ep)
+                    #Oiler.Utils.replacenan!(ep, replacement=nan_fill_val)
+                    replace!(ep, NaN=>nan_fill_val)
                     if any(isnan, ep)
                         @warn "Couldn't replace NaN"
                     end
@@ -192,7 +194,8 @@ function calc_tri_locking_effects_per_fault(fault::Fault, lons, lats;
                 bad_lon, bad_lat = lons[i], lats[i]
                 @warn "$bad_lon, $bad_lat"
                 if fill_nans == true
-                    map!(x -> isnan(x) ? nan_fill_val : x, ep, ep)
+                    #map!(x -> isnan(x) ? nan_fill_val : x, ep, ep)
+                    replace!(ep, NaN=>nan_fill_val)
                     if any(isnan, ep)
                         @warn "Couldn't replace NaN"
                     end
