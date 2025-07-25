@@ -544,7 +544,7 @@ function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex
         fw=row[fw],
         usd=val_nothing_fix(row[usd], return_val=usd_default),
         lsd=val_nothing_fix(row[lsd], return_val=lsd_default),
-        #fault_type=fault_type,
+        fault_type=fault_type,
         fid=row[fid]
     )
 
