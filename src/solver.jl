@@ -532,22 +532,24 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
             @warn "NaNs in PvGb"
             NaNs = true
             if fill_nans == true
-                for i = eachindex(vd["PvGb"])
-                    if isnan(vd["PvGb"][i])
-                        vd["PvGb"][i] = nan_fill_val
-                    end
-                end
+                Oiler.Utils.replacenan!(vd["PvGb"], replacement=nan_fill_val) 
+                #for i = eachindex(vd["PvGb"])
+                #    if isnan(vd["PvGb"][i])
+                #        vd["PvGb"][i] = nan_fill_val
+                #    end
+                #end
             end
         end
         if any(isnan, vd["Vc"])
             @warn "NaNs in Vc"
             NaNs = true
             if fill_nans == true
-                for i = eachindex(vd["Vc"])
-                    if isnan(vd["Vc"][i])
-                        vd["Vc"][i] = nan_fill_val
-                    end
-                end
+                Oiler.Utils.replacenan!(vd["Vc"], replacement=nan_fill_val)
+                #for i = eachindex(vd["Vc"])
+                #    if isnan(vd["Vc"][i])
+                #        vd["Vc"][i] = nan_fill_val
+                #    end
+                #end
             end
         end
         if ~NaNs
@@ -564,21 +566,21 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
 
     end
 
-    if check_nans == true
-        @info " checking for NaNs"
-        NaNs = false
-        if any(isnan, vd["PvGb"])
-            @warn "NaNs in PvGb"
-            NaNs = true
-        end
-        if any(isnan, vd["Vc"])
-            @warn "NaNs in Vc"
-            NaNs = true
-        end
-        if ~NaNs
-            @info "No NaNs in matrices"
-        end
-    end
+    #if check_nans == true
+    #    @info " checking for NaNs"
+    #    NaNs = false
+    #    if any(isnan, vd["PvGb"])
+    #        @warn "NaNs in PvGb"
+    #        NaNs = true
+    #    end
+    #    if any(isnan, vd["Vc"])
+    #        @warn "NaNs in Vc"
+    #        NaNs = true
+    #    end
+    #    if ~NaNs
+    #        @info "No NaNs in matrices"
+    #    end
+    #end
 
     if length(tris) > 0
         @info " doing tris"
@@ -597,11 +599,13 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
             @warn "NaNs in PvGb"
             NaNs = true
             if fill_nans == true
-                for i = eachindex(vd["PvGb"])
-                    if isnan(vd["PvGb"][i])
-                        vd["PvGb"][i] = nan_fill_val
-                    end
-                end
+                replace!(vd["PvGb"], NaN=>nan_fill_val)
+                #Oiler.Utils.replacenan!(vd["PvGb"])
+                #@threads for i = eachindex(vd["PvGb"])
+                #    if isnan(vd["PvGb"][i])
+                #        vd["PvGb"][i] = nan_fill_val
+                #    end
+                #end
             end
             if any(isnan, vd["PvGb"])
                 @warn "Couldn't replace NaNs in PvGb"
@@ -611,11 +615,13 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
             @warn "NaNs in Vc"
             NaNs = true
             if fill_nans == true
-                for i = eachindex(vd["Vc"])
-                    if isnan(vd["Vc"][i])
-                        vd["Vc"][i] = nan_fill_val
-                    end
-                end
+                #replacenan!(vd["Vc"])
+                replace!(vd["Vc"], NaN=>nan_fill_val)
+                #@threads for i = eachindex(vd["Vc"])
+                #    if isnan(vd["Vc"][i])
+                #        vd["Vc"][i] = nan_fill_val
+                #    end
+                #end
             end
             if any(isnan, vd["Vc"])
                 @warn "Couldn't replace NaNs in Vc"
