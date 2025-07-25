@@ -41,17 +41,19 @@ function test_beta_from_dip_rake()
     rakes = collect(-180.:45.:180.)
     #rakes[1] = -179.999
 
-    @test rakes == -Oiler.Geom.beta_from_dip_rake.(0., rakes)
+    flat_betas = [180.0, 135.0, 90.0, 45.0, 0.0, -45.0, -90.0, -135.0, 180.0] 
+
+    @test flat_betas == Oiler.Geom.beta_from_dip_rake.(0., rakes)
 
     betas_45 = [180.0 
         144.73561031724535
         90.0
         35.26438968275466
-        -0.0
+        0.0
         -35.26438968275466
         -90.0
         -144.73561031724535
-        -180.0]
+        180.0]
 
     @test isapprox(betas_45, Oiler.Geom.beta_from_dip_rake.(45, rakes))
 
@@ -60,16 +62,17 @@ end
 
 function test_az_from_strike_dip_rake()
     rakes = collect(-180.:45.:180.)
-    rakes[1] = -179.999
     
-    @test isapprox(rakes, -Oiler.Geom.az_from_strike_dip_rake.(0., 45., rakes))
-    
-    azs_0_45 = [179.99929289321878, 144.73561031724535, 90.0, 35.26438968275466, 
-    0.0, 324.73561031724535, 270.0, 215.26438968275465, 180.0]
+    azs_0_0 = [180., 135., 90., 45., 0., 315., 270., 225., 180.]
+
+   @test isapprox(azs_0_0, Oiler.Geom.az_from_strike_dip_rake.(0., 0.0001, rakes))
+
+    azs_0_45 = [180.0, 144.73561031724535, 90.0, 35.264389682754654, 0.0, 
+                324.73561031724535, 270.0, 215.26438968275465, 180.0]
 
     @test isapprox(azs_0_45, Oiler.Geom.az_from_strike_dip_rake.(0., 45., rakes))
 
-    azs_45_45 = azs_0_45 .+ 0.0
+    azs_45_45 = Oiler.Geom.wrap360.(azs_0_45 .+ 45.0)
 
     @test isapprox(azs_45_45, Oiler.Geom.az_from_strike_dip_rake.(45., 45., rakes))
 

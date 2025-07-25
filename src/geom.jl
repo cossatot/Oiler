@@ -320,38 +320,49 @@ function rotate_xy_vec_to_magnitude(x::Array{Float64}, y::Array{Float64};
 end
 
 
-function beta_from_dip_rake(dip, rake)
-    beta = atand(sind(-rake) * cosd(dip), cosd(-rake))
+deg2rad(x) = x * (pi/180)
+rad2deg(x) = x * (180/pi)
+
+atan2d(y, x) = rad2deg(atan(y, x))
+
+# wrap to [0, 360)
+wrap360(x) = mod(x, 360.0)
+
+# wrap to (-180, 180]
+function wrap180(x)
+    y = mod(x + 180.0, 360.0) - 180.0
+    y == -180.0 ? 180.0 : y
 end
 
+function beta_from_dip_rake(dip, rake)
+    # all angles are in degrees
+    y = -sind(rake) * cosd(dip)
+    x =  cosd(rake)
+    wrap180(atan2d(y, x)) 
+end
 
 function az_from_strike_dip_rake(strike, dip, rake)
     beta = beta_from_dip_rake(dip, rake)
-    az = strike + beta
-    az = mod(az, 360.) 
+    wrap360(strike + beta)
 end
 
 
 function rake_from_az_strike_dip(az, strike, dip)
-    beta = mod(az-strike, 360.)
-    rake = -atand(tand(beta), cosd(dip))
-    if (180. >= beta > 90.)
-        rake -= 180.
-    elseif (270. > beta > 180.)
-        rake += 180.
-    end
-    if rake == -180.
-        rake = 180.
+    beta = wrap180(az - strike)
+
+    # first, the principal value in (-90,90)
+    r0 = atand( -(tand(beta)) / cosd(dip) )
+
+    # Correct the quadrant using cos(beta) ~ cos(r) sign agreement
+    r = if cosd(beta) < 0
+        r0 + 180.0
+    else
+        r0
     end
 
-    if rake > 180.
-        rake -= 360.
-    elseif rake < -180.
-        rake += 360.
-    end
-
-    rake
+    wrap180(r)
 end
+
 
 
 function rake_from_dip_slip_strike_slip(dip_slip, strike_slip)
