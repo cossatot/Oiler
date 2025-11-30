@@ -124,6 +124,23 @@ function var_cov_from_vel(vel::VelocityVectorSphere; zero_err_weight::Float64=1e
 end
 
 
+function var_cov_from_tri(tri, zero_err_weight=1e-2)
+    if tri.dip_slip_err == 0.0
+        ds_var = zero_err_weight
+    else
+        ds_var = tri.dip_slip_err^2
+    end
+
+    if tri.strike_slip_err == 0.0
+        ss_var = zero_err_weight
+    else
+        ss_var = tri.strike_slip_err^2
+    end
+
+    [ds_var tri.cds; tri.cds ss_var]
+end
+
+
 function build_var_cov_matrix_from_vels(vels::Array{VelocityVectorSphere})
     diagonalize_matrices([var_cov_from_vel(vel) for vel in vels])
 end
@@ -224,26 +241,103 @@ function make_tri_regularization_matrix(tris, distance_weight)
 end
 
 
-function make_tri_prior_matrices(tris)
+function make_tri_prior_matrices_old(tris)
     lhs = diagm(ones(2 * length(tris)))
     vels = ones(2 * length(tris))
-    weights = ones(2 * length(tris))
+    #weights = ones(2 * length(tris))
 
     for (i, tri) in enumerate(tris)
         ds_ind = 2 * i - 1
         ss_ind = 2 * i
 
         vels[ds_ind] = tri.dip_slip_rate
-        weights[ds_ind] = weight_from_error(tri.dip_slip_err^-1)
+        #weights[ds_ind] = weight_from_error(tri.dip_slip_err^-1)
         vels[ss_ind] = tri.strike_slip_rate
-        weights[ss_ind] = weight_from_error(tri.strike_slip_err^-1)
+        #weights[ss_ind] = weight_from_error(tri.strike_slip_err^-1)
     end
-    (lhs, vels, weights)
+    weights = diagonalize_matrices(
+        [var_cov_from_tri(tri) for tri in tris]
+    )
+    lhs, vels, weights
+end
+
+
+function make_tri_prior_matrices(tris)
+    function is_default(tri)
+        rates = [tri.dip_slip_rate, tri.dip_slip_err, tri.strike_slip_rate, tri.strike_slip_err]
+        all(rates .== 0.0)
+    end
+
+    function get_tri_ind(tri, tris)
+        for (i, t) in enumerate(tris)
+            if t == tri
+                return i
+            end
+        end
+    end
+
+    non_default_tris = filter(!is_default, tris)
+
+    nt = length(tris)
+    np = length(non_default_tris)
+    lhs = zeros(np * 2, nt* 2)
+    rhs = zeros(size(lhs)[1])
+    var_covs = []
+
+    for (i, tri) in enumerate(tris) #cols
+        if !is_default(tri)
+            ds_col_ind = 2 * i - 1
+            ss_col_ind = 2 * i
+
+            nd_tri_idx = get_tri_ind(tri, non_default_tris)
+            ds_row_ind = 2 * nd_tri_idx - 1
+            ss_row_ind = ds_row_ind + 1
+
+            lhs[ds_row_ind, ds_col_ind] = 1.0
+            lhs[ss_row_ind, ss_col_ind] = 1.0
+
+            rhs[ds_row_ind] = tri.dip_slip_rate
+            rhs[ss_row_ind] = tri.strike_slip_rate
+
+            push!(var_covs, var_cov_from_tri(tri))
+        end
+    end
+    weights = diagonalize_matrices(var_covs)
+    lhs, rhs, weights
+end
+
+
+
+function make_tri_priors_from_rake_constraints(tri_rake_constraints, tris)
+    n_tris = length(tris)
+    n_constraints = length(tri_rake_constraints)
+    
+    lhs = zeros(2 * n_constraints, 2 * n_tris)
+    vels = ones(2 * n_constraints)
+    weights = Oiler.Utils.diagonalize_matrices(
+        [var_cov_from_tri(trc) for trc in tri_rake_constraints]
+        )
+    
+    for (i, trc) in enumerate(tri_rake_constraints)
+        ss_row_ind = 2 * i
+        ds_row_ind = ss_row_ind - 1
+
+        tri_idx, tri = Oiler.IO.get_tri_from_tris(tris, trc.name)
+        ss_col_ind = 2 * tri_idx
+        ds_col_ind = ss_col_ind - 1
+
+        lhs[ss_row_ind, ss_col_ind] += 1.0
+        lhs[ds_row_ind, ds_col_ind] += 1.0
+
+        vels[ss_row_ind] = trc.strike_slip_rate
+        vels[ds_row_ind] = trc.dip_slip_rate
+    end
+    lhs, vels, weights
 end
 
 
 function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
-    distance_weight::Float64=10.0, elastic_floor=1e-4)
+        tri_rake_constraints=[], distance_weight::Float64=10.0, elastic_floor=1e-4)
 
     nt = length(tris)
 
@@ -283,7 +377,7 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
     if regularize == true
         distance_reg_matrix = make_tri_regularization_matrix(tris, distance_weight)
         tri_reg_matrix = vcat(tri_reg_matrix, distance_reg_matrix)
-        tri_reg_weights = vcat(tri_reg_weights, ones(size(tri_reg_matrix, 1)))
+        tri_reg_weights = diagm(vcat(tri_reg_weights, ones(size(tri_reg_matrix, 1))))
         tri_reg_vels = vcat(tri_reg_vels, zeros(size(tri_reg_matrix, 1)))
     end
 
@@ -292,28 +386,41 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
         priors, prior_vels, prior_weights = make_tri_prior_matrices(tris)
         tri_reg_matrix = vcat(tri_reg_matrix, priors)
         tri_reg_vels = vcat(tri_reg_vels, prior_vels)
-        tri_reg_weights = vcat(tri_reg_weights, prior_weights)
+        tri_reg_weights = diagonalize_matrices([tri_reg_weights, prior_weights])
     else
         prior_weights = ones(size(tri_reg_weights))
     end
 
+    if length(tri_rake_constraints) > 0
+        rake_matrix, rake_vels, rake_weights = make_tri_priors_from_rake_constraints(
+                                                    tri_rake_constraints, tris)
+        #fake_rake_weights = ones(length(tri_rake_constraints))
+        tri_reg_matrix = vcat(tri_reg_matrix, rake_matrix)
+        #tri_reg_weights = vcat(tri_reg_weights, fake_rake_weights)
+        tri_reg_weights = diagonalize_matrices([tri_reg_weights, rake_weights])
+        tri_reg_vels = vcat(tri_reg_vels, rake_vels)
+    end
+
     #@info "    finalizing"
     tri_reg_block = hcat(zeros(size(tri_reg_matrix, 1), PvGb_n_cols), tri_reg_matrix)
-
     PvGb = vcat(PvGb, tri_reg_block)
 
     #@info "    done"
-    vd["weights"] = vcat(vd["weights"], prior_weights)
+    #vd["weights"] = vcat(vd["weights"], prior_weights)
     #vd["weights"] = vcat(vd["weights"], zeros(size(tri_reg_weights))) # maybe 1s?
     vd["tri_weights"] = tri_reg_weights
     vd["Vc"] = vcat(vd["Vc"], tri_reg_vels)
     vd["PvGb"] = PvGb
+
     vd
 end
 
 
 function weight_inv_matrices(PvGb_in, Vc_in, weights)
-    N = PvGb_in' * sparse(diagm(weights))
+    if typeof(weights) == Vector{Float64}
+        weights = sparse(diagm(weights))
+    end
+    N = PvGb_in' * weights
     Vc = N * Vc_in
     PvGb = N * PvGb_in
     (PvGb, Vc)
@@ -408,7 +515,9 @@ end
 
 
 function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    faults::Array=[], tris::Array=[], regularize_tris=true, tri_priors=false, tri_distance_weight::Float64=10.0,
+        faults::Array=[], tris::Array=[], regularize_tris=true, tri_priors=false, 
+        tri_rake_constraints=[],
+    tri_distance_weight::Float64=10.0,
     elastic_floor=1e-4, check_nans=false, fill_nans=true, nan_fill_val=0.0, bound_faults=[])
 
     @info " making block inversion matrices"
@@ -423,22 +532,24 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
             @warn "NaNs in PvGb"
             NaNs = true
             if fill_nans == true
-                for i = eachindex(vd["PvGb"])
-                    if isnan(vd["PvGb"][i])
-                        vd["PvGb"][i] = nan_fill_val
-                    end
-                end
+                Oiler.Utils.replacenan!(vd["PvGb"], replacement=nan_fill_val) 
+                #for i = eachindex(vd["PvGb"])
+                #    if isnan(vd["PvGb"][i])
+                #        vd["PvGb"][i] = nan_fill_val
+                #    end
+                #end
             end
         end
         if any(isnan, vd["Vc"])
             @warn "NaNs in Vc"
             NaNs = true
             if fill_nans == true
-                for i = eachindex(vd["Vc"])
-                    if isnan(vd["Vc"][i])
-                        vd["Vc"][i] = nan_fill_val
-                    end
-                end
+                Oiler.Utils.replacenan!(vd["Vc"], replacement=nan_fill_val)
+                #for i = eachindex(vd["Vc"])
+                #    if isnan(vd["Vc"][i])
+                #        vd["Vc"][i] = nan_fill_val
+                #    end
+                #end
             end
         end
         if ~NaNs
@@ -483,6 +594,7 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
         @info " doing tris"
         @time vd = add_tris_to_PvGb(tris, vel_groups, vd;
             priors=tri_priors, regularize=regularize_tris,
+            tri_rake_constraints=tri_rake_constraints,
             distance_weight=tri_distance_weight,
             elastic_floor=elastic_floor)
         @info " done doing tris"
@@ -495,11 +607,13 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
             @warn "NaNs in PvGb"
             NaNs = true
             if fill_nans == true
-                for i = eachindex(vd["PvGb"])
-                    if isnan(vd["PvGb"][i])
-                        vd["PvGb"][i] = nan_fill_val
-                    end
-                end
+                replace!(vd["PvGb"], NaN=>nan_fill_val)
+                #Oiler.Utils.replacenan!(vd["PvGb"])
+                #@threads for i = eachindex(vd["PvGb"])
+                #    if isnan(vd["PvGb"][i])
+                #        vd["PvGb"][i] = nan_fill_val
+                #    end
+                #end
             end
             if any(isnan, vd["PvGb"])
                 @warn "Couldn't replace NaNs in PvGb"
@@ -509,11 +623,13 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
             @warn "NaNs in Vc"
             NaNs = true
             if fill_nans == true
-                for i = eachindex(vd["Vc"])
-                    if isnan(vd["Vc"][i])
-                        vd["Vc"][i] = nan_fill_val
-                    end
-                end
+                #replacenan!(vd["Vc"])
+                replace!(vd["Vc"], NaN=>nan_fill_val)
+                #@threads for i = eachindex(vd["Vc"])
+                #    if isnan(vd["Vc"][i])
+                #        vd["Vc"][i] = nan_fill_val
+                #    end
+                #end
             end
             if any(isnan, vd["Vc"])
                 @warn "Couldn't replace NaNs in Vc"
@@ -530,7 +646,8 @@ end
 
 
 function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
-    basic_matrices::Dict=Dict(), faults::Array=[], tris::Array=[], weighted::Bool=true,
+        basic_matrices::Dict=Dict(), faults::Array=[], tris::Array=[], tri_rake_constraints=[],
+    weighted::Bool=true,
     elastic_floor=1e-4,
     regularize_tris::Bool=true, tri_priors::Bool=false,
     tri_distance_weight::Float64=10.0, sparse_lhs::Bool=false,
@@ -539,7 +656,8 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
     if basic_matrices == Dict()
         basic_matrices = set_up_block_inv_no_constraints(vel_groups;
             faults=faults, tris=tris, regularize_tris=regularize_tris,
-            tri_priors=tri_priors, tri_distance_weight=tri_distance_weight,
+            tri_priors=tri_priors, tri_rake_constraints=tri_rake_constraints,
+            tri_distance_weight=tri_distance_weight,
             elastic_floor=elastic_floor, check_nans=check_nans)
     end
 
@@ -567,7 +685,8 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
     if weighted == true
         if cycles == Dict{Any,Any}()
             @info " Using weighted, non-constrained LLS"
-            @warn "does not currently use velocity covariances"
+            #@warn "does not currently use velocity covariances"
+            weights = build_var_cov_weight_matrix(vel_groups)
             lhs, rhs = weight_inv_matrices(PvGb, Vc, weights)
         else
             @info " Using weighted, constrained LLS"
@@ -577,7 +696,8 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
 
             if length(tris) > 0
                 weights = diagonalize_matrices([weights,
-                    diagm(basic_matrices["tri_weights"] .^ 2)])
+                    #(basic_matrices["tri_weights"] .^ 2)])
+                    (basic_matrices["tri_weights"])])
             end
 
             lhs, rhs = make_weighted_constrained_lls_matrices(PvGb, Vc, cm,
@@ -649,7 +769,9 @@ solves for Euler poles, fault/tri slip rates, and uncertainty.
 function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
     faults::Array=[], tris=[], weighted::Bool=true,
     regularize_tris::Bool=true,
-    tri_priors::Bool=false, elastic_floor=1e-4,
+    tri_priors::Bool=false, 
+    tri_rake_constraints=[],
+    elastic_floor=1e-4,
     tri_distance_weight::Float64=10.0, check_closures::Bool=true,
     sparse_lhs::Bool=false, predict_vels::Bool=false, constraint_method="kkt_sym",
     pred_se::Bool=false, se_iters=1000, factorization="lu", check_nans=false,
@@ -661,6 +783,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         regularize_tris=regularize_tris,
         tri_priors=tri_priors,
         tri_distance_weight=tri_distance_weight,
+        tri_rake_constraints=tri_rake_constraints,
         elastic_floor=elastic_floor,
         tris=tris, check_nans=check_nans)
     @info "making constrained matrices"
@@ -671,6 +794,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         tri_priors=tri_priors,
         tris=tris,
         tri_distance_weight=tri_distance_weight,
+        tri_rake_constraints=tri_rake_constraints,
         elastic_floor=elastic_floor,
         sparse_lhs=sparse_lhs,
         constraint_method=constraint_method,
@@ -720,7 +844,9 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 
     results["stats_info"] = Dict{Any,Any}(
         "RMSE_df" => Oiler.ResultsAnalysis.calc_RMSE_from_G(block_inv_setup, results)
+        "RMSE_df" => Oiler.ResultsAnalysis.calc_RMSE_from_G(block_inv_setup, results)
     )
+    RMSE_string = "RMSE: " * string(results["stats_info"]["RMSE_df"])
     RMSE_string = "RMSE: " * string(results["stats_info"]["RMSE_df"])
     @info RMSE_string
     #results["stats_info"]["n_obs"], results["stats_info"]["n_params"] = size(
@@ -932,6 +1058,7 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
     end
 
     var = results["stats_info"]["RMSE_df"]^2 * var_cov
+    var = results["stats_info"]["RMSE_df"]^2 * var_cov
     standard_error_vec = sqrt.(diag(var))
 
     SE_string = "mean standard error: " * string(
@@ -1076,16 +1203,23 @@ function random_sample_vel(vel::VelocityVectorSphere)
 end
 
 
-function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int)
+function random_sample_vels(vels::Array{VelocityVectorSphere}, n_samps::Int; only_data_vels=true)
     rnd_ve_block = randn((length(vels), n_samps))
     rnd_vn_block = randn((length(vels), n_samps))
 
     ve_out = zeros(size(rnd_ve_block))
     vn_out = zeros(size(rnd_vn_block))
 
+    not_data_vel_types = ["Boundary", "fault", "tri"]
+
     for (row, vel) in enumerate(vels)
-        ve_out[row, :] = vel.ve .+ rnd_ve_block[row, :] .* vel.ee
-        vn_out[row, :] = vel.vn .+ rnd_ve_block[row, :] .* vel.en
+        if only_data_vels == true && vel.vel_type in not_data_vel_types
+            ve_out[row, :] = vel.ve
+            vn_out[row, :] = vel.vn
+        else
+            ve_out[row, :] = vel.ve .+ rnd_ve_block[row, :] .* vel.ee
+            vn_out[row, :] = vel.vn .+ rnd_ve_block[row, :] .* vel.en
+        end
     end
     (ve_out, vn_out)
 end

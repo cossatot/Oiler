@@ -272,6 +272,7 @@ function predict_slip_rates(faults, poles)
                 fault.name,
                 fault.hw,
                 fault.fw,
+                fault.fault_type,
                 fault.fid
             )
         )

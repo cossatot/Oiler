@@ -11,6 +11,7 @@ import Base.Threads.@threads
 
 using CSV
 using JSON
+using Setfield
 using Proj: Transformation
 using PolygonOps: inpolygon
 using DataFrames: DataFrame, DataFrameRow
@@ -369,6 +370,34 @@ function get_block_idx_for_points(point_df, block_df, to_epsg)
 end
 
 
+function get_block_idx_for_points(point_geoms::Array{Oiler.Geom.Point}, block_geoms::Array{Oiler.Geom.Polygon};to_epsg=102016)
+    point_geoms = [tuple(p.coords...) for p in point_geoms]
+
+    trans = make_trans_from_wgs84(to_epsg)
+
+    point_geoms = trans.(point_geoms)
+    point_geoms = [collect(pg) for pg in point_geoms]
+
+    idxs = Array{Any}(missing, length(point_geoms))
+
+    @threads for i_b in eachindex(block_geoms)
+        block_geom = collect(eachrow(block_geoms[i_b].coords))
+        block_geom = trans.(block_geom)
+        @threads for (i_p, pg) in collect(enumerate(point_geoms))
+            if inpolygon(pg, block_geom) == 1
+                if !ismissing(idxs[i_p])
+                    @warn "$i_p in multiple blocks"
+                else
+                    idxs[i_p] = i_b
+                end
+            end
+        end
+    end
+    idxs
+end
+
+
+
 function check_missing(val)
     if isnothing(val) | ismissing(val) | (typeof(val) == Missing)
         return false
@@ -453,8 +482,8 @@ function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex
     v_default=0.0, e_default=5.0, usd_default=0.0, lsd_default=20.0, 
     ridge_usd_default=1.0, ridge_lsd_default=2.0,
     transform_usd_default=1.0, transform_lsd_default=10.0,
-    ridge_v_rl=0.0, ridge_e_rl=0.5,
-    transform_v_ex=0.0, transform_e_ex=0.5,
+    ridge_e_rl=0.5, ridge_e_ex=40.,
+    transform_e_rl=40., transform_e_ex=0.5,
     adjust_err_by_dip=false, dip_adj_remainder=0.2, fid=:fid)
 
     trace = Oiler.IO.get_coords_from_geom(row[:geometry])
@@ -477,18 +506,28 @@ function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex
         e_default_ss = e_default
     end
 
-    if "type" in names(row)
-        if row[:type] == "ridge"
+    fault_type = ""
+    if "fault_type" in names(row)
+        if ismissing(row[:fault_type])
+            #pass
+        elseif row[:fault_type] == "ridge"
             usd_default = ridge_usd_default
             lsd_default = ridge_lsd_default
-            v_rl = ridge_v_rl
-            e_rl = ridge_e_rl
-        elseif row[:type] == "transform"
+            e_default_ss = ridge_e_rl
+            e_default_ds = ridge_e_ex
+            fault_type = row[:fault_type]
+        elseif row[:fault_type] == "transform"
             usd_default = transform_usd_default
             lsd_default = transform_lsd_default
-            v_ex = transform_v_ex
-            v_rl = transform_e_ex
+            e_default_ss = transform_e_rl
+            e_default_ds = transform_e_ex
+            fault_type = row[:fault_type]
+        #else
+        #    fault_type = ""
+
         end
+     #else
+     #    fault_type = ""
     end
 
 
@@ -505,6 +544,7 @@ function row_to_fault(row; name="name", dip_dir=:dip_dir, v_ex=:v_ex, e_ex=:e_ex
         fw=row[fw],
         usd=val_nothing_fix(row[usd], return_val=usd_default),
         lsd=val_nothing_fix(row[lsd], return_val=lsd_default),
+        fault_type=fault_type,
         fid=row[fid]
     )
 
@@ -517,9 +557,9 @@ function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v
     v_default=0.0, e_default=5.0, usd_default=1.0,
     adjust_err_by_dip=false, dip_adj_remainder=0.1,
     lsd_default=15.0, ridge_usd_default=1.0, ridge_lsd_default=2.0,
+    ridge_e_rl=0.5, ridge_e_ex=40.,
+    transform_e_rl=40., transform_e_ex=0.5,
     transform_usd_default=1.0, transform_lsd_default=10.0,
-    ridge_v_rl=0.0, ridge_e_rl=0.5,
-    transform_v_ex=0.0, transform_e_ex=0.5,
     fid=:fid, fid_drop=[])
 
     faults = []
@@ -546,9 +586,9 @@ function process_faults_from_df(fault_df; name="name", dip_dir=:dip_dir, v_ex=:v
             ridge_lsd_default=ridge_lsd_default,
             transform_usd_default=transform_usd_default,
             transform_lsd_default=transform_lsd_default,
-            ridge_v_rl=ridge_v_rl,
+            ridge_e_ex=ridge_e_ex,
             ridge_e_rl=ridge_e_rl,
-            transform_v_ex=transform_v_ex,
+            transform_e_rl=transform_e_rl,
             transform_e_ex=transform_e_ex,
             adjust_err_by_dip=adjust_err_by_dip,
             dip_adj_remainder=dip_adj_remainder,
@@ -653,9 +693,9 @@ function process_faults_from_gis_files(fault_files...;
     v_rl=:v_rl, e_rl=:e_rl, dip=:dip, hw=:hw, fw=:fw, usd=:usd, lsd=:lsd,
     v_default=0.0, e_default=5.0, usd_default=0.0, lsd_default=15.0, 
     ridge_usd_default=1.0, ridge_lsd_default=2.0, 
+    ridge_e_rl=0.5, ridge_e_ex=40.,
+    transform_e_rl=40., transform_e_ex=0.5,
     transform_usd_default=1.0, transform_lsd_default=10.0,
-    ridge_v_rl=0.0, ridge_e_rl=0.5,
-    transform_v_ex=0.0, transform_e_ex=0.5,
     fid=:fid,
     adjust_err_by_dip=false, dip_adj_remainder=0.2,
     fid_drop=[], block_df=:block_df, check_blocks=false,
@@ -670,6 +710,13 @@ function process_faults_from_gis_files(fault_files...;
 
     if subset_in_bounds == true
         fault_df = get_faults_bounding_blocks!(fault_df, block_df)
+    end
+
+    dipmissing = filter(row -> ismissing(row.dip), fault_df)
+    if size(dipmissing, 1) > 0
+        println("missing dip:")
+        println(dipmissing)
+        fault_df = filter(row -> !ismissing(row.dip), fault_df)
     end
 
     faults = process_faults_from_df(fault_df; name=name,
@@ -691,9 +738,9 @@ function process_faults_from_gis_files(fault_files...;
         ridge_lsd_default=ridge_lsd_default,
         transform_usd_default=transform_usd_default,
         transform_lsd_default=transform_lsd_default,
-        ridge_v_rl=ridge_v_rl,
+        ridge_e_ex=ridge_e_ex,
         ridge_e_rl=ridge_e_rl,
-        transform_v_ex=transform_v_ex,
+        transform_e_rl=transform_e_rl,
         transform_e_ex=transform_e_ex,
         adjust_err_by_dip=adjust_err_by_dip,
         dip_adj_remainder=dip_adj_remainder,
@@ -1077,7 +1124,8 @@ function fault_to_feature(fault; calc_rake=true, calc_slip_rate=true)
             "name" => fault.name,
             "fid" => fault.fid,
             "hw" => fault.hw,
-            "fw" => fault.fw
+            "fw" => fault.fw,
+            "fault_type" => fault.fault_type
         )
     )
 
@@ -1109,13 +1157,45 @@ function write_faults_to_gj(faults, outfile; name="", calc_rake=false,
 end
 
 
-function write_fault_results_to_gj(results, outfile; name="", calc_rake=false,
+function write_fault_results_to_gj(results, outfile; name="", calc_rake=true,
     calc_slip_rate=true)
     fault_gj = faults_to_geojson(results["predicted_slip_rates"]; name=name,
         calc_rake=calc_rake, calc_slip_rate=calc_slip_rate)
 
     open(outfile, "w") do f
         JSON.print(f, fault_gj)
+    end
+end
+
+function boundary_to_feature(boundary)
+    gj_feature = Dict(
+        "type" => "Feature",
+        "geometry" => Dict(
+            "type" => "LineString",
+            "coordinates" => boundary.trace'
+        ),
+        "properties" => Dict(
+            "fix" => boundary.fix,
+            "mov" => boundary.mov,
+            "fid" => boundary.fid
+        )
+    )
+end
+
+
+function boundaries_to_geojson(boundaries; name="")
+    gj = Dict(
+        "type" => "FeatureCollection",
+        "name" => name,
+        "features" => [boundary_to_feature(boundary) for boundary in boundaries]
+    )
+end
+
+function write_boundaries_to_gj(boundaries, outfile; name="")
+    boundary_gj = boundaries_to_geojson(boundaries; name=name)
+
+    open(outfile, "w") do f
+        JSON.print(f, boundary_gj)
     end
 end
 
@@ -1385,5 +1465,200 @@ function write_geol_slip_rate_results_to_csv(results; outfile)
     CSV.write(outfile, slip_rates)
 end
 
+
+function get_tri_hanging_walls(tris, block_df; epsg=102016)
+    tri_center_points = map(x->Oiler.Geom.Point(Oiler.Tris.get_tri_center(x)), tris)
+
+    tri_df = DataFrame(Dict(
+        "fid"=> [tri.name for tri in tris],
+        "geometry"=> tri_center_points))
+    
+    tri_idxs = get_block_idx_for_points(tri_df, block_df, epsg)
+
+    function update_tri(tri, idx)
+        if ismissing(idx)
+            return tri
+        else
+            tri = @set tri.hw = idx
+            return tri
+        end
+    end
+
+    new_tris = map(x->update_tri(x...), zip(tris, tri_idxs))
+
+end
+
+
+function rake_weight_by_mag(mag; numerator=3.0)
+    return numerator / mag^2
+end
+
+
+function tri_rake_constraint_from_eq(tri, eq; constraint_slip_rate=0.0,
+        constraint_slip_rate_err=50.0, constraint_normal_rate=0.0, constraint_normal_rate_err=1e-1)
+
+    tri_strike, tri_dip = Oiler.Tris.get_tri_strike_dip(tri)
+    slip_az = Oiler.Geom.az_from_strike_dip_rake(eq.strike, eq.dip, eq.rake)
+
+    tri_rake = Oiler.Geom.rake_from_az_strike_dip(slip_az, tri_strike, tri_dip)
+    
+    v_tri, v_tri_err = Oiler.Geom.rotate_velocity_w_err(-constraint_slip_rate,
+            constraint_normal_rate, -deg2rad(tri_rake), constraint_slip_rate_err,
+            constraint_normal_rate_err)
+    tri_constraint = (dip_slip_rate=v_tri[2], strike_slip_rate=v_tri[1],
+            dip_slip_err=v_tri_err[2], strike_slip_err=v_tri_err[1], cds=v_tri_err[3],
+            name=tri.name)
+    tri_constraint
+end
+
+
+function make_tri_rake_constraints_from_earthquakes(earthquake_df, tris;
+    constraint_slip_rate=0.0, constraint_slip_rate_err=50.0,
+    constraint_normal_rate=0.0, constraint_normal_rate_err=1e-1,
+    weight_by_mag=false,
+    )
+
+    tri_constraints = []
+
+    for row in eachrow(earthquake_df)
+        eq = make_eq_from_row(row)
+        tri_w_idx = get_tri_from_tris(tris, eq.tri)
+        tri=nothing
+        if !isnothing(tri_w_idx)
+            tri_idx, tri = tri_w_idx
+        else
+            println(eq.tri)
+        end
+
+        if weight_by_mag
+            const_norm_rate_err = rake_weight_by_mag(eq.mag)
+        else
+            const_norm_rate_err = constraint_normal_rate_err
+        end
+
+        if !isnothing(tri)
+            trc = tri_rake_constraint_from_eq(tri, eq;
+                    constraint_slip_rate=constraint_slip_rate,
+                    constraint_slip_rate_err=constraint_slip_rate_err,
+                    constraint_normal_rate=constraint_normal_rate,
+                    constraint_normal_rate_err=const_norm_rate_err)
+            push!(tri_constraints, trc)
+        end
+    end
+    tri_constraints
+end
+
+
+function make_rake_constraint_vel_from_earthquake(earthquake; fault=nothing, 
+    constraint_slip_rate=0.0, constraint_slip_rate_err=50.0,
+    constraint_normal_rate=0.0, constraint_normal_rate_err=1e-1,
+    weight_by_mag=false,)
+
+    slip_az = Oiler.Geom.az_from_strike_dip_rake(earthquake.strike,
+        earthquake.dip, earthquake.rake)
+
+    if weight_by_mag
+        const_norm_rate_err = rake_weight_by_mag(earthquake.mag)
+    else
+        const_norm_rate_err = constraint_normal_rate_err
+    end
+
+    if !isnothing(fault)
+        fix = fault.hw
+        mov = fault.fw
+    else
+        fix = earthquake.fw #tri velocities are relative to fw...
+        mov = earthquake.hw
+    end
+
+    v_, v_err = Oiler.Geom.rotate_velocity_w_err(constraint_slip_rate,
+        constraint_normal_rate, Oiler.Geom.az_to_angle(slip_az), constraint_slip_rate_err,
+        const_norm_rate_err)
+
+    vel_constraint = Oiler.VelocityVectorSphere(lon=earthquake.lon, lat=earthquake.lat,
+        ve=v_[1], vn=v_[2], ee=v_err[1], en=v_err[2], cen=v_err[3],
+        fix=fix, mov=mov, vel_type="earthquake_slip_vector")
+    vel_constraint
+end
+
+
+function make_eq_from_row(row)
+    return (
+        lon=row[:geometry].coords[1],
+        lat=row[:geometry].coords[2],
+        fid=row[:fid],
+        strike=row[:strike],
+        dip=row[:dip],
+        rake=row[:rake],
+        hw=row[:hw],
+        fw=row[:fw],
+        tri=row[:tri],
+        mag=row[:mag],
+        )
+end
+
+
+function associate_eqs_with_tris(eq_df, tris; drop=true)
+    tri_geoms = [Oiler.Tris.tri_to_polygon_2d(tri) for tri in tris]
+    eq_tri_idxs = get_block_idx_for_points(eq_df[!, :geometry], tri_geoms)
+
+    function get_if_not_missing(idx, tris, key)
+        if !ismissing(idx)
+            if key == "hw"
+                return tris[idx].hw
+            elseif key == "fw"
+                return tris[idx].fw
+            elseif key == "name"
+                return tris[idx].name
+            end
+        else
+            return missing
+        end
+    end
+
+    eq_df[!, "tri"] = map(x->get_if_not_missing(x, tris, "name"), eq_tri_idxs)
+    eq_df[!, "hw"] = map(x->get_if_not_missing(x, tris, "hw"), eq_tri_idxs)
+    eq_df[!, "fw"] = map(x->get_if_not_missing(x, tris, "fw"), eq_tri_idxs)
+
+    if drop
+        eq_df = dropmissing(eq_df)
+    end
+    eq_df
+end
+
+
+function get_tri_from_tris(tris, tri_fid)
+    for (i, tri) in enumerate(tris)
+        if tri.name == tri_fid
+            return (i, tri)
+        end
+    end
+end
+
+
+function make_rake_constraint_vels_from_earthquakes(earthquake_df; faults=nothing,
+    constraint_slip_rate=0.0, constraint_slip_rate_err=50.0,
+    constraint_normal_rate=0.0, constraint_normal_rate_err=1e-1,
+    weight_by_mag=false)
+
+    # can't do faults yet
+
+    vel_constraints = Array{VelocityVectorSphere,1}()
+
+    for row in eachrow(earthquake_df)
+        eq = make_eq_from_row(row)
+        constraint = make_rake_constraint_vel_from_earthquake(eq,
+            constraint_slip_rate=constraint_slip_rate,
+            constraint_slip_rate_err=constraint_slip_rate_err,
+            constraint_normal_rate=constraint_normal_rate,
+            constraint_normal_rate_err=constraint_normal_rate_err,
+            weight_by_mag=weight_by_mag
+            )
+
+        push!(vel_constraints, constraint)
+    end
+
+    vel_constraints
+end
 
 end # module

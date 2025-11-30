@@ -27,6 +27,15 @@ struct Tri
 end
 
 
+function Base.show(io::IO, tri::Tri)
+    T = typeof(tri)
+    println("$T")
+    for fname in fieldnames(T)
+        val = getfield(tri, fname)
+        println(io, "\t$fname: $val")
+    end
+end
+
 function Tri(; 
     p1::Array{Float64,1},
     p2::Array{Float64,1},
@@ -65,6 +74,14 @@ function Tri(;
         fw)
 end
 
+
+function tri_to_polygon_2d(tri)
+    coord_array = [tri.p1[1] tri.p1[2];
+                   tri.p2[1] tri.p2[2];
+                   tri.p3[1] tri.p3[2];
+                   tri.p1[1] tri.p1[2]]
+    Oiler.Geom.Polygon(coord_array)
+end
 
 """
     get_tri_center()
