@@ -844,9 +844,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 
     results["stats_info"] = Dict{Any,Any}(
         "RMSE_df" => Oiler.ResultsAnalysis.calc_RMSE_from_G(block_inv_setup, results)
-        "RMSE_df" => Oiler.ResultsAnalysis.calc_RMSE_from_G(block_inv_setup, results)
     )
-    RMSE_string = "RMSE: " * string(results["stats_info"]["RMSE_df"])
     RMSE_string = "RMSE: " * string(results["stats_info"]["RMSE_df"])
     @info RMSE_string
     #results["stats_info"]["n_obs"], results["stats_info"]["n_params"] = size(
