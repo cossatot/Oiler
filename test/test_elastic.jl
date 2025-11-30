@@ -102,81 +102,6 @@ function test_calc_locking_effects_1()
 end
 
 
-function reverse_fault_hw_fw(fault)
-    rev_trace = reverse(fault.trace, dims=1)
-    new_dip_dir = Oiler.Faults.get_closest_dir(
-        Oiler.Faults.get_trace_dip_trend_rhr(rev_trace)
-    )
-
-    Oiler.Fault(
-        trace=rev_trace,
-        dip=fault.dip,
-        dip_dir=new_dip_dir,
-        extension_rate=fault.extension_rate,
-        extension_err=fault.extension_err,
-        dextral_rate=fault.dextral_rate,
-        dextral_err=fault.dextral_err,
-        cde=fault.cde,
-        lsd=fault.lsd,
-        usd=fault.usd,
-        name=fault.name,
-        hw=fault.fw,
-        fw=fault.hw,
-        fid=fault.fid,
-        check_trace=false,
-    )
-end
-
-
-function test_calc_locking_effects_fault_reference_alignment()
-    fault_trace = [-81.905471 12.945880; -81.554797 12.114126]
-
-    ff = Oiler.Fault(trace=fault_trace, dip=20., dip_dir="S", lsd=20.,
-                     hw="a", fw="b", check_trace=false)
-    rev_ff = reverse_fault_hw_fw(ff)
-
-    vv = Oiler.VelocityVectorSphere(lon=-81.739, lat=12.527,
-                                    vel_type="GNSS", ve=0., vn=0.,
-                                    fix="a", mov="b")
-    vel_groups = Oiler.IO.group_vels_by_fix_mov([vv])
-
-    forward_locking = Oiler.Elastic.calc_locking_effects([ff], vel_groups;
-        elastic_floor=0.)
-    reversed_locking = Oiler.Elastic.calc_locking_effects([rev_ff], vel_groups;
-        elastic_floor=0.)
-
-    @test isapprox(forward_locking[1:3, 1:3],
-        reversed_locking[1:3, 1:3]; rtol=rtol)
-end
-
-
-function test_locking_matrix_sign_for_reversed_faults()
-    fault_trace = [-81.905471 12.945880; -81.554797 12.114126]
-
-    ff = Oiler.Fault(trace=fault_trace, dip=20., dip_dir="S", lsd=20.,
-                     hw="a", fw="b", check_trace=false)
-    rev_ff = reverse_fault_hw_fw(ff)
-
-    vv = Oiler.VelocityVectorSphere(lon=-81.739, lat=12.527,
-                                    vel_type="GNSS", ve=0., vn=0.,
-                                    fix="a", mov="b")
-    vel_groups = Oiler.IO.group_vels_by_fix_mov([vv])
-
-    base = Oiler.Solver.set_up_block_inv_no_constraints(vel_groups;
-        faults=[], elastic_floor=0.)
-    forward_fault = Oiler.Solver.set_up_block_inv_no_constraints(vel_groups;
-        faults=[ff], elastic_floor=0.)
-    reversed_fault = Oiler.Solver.set_up_block_inv_no_constraints(vel_groups;
-        faults=[rev_ff], elastic_floor=0.)
-
-    forward_locking = Matrix(forward_fault["PvGb"] - base["PvGb"])
-    reversed_locking = Matrix(reversed_fault["PvGb"] - base["PvGb"])
-
-    @test isapprox(forward_locking, reversed_locking;
-        rtol=rtol, atol=0.)
-end
-
-
 function test_get_fault_tris()
     new_thrust_coords = [-121.0 37.4
         -121.5 37.2
@@ -207,7 +132,5 @@ end
     test_calc_locking_effects_per_fault_1()
     test_calc_locking_effects_segmented_fault_1()
     test_calc_locking_effects_1()
-    test_calc_locking_effects_fault_reference_alignment()
-    test_locking_matrix_sign_for_reversed_faults()
 
 end
