@@ -177,6 +177,29 @@ function test_locking_matrix_sign_for_reversed_faults()
 end
 
 
+function test_orient_fault_to_key()
+    trace = [-81.905471 12.945880; -81.554797 12.114126]
+    fault = Oiler.Fault(trace=trace, dip=20., dip_dir="S", lsd=20.,
+                        hw="a", fw="b", check_trace=false)
+
+    # Already aligned with key, should return same object
+    aligned = Oiler.Elastic.orient_fault_to_key(fault, ("a", "b"))
+    @test aligned === fault
+
+    # Reversed key should swap hw/fw and reverse trace with updated dip_dir
+    expected_rev_trace = reverse(trace, dims=1)
+    expected_dip_dir = Oiler.Faults.get_closest_dir(
+        Oiler.Faults.get_trace_dip_trend_rhr(expected_rev_trace)
+    )
+
+    reversed_fault = Oiler.Elastic.orient_fault_to_key(fault, ("b", "a"))
+    @test reversed_fault.hw == "b"
+    @test reversed_fault.fw == "a"
+    @test reversed_fault.trace == expected_rev_trace
+    @test reversed_fault.dip_dir == expected_dip_dir
+end
+
+
 function test_get_fault_tris()
     new_thrust_coords = [-121.0 37.4
         -121.5 37.2
@@ -209,5 +232,6 @@ end
     test_calc_locking_effects_1()
     test_calc_locking_effects_fault_reference_alignment()
     test_locking_matrix_sign_for_reversed_faults()
+    test_orient_fault_to_key()
 
 end
