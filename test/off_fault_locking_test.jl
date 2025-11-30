@@ -34,6 +34,7 @@ fault_df[!,:v_ex] .= 0.0
 fault_df[!,:e_ex] .= 0.0
 fault_df[!,:usd] .= 0.0
 fault_df[!,:lsd] .= 20.0
+fault_df[!,:dip] .= 89.0
 
 faults = Oiler.IO.process_faults_from_df(fault_df, )
 
@@ -81,15 +82,17 @@ end
 bound_faults = map(reverse_fault, boundary_faults)
 
 
+
 vd_segmented = Oiler.Solver.set_up_block_inv_no_constraints(
     sf_vel_groups,
     faults=segmented_faults,
 )
 
+
 vd_alternating = Oiler.Solver.set_up_block_inv_no_constraints(
     af_vel_groups,
     faults=alt_faults,
-    bound_faults=bound_faults,
+    bound_faults=map(reverse_fault, olt_faults),
 )
 
 vd_full = Oiler.Solver.set_up_block_inv_no_constraints(
@@ -108,6 +111,8 @@ full_results = Dict(
     "predicted_vels"=>Oiler.ResultsAnalysis.predict_model_velocities(ff_vel_groups, vd_full, poles),
 )
 #Oiler.Plots.plot_results_map(full_results, sf_vel_groups, full_fault)
+#ylim([1., 3.])
+#title("full results")
 
 seg_results = Dict(
     "predicted_vels"=>Oiler.ResultsAnalysis.predict_model_velocities(sf_vel_groups, vd_segmented, poles),
