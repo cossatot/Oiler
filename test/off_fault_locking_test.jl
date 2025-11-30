@@ -34,7 +34,7 @@ fault_df[!,:v_ex] .= 0.0
 fault_df[!,:e_ex] .= 0.0
 fault_df[!,:usd] .= 0.0
 fault_df[!,:lsd] .= 20.0
-fault_df[!,:dip] .= 89.0
+fault_df[!,:dip] .= 30.0
 
 faults = Oiler.IO.process_faults_from_df(fault_df, )
 
