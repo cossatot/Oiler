@@ -226,9 +226,9 @@ end
 
 function make_ugraph_from_digraph(digraph::Dict)
     ug = Dict{String,Array{String}}()
-
-    for (fix, movs) in digraph
-        for mov in movs
+    # iterate in a deterministic order and sort neighbor lists so output is stable
+    for fix in sort(collect(keys(digraph)))
+        for mov in sort(digraph[fix])
             if !haskey(ug, fix)
                 ug[fix] = [mov]
             elseif !(mov in ug[fix])
@@ -241,6 +241,9 @@ function make_ugraph_from_digraph(digraph::Dict)
             end
         end
     end
+    for key in keys(ug)
+        sort!(ug[key])
+    end
     ug
 end
 
@@ -249,13 +252,13 @@ function find_tricycles(graph::Dict; reduce::Bool=true)
 
     all_tris = []
 
-    for (from, tos) in graph
-        for to in tos
+    for from in sort(collect(keys(graph)))
+        for to in sort(graph[from])
             try
                 if to != from
-                    for next in graph[to]
+                    for next in sort(graph[to])
                         if next != from
-                            for fin in graph[next]
+                            for fin in sort(graph[next])
                                 if fin == from
                                     path = [from, to, next]
                                     push!(all_tris, path)
@@ -283,7 +286,7 @@ function find_tricycles(graph::Dict; reduce::Bool=true)
                 push!(unique_tris, tri)
             end
         end
-        return unique_tris
+        return sort!(unique_tris; by=x -> join(x, ":"))
     else
         return all_tris
     end
@@ -441,8 +444,8 @@ function predict_vels_from_poles(block_things::Dict{String,AbstractArray},
 
     V_pred = block_things["PvGb"] * pole_vec
 
-    Vn_pred = V_pred[1:3:end]
-    Ve_pred = V_pred[2:3:end]
+    Ve_pred = V_pred[1:3:end]
+    Vn_pred = V_pred[2:3:end]
     # Vu_pred = V_pred[3:3:end]
 
     (Ve_pred, Vn_pred)

@@ -49,4 +49,25 @@ function boundary_to_vels(boundary::Boundary; ve=0.0, vn=0.0, ee=1.0, en=1.0,
 end
 
 
+function boundary_to_fault(boundary::Boundary; usd=0.0, lsd=20.0, dip=89.0)
+
+    dip_dir = Oiler.Faults.get_trace_dip_dir_rhr(boundary.trace)
+
+    bf = boundary.fix
+    bm = boundary.mov
+
+    ff = Oiler.Fault(
+        trace=boundary.trace,
+        dip=dip,
+        dip_dir=dip_dir,
+        lsd=lsd,
+        usd=usd,
+        hw=boundary.fix,
+        fw=boundary.mov,
+        check_trace=true,
+        name="$bf $bm"
+    )
+
+end
+
 end #module

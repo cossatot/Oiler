@@ -258,6 +258,36 @@ function make_partials_matrix(partials, i::Integer)
         0.0 0.0 0.0]
 end
 
+function orient_fault_to_key(fault, key)
+    if (fault.hw, fault.fw) == key
+        return fault
+    elseif (fault.fw, fault.hw) == key
+        rev_trace = reverse(fault.trace, dims=1)
+        new_dip_dir = Oiler.Faults.get_closest_dir(
+            Oiler.Faults.get_trace_dip_trend_rhr(rev_trace)
+        )
+        return Oiler.Fault(
+            trace=rev_trace,
+            dip=fault.dip,
+            dip_dir=new_dip_dir,
+            extension_rate=fault.extension_rate,
+            extension_err=fault.extension_err,
+            dextral_rate=fault.dextral_rate,
+            dextral_err=fault.dextral_err,
+            cde=fault.cde,
+            lsd=fault.lsd,
+            usd=fault.usd,
+            name=fault.name,
+            hw=fault.fw,
+            fw=fault.hw,
+            fid=fault.fid,
+            check_trace=false,
+        )
+    else
+        @warn "Fault $(fault.fid) does not match velocity group $key"
+        return fault
+    end
+end
 
 function calc_locking_effects(faults, vel_groups; elastic_floor=1e-4,
     check_nans=false)
@@ -273,19 +303,21 @@ function calc_locking_effects(faults, vel_groups; elastic_floor=1e-4,
     fault_groups = Oiler.Utils.group_faults(faults, vg_keys)
     locking_partial_groups = Dict()
 
+
     # calculate locking effects from each fault at each site
     # locking effects for faults in each vel_group sum
     @info "\tcalculating locking per fault group (parallel?)"
     #for vg in vg_keys
     n_threads = Threads.nthreads()
     @info "$n_threads threads"
-    @threads for vg in vg_keys
+    #@threads for vg in vg_keys
+    for vg in vg_keys
         if haskey(fault_groups, vg)
+            oriented_faults = [orient_fault_to_key(fault, vg) for fault in fault_groups[vg]]
             locking_partial_groups[vg] = sum([
-                #calc_locking_effects_segmented_fault(fault, gnss_lons, gnss_lats,
-                calc_any_fault_locking_effects(fault, gnss_lons, gnss_lats,
+                calc_any_fault_locking_effects(ofault, gnss_lons, gnss_lats,
                     elastic_floor=elastic_floor, check_nans=check_nans)
-                for fault in fault_groups[vg]
+                for ofault in oriented_faults
             ])
         else
         end

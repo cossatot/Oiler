@@ -51,8 +51,9 @@ to zero, i.e. a_b + b_c + c_a = 0.  This function loops over all of the
 velocity triangles (cycles) that are present in the pole adjacency graph.
 """
 function build_constraint_matrices(cycles, vel_group_keys)
-    reduce(vcat, [build_constraint_matrix(cyc, vel_group_keys) for (i, cyc) in
-                  cycles])
+    sorted_cycles = [cycles[i] for i in sort(collect(keys(cycles)))]
+    reduce(vcat, [build_constraint_matrix(cyc, vel_group_keys) for cyc in
+                  sorted_cycles])
 end
 
 
@@ -518,7 +519,7 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
         faults::Array=[], tris::Array=[], regularize_tris=true, tri_priors=false, 
         tri_rake_constraints=[],
     tri_distance_weight::Float64=10.0,
-    elastic_floor=1e-4, check_nans=false, fill_nans=true, nan_fill_val=0.0)
+    elastic_floor=1e-4, check_nans=false, fill_nans=true, nan_fill_val=0.0, bound_faults=[])
 
     @info " making block inversion matrices"
     @time vd = make_block_inversion_matrices_from_vels(vel_groups)
@@ -563,24 +564,32 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
         vd["PvGb"] = add_fault_locking_to_PvGb(faults, vel_groups, vd["PvGb"];
             elastic_floor=elastic_floor, check_nans=check_nans)
         @info " done doing locking"
-
     end
 
-    #if check_nans == true
-    #    @info " checking for NaNs"
-    #    NaNs = false
-    #    if any(isnan, vd["PvGb"])
-    #        @warn "NaNs in PvGb"
-    #        NaNs = true
-    #    end
-    #    if any(isnan, vd["Vc"])
-    #        @warn "NaNs in Vc"
-    #        NaNs = true
-    #    end
-    #    if ~NaNs
-    #        @info "No NaNs in matrices"
-    #    end
-    #end
+
+    if length(bound_faults) > 0
+        @info " doing off-fault boundary locking"
+        vd["PvGb"] = add_fault_locking_to_PvGb(bound_faults, vel_groups, vd["PvGb"];
+            elastic_floor=elastic_floor, check_nans=check_nans)
+        @info " done doing off-fault boundary locking"
+    end
+
+
+    if check_nans == true
+        @info " checking for NaNs"
+        NaNs = false
+        if any(isnan, vd["PvGb"])
+            @warn "NaNs in PvGb"
+            NaNs = true
+        end
+        if any(isnan, vd["Vc"])
+            @warn "NaNs in Vc"
+            NaNs = true
+        end
+        if ~NaNs
+            @info "No NaNs in matrices"
+        end
+    end
 
     if length(tris) > 0
         @info " doing tris"
@@ -835,9 +844,9 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     results["tri_slip_rates"] = get_tri_rates(tri_soln, tris)
 
     results["stats_info"] = Dict{Any,Any}(
-        "RMSE" => Oiler.ResultsAnalysis.calc_RMSE_from_G(block_inv_setup, results)
+        "RMSE_df" => Oiler.ResultsAnalysis.calc_RMSE_from_G(block_inv_setup, results)
     )
-    RMSE_string = "RMSE: " * string(results["stats_info"]["RMSE"])
+    RMSE_string = "RMSE: " * string(results["stats_info"]["RMSE_df"])
     @info RMSE_string
     #results["stats_info"]["n_obs"], results["stats_info"]["n_params"] = size(
     #    block_inv_setup["PvGb"]
@@ -1047,7 +1056,8 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
         end
     end
 
-    var = results["stats_info"]["RMSE"]^2 * var_cov
+    var = results["stats_info"]["RMSE_df"]^2 * var_cov
+    var = results["stats_info"]["RMSE_df"]^2 * var_cov
     standard_error_vec = sqrt.(diag(var))
 
     SE_string = "mean standard error: " * string(

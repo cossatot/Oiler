@@ -76,10 +76,10 @@ end
 function test_make_ugraph_from_digraph()
     dg = Dict("c"=>["a"], "b"=>["c"], "r"=>["a", "c"], "a"=>["b"])
     ug = Dict(
+        "a"=>["b", "c", "r"],
+        "b"=>["a", "c"],
         "c"=>["a", "b", "r"],
-        "b"=>["c", "a"],
-        "r"=>["a", "c"],
-        "a"=>["c", "r", "b"]
+        "r"=>["a", "c"]
         )
     @test Oiler.Utils.make_ugraph_from_digraph(dg) == ug
 end
@@ -87,12 +87,12 @@ end
 
 function test_find_tricycles()
     ug = Dict(
+        "a"=>["b", "c", "r"],
+        "b"=>["a", "c"],
         "c"=>["a", "b", "r"],
-        "b"=>["c", "a"],
-        "r"=>["a", "c"],
-        "a"=>["c", "r", "b"]
+        "r"=>["a", "c"]
         )
-    tris = [["c", "a", "r"], ["c", "a", "b"]]
+    tris = [["a", "b", "c"], ["a", "c", "r"]]
 
     @test Oiler.Utils.find_tricycles(ug) == tris
 end
@@ -121,14 +121,14 @@ function test_find_vel_cycles()
     keys = [("a", "b"), ("b", "c"), ("c", "a"), ("r", "a"), ("r", "c")]
     vel_cycles = Dict(
         1 => Dict(
-            ("c", "a") => Dict{String,Real}("ind"=>3,"val"=>1.0),
-            ("r", "c") => Dict{String,Real}("ind"=>5,"val"=>1.0),
-            ("a", "r") => Dict{String,Real}("ind"=>4,"val"=>-1.0)
+            ("a", "b") => Dict{String,Real}("ind"=>1,"val"=>1.0),
+            ("b", "c") => Dict{String,Real}("ind"=>2,"val"=>1.0),
+            ("c", "a") => Dict{String,Real}("ind"=>3,"val"=>1.0)
         ),
         2 => Dict(
-            ("b", "c") => Dict{String,Real}("ind"=>2,"val"=>1.0),
-            ("c", "a") => Dict{String,Real}("ind"=>3,"val"=>1.0),
-            ("a", "b") => Dict{String,Real}("ind"=>1,"val"=>1.0)
+            ("a", "c") => Dict{String,Real}("ind"=>3,"val"=>-1.0),
+            ("c", "r") => Dict{String,Real}("ind"=>5,"val"=>-1.0),
+            ("r", "a") => Dict{String,Real}("ind"=>4,"val"=>1.0)
         )
     )
     
