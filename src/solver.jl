@@ -51,8 +51,9 @@ to zero, i.e. a_b + b_c + c_a = 0.  This function loops over all of the
 velocity triangles (cycles) that are present in the pole adjacency graph.
 """
 function build_constraint_matrices(cycles, vel_group_keys)
-    reduce(vcat, [build_constraint_matrix(cyc, vel_group_keys) for (i, cyc) in
-                  cycles])
+    sorted_cycles = [cycles[i] for i in sort(collect(keys(cycles)))]
+    reduce(vcat, [build_constraint_matrix(cyc, vel_group_keys) for cyc in
+                  sorted_cycles])
 end
 
 

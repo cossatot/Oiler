@@ -78,18 +78,16 @@ function test_build_constraint_matrix()
     cycles = Oiler.Utils.find_vel_cycles(keys)
     cycle = cycles[1]
     cm = Oiler.Solver.build_constraint_matrix(cycle, keys)
-    cm_answer = Oiler.Utils.dict_to_sparse(
-        Dict(
-            (1, 7) => 1.0,
-            (2, 8) => 1.0,
-            (3, 9) => 1.0,
-            (1, 10) => -1.0,
-            (2, 11) => -1.0,
-            (3, 12) => -1.0,
-            (1, 13) => 1.0,
-            (2, 14) => 1.0,
-            (3, 15) => 1.0
-        ))
+    cm_answer = spzeros(3, length(keys) * 3)
+    cm_answer[1, 1] = 1.0
+    cm_answer[2, 2] = 1.0
+    cm_answer[3, 3] = 1.0
+    cm_answer[1, 4] = 1.0
+    cm_answer[2, 5] = 1.0
+    cm_answer[3, 6] = 1.0
+    cm_answer[1, 7] = 1.0
+    cm_answer[2, 8] = 1.0
+    cm_answer[3, 9] = 1.0
     @test cm == cm_answer
 end
 
@@ -98,28 +96,25 @@ function test_build_constraint_matrices()
     keys = [("a", "b"), ("b", "c"), ("c", "a"), ("r", "a"), ("r", "c")]
     cycles = Oiler.Utils.find_vel_cycles(keys)
     cm = Oiler.Solver.build_constraint_matrices(cycles, keys)
-    cm_answer = Oiler.Utils.dict_to_sparse(
-        Dict(
-            (1, 1) => 1.0,
-            (2, 2) => 1.0,
-            (3, 3) => 1.0,
-            (1, 4) => 1.0,
-            (2, 5) => 1.0,
-            (3, 6) => 1.0,
-            (1, 7) => 1.0,
-            (4, 7) => 1.0,
-            (2, 8) => 1.0,
-            (5, 8) => 1.0,
-            (3, 9) => 1.0,
-            (6, 9) => 1.0,
-            (4, 10) => -1.0,
-            (5, 11) => -1.0,
-            (6, 12) => -1.0,
-            (4, 13) => 1.0,
-            (5, 14) => 1.0,
-            (6, 15) => 1.0
-        )
-    )
+    cm_answer = spzeros(6, length(keys) * 3)
+    cm_answer[1, 1] = 1.0
+    cm_answer[2, 2] = 1.0
+    cm_answer[3, 3] = 1.0
+    cm_answer[1, 4] = 1.0
+    cm_answer[2, 5] = 1.0
+    cm_answer[3, 6] = 1.0
+    cm_answer[1, 7] = 1.0
+    cm_answer[2, 8] = 1.0
+    cm_answer[3, 9] = 1.0
+    cm_answer[4, 7] = -1.0
+    cm_answer[5, 8] = -1.0
+    cm_answer[6, 9] = -1.0
+    cm_answer[4, 10] = 1.0
+    cm_answer[5, 11] = 1.0
+    cm_answer[6, 12] = 1.0
+    cm_answer[4, 13] = -1.0
+    cm_answer[5, 14] = -1.0
+    cm_answer[6, 15] = -1.0
 
     @test cm == cm_answer
 end
