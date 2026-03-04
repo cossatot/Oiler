@@ -12,7 +12,7 @@ using ..Oiler: Fault, VelocityVectorSphere, get_gnss_vels,
 
 
 
-export fault_to_okada
+export fault_to_okada, bounds_to_bound_faults
 
 """
     fault_to_okada(fault::Fault, sx1::Float64, sy1::Float64, 
@@ -439,5 +439,34 @@ function arrange_tri_partials(due, dun, duv, sue, sun, suv; uv_zero=true)
     end
     out
 end
+
+
+"""
+    bounds_to_bound_faults(non_fault_bounds, locking_depth)
+
+Converts an array of `Boundary` objects (from `Oiler.IO.get_non_fault_block_bounds`)
+into near-vertical `Fault` objects for use in elastic locking calculations.
+
+Each boundary is modelled as a fault with:
+- dip = 89° (near-vertical; uses the vertical velocity projection formulation)
+- lsd = locking_depth (km)
+- usd = 0.0 km
+- hw = boundary.fix, fw = boundary.mov (matches vel_group key convention)
+"""
+function bounds_to_bound_faults(non_fault_bounds, locking_depth::Float64)
+    [Oiler.Fault(
+        trace=bound.trace,
+        dip=89.0,
+        dip_dir="N",
+        lsd=locking_depth,
+        usd=0.0,
+        hw=bound.fix,
+        fw=bound.mov,
+        name=bound.fid,
+        fid=bound.fid,
+        check_trace=false,
+    ) for bound in non_fault_bounds]
+end
+
 
 end # module

@@ -776,11 +776,20 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     tri_distance_weight::Float64=10.0, check_closures::Bool=true,
     sparse_lhs::Bool=false, predict_vels::Bool=false, constraint_method="kkt_sym",
     pred_se::Bool=false, se_iters=1000, factorization="lu", check_nans=false,
-    stoch_slip_rates::Bool=false)
+    stoch_slip_rates::Bool=false,
+    non_fault_bounds=[], off_fault_locking_depth::Float64=0.0)
+
+    bound_faults = []
+    if off_fault_locking_depth > 0.0 && length(non_fault_bounds) > 0
+        @info "converting non-fault bounds to bound faults"
+        bound_faults = Oiler.Elastic.bounds_to_bound_faults(
+            non_fault_bounds, off_fault_locking_depth)
+    end
 
     @info "setting up unconstrained matrices"
     @time block_inv_setup = set_up_block_inv_no_constraints(vel_groups;
         faults=faults,
+        bound_faults=bound_faults,
         regularize_tris=regularize_tris,
         tri_priors=tri_priors,
         tri_distance_weight=tri_distance_weight,
