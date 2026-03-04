@@ -1,5 +1,4 @@
 name: Documentation
-
 on:
   push:
     branches:
@@ -7,19 +6,33 @@ on:
       - docs
     tags: "*"
   pull_request:
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@latest
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          version: "1.6"
+          python-version: "3.9"
+      - name: Install Matplotlib
+        run: pip install matplotlib
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: "1"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-julia-artifacts-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-julia-artifacts-
       - name: Install dependencies
         run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+        env:
+          PYTHON: ""
       - name: Build and deploy Pages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+          PYTHON: ""
         run: julia --project=docs/ docs/make.jl
