@@ -782,8 +782,9 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     bound_faults = []
     if off_fault_locking_depth > 0.0 && length(non_fault_bounds) > 0
         @info "converting non-fault bounds to bound faults"
-        bound_faults = Oiler.Elastic.bounds_to_bound_faults(
-            non_fault_bounds, off_fault_locking_depth)
+        bound_faults = map(
+            b -> Oiler.Boundaries.boundary_to_fault(b; lsd=off_fault_locking_depth),
+            non_fault_bounds)
     end
 
     @info "setting up unconstrained matrices"
