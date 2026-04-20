@@ -37,9 +37,10 @@ function plot_results_map(results, vel_groups, faults, tris=[])
 
     fig, ax = subplots(figsize=(14, 14))
 
-    for fault in faults
-        plot(fault.trace[:, 1], fault.trace[:, 2], "k-", lw=0.5)
-    end
+    fault_segments = [hcat(fault.trace[:, 1], fault.trace[:, 2]) for fault in faults]
+    fault_lc = PyPlot.matplotlib.collections.LineCollection(
+        fault_segments, colors="k", linewidths=0.5)
+    ax.add_collection(fault_lc)
 
     if length(tris) > 0
         cm = get_cmap(:viridis)
@@ -48,18 +49,26 @@ function plot_results_map(results, vel_groups, faults, tris=[])
         tri_rate_min = minimum(tri_rates)
         tri_rate_max = maximum(tri_rates)
 
-        #clim(tri_rate_min, tri_rate_max)
         norm = PyPlot.matplotlib.colors.Normalize(tri_rate_min, tri_rate_max)
-        mappable = PyPlot.matplotlib.cm.ScalarMappable(norm=norm, cmap=cm)
 
-        for tri in tris
-            plot_tri(tri, results; vmin=tri_rate_min, vmax=tri_rate_max, cm=cm)
-        end
-        colorbar(mappable, ax=ax)
+        tri_verts = [
+            [(tri.p1[1], tri.p1[2]),
+             (tri.p2[1], tri.p2[2]),
+             (tri.p3[1], tri.p3[2])]
+            for tri in tris
+        ]
+        tri_pc = PyPlot.matplotlib.collections.PolyCollection(
+            tri_verts, array=tri_rates, cmap=cm, norm=norm,
+            alpha=0.25, linewidths=0.0, zorder=0)
+        ax.add_collection(tri_pc)
+        colorbar(tri_pc, ax=ax)
     end
 
-    x_limits = xlim()
-    y_limits = ylim()
+    # compute data limits manually since collections don't autoscale the same way
+    all_x = vcat([fault.trace[:, 1] for fault in faults]...)
+    all_y = vcat([fault.trace[:, 2] for fault in faults]...)
+    x_limits = (minimum(all_x), maximum(all_x))
+    y_limits = (minimum(all_y), maximum(all_y))
 
     quiver(vel_df.lon, vel_df.lat,
         vel_df.obs_ve, vel_df.obs_vn,
