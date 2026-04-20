@@ -1001,7 +1001,7 @@ function tri_from_feature(feat)
 
     extra_args = Dict{Symbol, Any}()
     for kw in kps
-        if (kw in string.(fieldnames(Oiler.Tris.Tri))) & ((kw != "fw"))
+        if (kw in string.(fieldnames(Oiler.Tris.Tri))) & (kw != "fw") & (kw != "name")
             extra_args[Symbol(kw)] = props[kw]
         end
     end
@@ -1010,9 +1010,9 @@ function tri_from_feature(feat)
         p1=Float64.(feat["geometry"]["coordinates"][1][1]),
         p2=Float64.(feat["geometry"]["coordinates"][1][2]),
         p3=Float64.(feat["geometry"]["coordinates"][1][3]),
-        name=string(feat["properties"]["fid"]),
         fw=fw,
-        extra_args...
+        extra_args...,
+        name=string(feat["properties"]["fid"]),
     )
 end
 
