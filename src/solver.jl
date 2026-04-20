@@ -730,6 +730,283 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
 end
 
 """
+    build_null_space_basis_from_pair_graph(vel_group_keys)
+
+Builds a sparse null-space basis `Z` of the pole cycle-closure constraint matrix
+by finding a spanning tree of the block-pair graph. Tree-edge pairs become free
+parameters; non-tree-edge pairs are expressed as signed sums of tree pairs along
+the tree path between their endpoints.
+
+Returns `(Z, tree_nodes)` where `Z` has shape `(3 * n_pairs) × (3 * n_tree_edges)`
+and `tree_nodes` lists the child blocks whose incoming tree edge parameterizes
+column block `j` of `Z`.
+"""
+function build_null_space_basis_from_pair_graph(vel_group_keys::AbstractVector)
+    blocks = Set{String}()
+    for (f, m) in vel_group_keys
+        push!(blocks, f)
+        push!(blocks, m)
+    end
+    blocks = sort(collect(blocks))
+
+    adj = Dict(b => Tuple{String,Int,Bool}[] for b in blocks)
+    for (i, (f, m)) in enumerate(vel_group_keys)
+        push!(adj[f], (m, i, true))
+        push!(adj[m], (f, i, false))
+    end
+
+    parent = Dict{String,String}()
+    parent_pair_idx = Dict{String,Int}()
+    depth = Dict{String,Int}()
+    visited = Set{String}()
+    used_pairs = Set{Int}()
+
+    for root in blocks
+        if root in visited
+            continue
+        end
+        push!(visited, root)
+        depth[root] = 0
+        queue = [root]
+        while !isempty(queue)
+            next_queue = String[]
+            for u in queue
+                for (v, idx, _) in adj[u]
+                    if !(v in visited)
+                        push!(visited, v)
+                        parent[v] = u
+                        parent_pair_idx[v] = idx
+                        depth[v] = depth[u] + 1
+                        push!(used_pairs, idx)
+                        push!(next_queue, v)
+                    end
+                end
+            end
+            queue = next_queue
+        end
+    end
+
+    tree_nodes = sort([b for b in blocks if haskey(parent, b)])
+    tree_col = Dict(n => i for (i, n) in enumerate(tree_nodes))
+    n_tree = length(tree_nodes)
+    ne = length(vel_group_keys)
+
+    I_list = Int[]
+    J_list = Int[]
+    V_list = Float64[]
+
+    function add_block!(row_base, col_base, sgn)
+        for k in 1:3
+            push!(I_list, row_base + k)
+            push!(J_list, col_base + k)
+            push!(V_list, sgn)
+        end
+    end
+
+    for (i, (f, m)) in enumerate(vel_group_keys)
+        row_base = 3 * (i - 1)
+        if i in used_pairs
+            if haskey(parent, m) && parent[m] == f && parent_pair_idx[m] == i
+                add_block!(row_base, 3 * (tree_col[m] - 1), 1.0)
+            elseif haskey(parent, f) && parent[f] == m && parent_pair_idx[f] == i
+                add_block!(row_base, 3 * (tree_col[f] - 1), -1.0)
+            else
+                error("tree edge pair $i has inconsistent parent mapping for ($f, $m)")
+            end
+        else
+            # Non-tree pair: walk tree from f to m, collecting signed tree vars.
+            a, b = f, m
+            path_signs = Dict{Int,Float64}()
+            while a != b
+                if depth[a] >= depth[b]
+                    if !haskey(parent, a)
+                        error("pair ($f, $m) crosses disconnected components of pair graph")
+                    end
+                    j = tree_col[a]
+                    path_signs[j] = get(path_signs, j, 0.0) - 1.0
+                    a = parent[a]
+                else
+                    if !haskey(parent, b)
+                        error("pair ($f, $m) crosses disconnected components of pair graph")
+                    end
+                    j = tree_col[b]
+                    path_signs[j] = get(path_signs, j, 0.0) + 1.0
+                    b = parent[b]
+                end
+            end
+            for (j, sgn) in path_signs
+                if sgn != 0.0
+                    add_block!(row_base, 3 * (j - 1), sgn)
+                end
+            end
+        end
+    end
+
+    Z = sparse(I_list, J_list, V_list, 3 * ne, 3 * n_tree)
+    return Z, tree_nodes
+end
+
+
+"""
+    solve_reduced_null_space(block_inv_setup, vel_groups, tris; weighted=true)
+
+Solves the equality-constrained weighted least squares problem by null-space
+reduction: parameterizes feasible poles as `x = Z y` (with `cm * Z = 0`) and
+solves the reduced weighted normal equations `Z' PvGb' W^{-1} PvGb Z y =
+Z' PvGb' W^{-1} Vc`. Returns the solution in the original pair layout
+(length `3*n_pairs + 2*n_tris`) so the KKT path's post-processing works
+unchanged.
+"""
+function solve_reduced_null_space(block_inv_setup::Dict, vel_groups, tris;
+    weighted::Bool=true)
+
+    PvGb = block_inv_setup["PvGb"]
+    Vc = block_inv_setup["Vc"]
+    keys_ = block_inv_setup["keys"]
+    np = length(keys_)
+    nt = length(tris)
+    n_data = length(Vc)
+
+    @info "  building null-space basis Z from pair-graph spanning tree"
+    @time Z_pole, tree_nodes = build_null_space_basis_from_pair_graph(keys_)
+    n_tree = length(tree_nodes)
+    @info "   tree has $(n_tree) free pair(s); $(np - n_tree) cycle constraint(s) eliminated"
+
+    if nt > 0
+        Z = blockdiag(Z_pole, spdiagm(0 => ones(2 * nt)))
+    else
+        Z = Z_pole
+    end
+    Z_sz = size(Z)
+    @info "   Z size: $Z_sz (pair layout rows × $(n_tree*3 + 2*nt) reduced params)"
+
+    @info "  forming reduced design matrix K = PvGb * Z"
+    @time K = PvGb * Z
+
+    if weighted
+        @info "  building block-diagonal inverse variance-covariance matrix"
+        @time begin
+            vel_blocks = Matrix{Float64}[]
+            for k in keys_
+                for v in vel_groups[k]
+                    push!(vel_blocks, inv(var_cov_from_vel(v)))
+                end
+            end
+            W_inv_data = diagonalize_matrices(vel_blocks)
+
+            n_tri_reg = n_data - size(W_inv_data, 1)
+            if n_tri_reg > 0
+                tri_w = block_inv_setup["tri_weights"]
+                if isdiag(tri_w)
+                    diag_vals = [tri_w[i, i] for i in 1:size(tri_w, 1)]
+                    W_inv_tri = spdiagm(0 => 1.0 ./ diag_vals)
+                else
+                    @info "   tri_weights not diagonal; inverting as dense block"
+                    W_inv_tri = sparse(inv(Matrix(tri_w)))
+                end
+                W_inv = diagonalize_matrices([W_inv_data, W_inv_tri])
+            else
+                W_inv = W_inv_data
+            end
+        end
+    else
+        W_inv = spdiagm(0 => ones(n_data))
+    end
+
+    @info "  forming reduced normal equations"
+    @time begin
+        WinvK = W_inv * K
+        A_red = K' * WinvK
+        b_red = K' * (W_inv * Vc)
+    end
+    A_sz = size(A_red)
+    A_nnz = nnz(A_red)
+    @info "   A_red size: $A_sz, nnz: $A_nnz"
+
+    @info "  factoring reduced normal equations (Cholesky → LDLT fallback)"
+    A_sym = Symmetric(A_red)
+    local y_fact
+    @time y_fact = try
+        cholesky(A_sym)
+    catch err
+        @warn "  sparse Cholesky failed ($err); using LDLT"
+        ldlt(A_sym)
+    end
+
+    @info "  solving reduced system"
+    @time y = y_fact \ Vector(b_red)
+
+    soln = Vector(Z * y)
+    @info "  expanded soln length: $(length(soln))"
+    return (; soln=soln, y_fact=y_fact, Z=Z)
+end
+
+
+"""
+    get_reduced_soln_covariance_matrix(y_fact, Z, np, nt, rmse)
+
+Propagates parameter covariance from the reduced-parameter space `y` back to the
+original pair layout `x = Z y`, using `cov(x) = Z * (A_red^{-1}) * Z'`, scaled
+by `rmse^2` (consistent with `get_soln_covariance_matrix`). Only the
+block-diagonal entries consumed by `get_pole_uncertainties!` and
+`get_tri_uncertainties!` are populated; off-diagonal inter-pair covariances are
+left as zero to keep memory bounded.
+"""
+function get_reduced_soln_covariance_matrix(y_fact, Z, np::Int, nt::Int, rmse::Float64)
+    n_params = 3 * np + 2 * nt
+    I_list = Int[]
+    J_list = Int[]
+    V_list = Float64[]
+
+    n_neg_clamped = Ref(0)
+    max_neg = Ref(0.0)
+
+    function push_block!(rows, blk)
+        for (a, r) in enumerate(rows), (b, c) in enumerate(rows)
+            v = blk[a, b]
+            if r == c && v < 0.0
+                n_neg_clamped[] += 1
+                if v < max_neg[]
+                    max_neg[] = v
+                end
+                v = 0.0
+            end
+            push!(I_list, r)
+            push!(J_list, c)
+            push!(V_list, v)
+        end
+    end
+
+    @info "  propagating covariance through Z (per-pair 3x3 blocks)"
+    @time for i in 1:np
+        rows = (3 * i - 2):(3 * i)
+        Z_i = Matrix(Z[rows, :])
+        M_i = y_fact \ Matrix(Z_i')
+        push_block!(rows, Z_i * M_i)
+    end
+
+    if nt > 0
+        @info "  propagating covariance for tri block (2nt x 2nt)"
+        tri_rows = (3 * np + 1):(3 * np + 2 * nt)
+        local blk
+        @time begin
+            Z_tri = Matrix(Z[tri_rows, :])
+            M_tri = y_fact \ Matrix(Z_tri')
+            blk = Z_tri * M_tri
+        end
+        push_block!(tri_rows, blk)
+    end
+
+    if n_neg_clamped[] > 0
+        @warn "  clamped $(n_neg_clamped[]) negative diagonal variance entries to 0 (most negative: $(max_neg[])); likely numerical noise from LDLT fallback"
+    end
+
+    pole_var = sparse(I_list, J_list, V_list, n_params, n_params)
+    return rmse^2 * pole_var
+end
+
+
+"""
     solve_block_invs_from_vel_groups
 
 Main solution function in Oiler. This function takes the `vel_groups` dictionary
@@ -794,6 +1071,64 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         tri_rake_constraints=tri_rake_constraints,
         elastic_floor=elastic_floor,
         tris=tris, check_nans=check_nans)
+
+    if factorization == "reduce"
+        @info "NULL-SPACE REDUCTION (skipping KKT assembly)"
+        reduce_out = solve_reduced_null_space(block_inv_setup, vel_groups, tris;
+            weighted=weighted)
+        soln = reduce_out.soln
+
+        np = length(block_inv_setup["keys"])
+        nt = length(tris)
+        tri_soln_idx = (np*3+1):(np*3)+nt*2
+        tri_soln = nt > 0 ? soln[tri_soln_idx] : Float64[]
+
+        results = Dict()
+        results["poles"] = get_poles_from_soln(block_inv_setup["keys"], soln)
+        results["tri_slip_rates"] = get_tri_rates(tri_soln, tris)
+
+        results["stats_info"] = Dict{Any,Any}(
+            "RMSE_df" => Oiler.ResultsAnalysis.calc_RMSE_from_G(block_inv_setup, results)
+        )
+        RMSE_string = "RMSE: " * string(results["stats_info"]["RMSE_df"])
+        @info RMSE_string
+        results["stats_info"]["n_obs"] = length(Oiler.Utils.get_gnss_vels(vel_groups)) +
+                                         length(Oiler.Utils.get_geol_slip_rate_vels(vel_groups))
+        results["stats_info"]["n_params"] = 3 * Oiler.Utils.get_n_blocks_from_vel_groups(vel_groups) + nt
+
+        if pred_se == true
+            @info "Estimating solution uncertainties (analytical via reduced normal equations)"
+            @time pole_var = get_reduced_soln_covariance_matrix(
+                reduce_out.y_fact, reduce_out.Z, np, nt,
+                results["stats_info"]["RMSE_df"])
+            standard_error_vec = sqrt.(max.(diag(pole_var), 0.0))
+            mean_se = sum(standard_error_vec) / length(standard_error_vec)
+            @info "mean standard error: $mean_se"
+            get_pole_uncertainties!(results["poles"], pole_var,
+                block_inv_setup["keys"])
+            if nt > 0
+                get_tri_uncertainties!(pole_var, tris, results["tri_slip_rates"],
+                    tri_soln_idx)
+            end
+        end
+
+        if predict_vels == true
+            results["predicted_vels"] = Oiler.ResultsAnalysis.predict_model_velocities(
+                vel_groups,
+                block_inv_setup, results["poles"];
+                tri_results=results["tri_slip_rates"])
+
+            results["predicted_slip_rates"] = Oiler.ResultsAnalysis.predict_slip_rates(
+                faults, results["poles"])
+        end
+
+        if check_closures == true
+            closures = Oiler.Utils.check_vel_closures(results["poles"]; tol=1e-4)
+        end
+
+        return results
+    end
+
     @info "making constrained matrices"
     @time block_inv_setup = set_up_block_inv_w_constraints(vel_groups;
         basic_matrices=block_inv_setup,
