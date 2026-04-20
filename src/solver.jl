@@ -212,7 +212,9 @@ function add_fault_locking_to_PvGb(faults::Array{Fault},
     @time for (part_idx, partials) in locking_partials
         PvGb[part_idx[1], part_idx[2]] = PvGb[part_idx[1], part_idx[2]] + partials
     end
+    replace!(PvGb, NaN=>0.0, Inf=>0.0, -Inf=>0.0)
     PvGb = sparse(PvGb)
+    dropzeros!(PvGb)
     PvGb
 end
 
@@ -365,7 +367,8 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
 
         tri_gnss_effects_matrix[pvgb_row_idxs, :] = tri_effects[gnss_row_idxs, :]
     end
-    PvGb = hcat(PvGb, tri_gnss_effects_matrix)
+    replace!(tri_gnss_effects_matrix, NaN=>0.0, Inf=>0.0, -Inf=>0.0)
+    PvGb = hcat(PvGb, sparse(tri_gnss_effects_matrix))
 
     #@info "    doing regularization"
     # Priors and regularization
@@ -403,8 +406,10 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
     end
 
     #@info "    finalizing"
-    tri_reg_block = hcat(zeros(size(tri_reg_matrix, 1), PvGb_n_cols), tri_reg_matrix)
+    replace!(tri_reg_matrix, NaN=>0.0, Inf=>0.0, -Inf=>0.0)
+    tri_reg_block = hcat(spzeros(size(tri_reg_matrix, 1), PvGb_n_cols), sparse(tri_reg_matrix))
     PvGb = vcat(PvGb, tri_reg_block)
+    dropzeros!(PvGb)
 
     #@info "    done"
     #vd["weights"] = vcat(vd["weights"], prior_weights)
@@ -493,7 +498,9 @@ function make_weighted_constrained_kkt_lls_matrices_symmetric(PvGb, Vc, cm, weig
     rhs = [zeros(p); Vc; zeros(q)]
 
     if sparse_lhs
-        return sparse(lhs), rhs
+        lhs = sparse(lhs)
+        dropzeros!(lhs)
+        return lhs, rhs
     else
         return lhs, rhs
     end
@@ -811,6 +818,11 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     @info uppercase(factorization) * " factorization"
     if factorization == "lu"
         fact = lu
+        if isa(lhs, SparseMatrixCSC)
+            lhs = SparseMatrixCSC(lhs.m, lhs.n,
+                                  copy(lhs.colptr), copy(lhs.rowval), copy(lhs.nzval))
+            dropzeros!(lhs)
+        end
     elseif factorization == "svd"
         fact = svd
         # ensure dense LHS
