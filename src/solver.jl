@@ -730,6 +730,74 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
 end
 
 """
+    count_independent_pole_params(vel_group_keys)
+
+Returns `3 * (n_blocks - n_components)`, i.e. the number of independent Euler-
+pole parameters after enforcing cycle closures. One rotation frame is fixed
+per connected component of the block-pair graph.
+"""
+function count_independent_pole_params(vel_group_keys::AbstractVector)
+    blocks = Set{String}()
+    for (f, m) in vel_group_keys
+        push!(blocks, f)
+        push!(blocks, m)
+    end
+    adj = Dict(b => Set{String}() for b in blocks)
+    for (f, m) in vel_group_keys
+        push!(adj[f], m)
+        push!(adj[m], f)
+    end
+    visited = Set{String}()
+    n_components = 0
+    for root in blocks
+        if root in visited
+            continue
+        end
+        n_components += 1
+        queue = [root]
+        push!(visited, root)
+        while !isempty(queue)
+            u = popfirst!(queue)
+            for v in adj[u]
+                if !(v in visited)
+                    push!(visited, v)
+                    push!(queue, v)
+                end
+            end
+        end
+    end
+    return 3 * (length(blocks) - n_components)
+end
+
+
+"""
+    count_scalar_observations(vel_groups)
+
+Counts the effective number of independent scalar observations consumed by the
+inversion: 2 per GNSS/InSAR horizontal vel, 3 if the vertical component is also
+constrained (non-default `eu`), and 1 per geologic slip-rate vel (scalar
+observation of along-fault rate).
+"""
+function count_scalar_observations(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}})
+    n = 0
+    for (_, vels) in vel_groups
+        for v in vels
+            if v.vel_type == "geol_slip_rate"
+                n += 1
+            else
+                # GNSS / InSAR: horizontal always; vertical only if constrained
+                n += 2
+                if v.eu != 0.0 && !isinf(v.eu) && v.eu < 1e2
+                    n += 1
+                end
+            end
+        end
+    end
+    return n
+end
+
+
+"""
     build_null_space_basis_from_pair_graph(vel_group_keys)
 
 Builds a sparse null-space basis `Z` of the pole cycle-closure constraint matrix
@@ -1102,9 +1170,8 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         )
         RMSE_string = "RMSE: " * string(results["stats_info"]["RMSE_df"])
         @info RMSE_string
-        results["stats_info"]["n_obs"] = length(Oiler.Utils.get_gnss_vels(vel_groups)) +
-                                         length(Oiler.Utils.get_geol_slip_rate_vels(vel_groups))
-        results["stats_info"]["n_params"] = 3 * Oiler.Utils.get_n_blocks_from_vel_groups(vel_groups) + nt
+        results["stats_info"]["n_obs"] = count_scalar_observations(vel_groups)
+        results["stats_info"]["n_params"] = count_independent_pole_params(block_inv_setup["keys"]) + 2 * nt
 
         if pred_se == true
             @info "Estimating solution uncertainties (analytical via reduced normal equations)"
@@ -1209,10 +1276,9 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     #    block_inv_setup["PvGb"]
     #)
     
-    results["stats_info"]["n_obs"] = length(Oiler.Utils.get_gnss_vels(vel_groups)) + 
-                                     length(Oiler.Utils.get_geol_slip_rate_vels(vel_groups))
-    results["stats_info"]["n_params"] = 3 * Oiler.Utils.get_n_blocks_from_vel_groups(vel_groups) + nt
-    
+    results["stats_info"]["n_obs"] = count_scalar_observations(vel_groups)
+    results["stats_info"]["n_params"] = count_independent_pole_params(block_inv_setup["keys"]) + 2 * nt
+
     if pred_se == true
         if weighted == true
             se_weights = block_inv_setup["weights"]

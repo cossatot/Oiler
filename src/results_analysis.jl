@@ -421,10 +421,14 @@ function compare_data_results(; results,
     results["stats_info"]["RMSE_straight"] = sqrt(sum(resids.^2)/length(resids))
 
 
+    # gnss_misfits entries are 2-component Mahalanobis chi^2 values (E+N fused via
+    # full 2x2 cov), so each entry represents 2 independent scalar observations.
+    # geol_misfits entries are scalar. Pass the correct scalar-obs count for dof.
+    n_obs_scalar = 2 * length(gnss_misfits) + length(geol_misfits)
     results["stats_info"]["reduced_chi_sq_mcc"] = Oiler.Stats.reduced_chi_sq_mccaffrey(
-        misfits, results["stats_info"]["n_params"]
+        misfits, results["stats_info"]["n_params"]; n_obs=n_obs_scalar
     )
-    
+
     results["stats_info"]["reduced_chi_sq"] = Oiler.Stats.reduced_chi_sq(
         obs_vec, pred_vec, obs_err_vec, results["stats_info"]["n_params"]
     )
