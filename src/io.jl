@@ -989,10 +989,10 @@ function get_stoch_slip_rate_dict(stoch_slip_rates)
 end
 
 
-function tri_from_feature(feat)
+function tri_from_feature(feat; depth_units="km", depth_positive=false)
     props = feat["properties"]
     kps = keys(props)
-    
+
     if "fw" in kps
         fw = string(props["fw"])
     else
@@ -1006,10 +1006,28 @@ function tri_from_feature(feat)
         end
     end
 
+    coords = feat["geometry"]["coordinates"][1]
+
+    if depth_units == "m"
+        p1 = Float64.([coords[1][1], coords[1][2], coords[1][3] / 1000.])
+        p2 = Float64.([coords[2][1], coords[2][2], coords[2][3] / 1000.])
+        p3 = Float64.([coords[3][1], coords[3][2], coords[3][3] / 1000.])
+    else
+        p1 = Float64.(coords[1])
+        p2 = Float64.(coords[2])
+        p3 = Float64.(coords[3])
+    end
+
+    if depth_positive
+        p1[3] *= -1.
+        p2[3] *= -1.
+        p3[3] *= -1.
+    end
+
     tri = Oiler.Tris.Tri(;
-        p1=Float64.(feat["geometry"]["coordinates"][1][1]),
-        p2=Float64.(feat["geometry"]["coordinates"][1][2]),
-        p3=Float64.(feat["geometry"]["coordinates"][1][3]),
+        p1=p1,
+        p2=p2,
+        p3=p3,
         fw=fw,
         extra_args...,
         name=string(feat["properties"]["fid"]),
@@ -1017,8 +1035,9 @@ function tri_from_feature(feat)
 end
 
 
-function tris_from_geojson(tri_json)
-    tris = map(tri_from_feature, tri_json["features"])
+function tris_from_geojson(tri_json; depth_units="km", depth_positive=true)
+    tris = [tri_from_feature(feat; depth_units=depth_units, depth_positive=depth_positive)
+            for feat in tri_json["features"]]
 
     tris = filter(t -> (t.p1 != t.p2) && (t.p1 != t.p3) && (t.p2 != t.p3), tris)
 
