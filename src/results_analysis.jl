@@ -167,7 +167,8 @@ function get_pred_solution(PvGb, keys, poles; tri_results=Dict(),
             tri_names = collect(keys(tri_results))
         end
         if isnothing(tri_basis_mats)
-            tri_basis_mats = [Matrix{Float64}(I, 2, 2) for _ in tri_names]
+            tri_basis_mats = Oiler.Solver.default_tri_basis_mats(tri_names;
+                tri_solution_mode=tri_solution_mode)
         end
 
         tri_soln = Float64[]
@@ -245,8 +246,10 @@ function predict_model_velocities_one_pole_set(vel_groups::Dict{Tuple{String,Str
     tri_solution_mode = "linear"
     if length(tri_results) > 0
         first_tri = tri_results[first(keys(tri_results))]
-        if haskey(first_tri, "along_fraction")
+        if haskey(first_tri, "cross_fraction")
             tri_solution_mode = "pole_constrained"
+        elseif haskey(first_tri, "along_fraction")
+            tri_solution_mode = "pole_constrained_hard"
         end
     end
     pred_vel_vec = get_pred_solution(block_matrices["PvGb"], block_matrices["keys"],

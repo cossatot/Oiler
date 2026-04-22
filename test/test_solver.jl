@@ -309,7 +309,53 @@ function test_add_fault_locking_to_PvGb()
 end
 
 
+function build_regularization_test_tris()
+    tri1 = Oiler.Tri(
+        name="t1",
+        p1=[0.0, 0.0, 0.0],
+        p2=[1.0, 0.0, 0.0],
+        p3=[0.0, 1.0, 0.0],
+    )
+    tri2 = Oiler.Tri(
+        name="t2",
+        p1=[1.0, 0.0, 0.0],
+        p2=[1.0, 1.0, 0.0],
+        p3=[0.0, 1.0, 0.0],
+    )
+    tri3 = Oiler.Tri(
+        name="t3",
+        p1=[1.0, 0.0, 0.0],
+        p2=[2.0, 0.0, 0.0],
+        p3=[1.0, 1.0, 0.0],
+    )
+    [tri1, tri2, tri3]
+end
+
+
 function test_make_tri_regularization_matrix()
+    tris = build_regularization_test_tris()
+    tri_basis_mats = [zeros(2, 1) for _ in tris]
+
+    first_order = Oiler.Solver.make_tri_regularization_matrix(tris, 2.0;
+        tri_solution_mode="pole_constrained_hard",
+        tri_basis_mats=tri_basis_mats,
+        tri_regularization_order=1)
+    second_order = Oiler.Solver.make_tri_regularization_matrix(tris, 2.0;
+        tri_solution_mode="pole_constrained_hard",
+        tri_basis_mats=tri_basis_mats,
+        tri_regularization_order=2)
+
+    @test size(first_order) == (4, 3)
+    @test size(second_order) == (3, 3)
+    @test isapprox(second_order * ones(3), zeros(3); atol=1e-12)
+
+    d12 = Oiler.Tris.tri_centroid_distance(tris[1], tris[2])
+    d23 = Oiler.Tris.tri_centroid_distance(tris[2], tris[3])
+    w12 = 1.0 / d12
+    w23 = 1.0 / d23
+    wsum = w12 + w23
+    expected_middle_row = 2.0 .* [-w12 / wsum, 1.0, -w23 / wsum]
+    @test isapprox(second_order[2, :], expected_middle_row; atol=1e-12)
 end
 
 function test_make_tri_prior_matrices()
@@ -549,6 +595,86 @@ function test_pole_constrained_tri_mode()
 end
 
 
+function test_pole_constrained_hard_tri_mode()
+    pole = Oiler.PoleCart(
+        x=-4.000480063406787e-10,
+        y=-3.686194245405466e-9,
+        z=3.100995264274769e-9,
+        fix="fix",
+        mov="ca")
+    zero_pole = Oiler.PoleCart(x=0.0, y=0.0, z=0.0, fix="fix", mov="na")
+    pole_dict = Dict(("fix", "ca") => pole, ("fix", "na") => zero_pole)
+
+    tri_json = JSON.parsefile("./test_data/fake_na_ca/ca_na_fake_la_tris.geojson",
+        dicttype=Dict)
+    tris = Oiler.IO.tris_from_geojson(tri_json; depth_positive=false,
+        hw="ca", fw="na")
+
+    vel_df = CSV.read("./test_data/fake_na_ca/ca_na_fake_pts.csv", DataFrame)
+    lons = collect(vel_df.X)
+    lats = collect(vel_df.Y)
+    ca_idx = findall(vel_df.plate .== "ca")
+
+    pe = zeros(length(lons))
+    pn = zeros(length(lats))
+    ca_vels = Oiler.predict_block_vels(lons[ca_idx], lats[ca_idx], pole)
+    for (i, idx) in enumerate(ca_idx)
+        pe[idx] = ca_vels[i].ve
+        pn[idx] = ca_vels[i].vn
+    end
+
+    raw_tri_effects = Oiler.Elastic.calc_tri_effects(tris, lons, lats)
+    tri_basis_mats = Oiler.Solver.build_tri_basis_mats(tris, pole_dict;
+        tri_solution_mode="pole_constrained_hard")
+    tri_effects = Oiler.Solver.transform_tri_effects_to_model_basis(
+        raw_tri_effects, tri_basis_mats; tri_solution_mode="pole_constrained_hard")
+
+    true_along_fraction = 0.8
+    tri_model_soln = fill(true_along_fraction, length(tris))
+    tri_disp = tri_effects * tri_model_soln
+
+    ve = pe .+ tri_disp[1:3:end]
+    vn = pn .+ tri_disp[2:3:end]
+
+    gnss_vels = [
+        Oiler.VelocityVectorSphere(
+            lon=lons[i],
+            lat=lats[i],
+            ve=ve[i],
+            vn=vn[i],
+            ee=0.01,
+            en=0.01,
+            fix="fix",
+            mov=(i in ca_idx ? "ca" : "na"),
+            vel_type="GNSS",
+            name=string(i))
+        for i in eachindex(lons)
+    ]
+
+    vel_groups = Oiler.group_vels_by_fix_mov(gnss_vels)
+    results = Oiler.solve_block_invs_from_vel_groups(vel_groups;
+        tris=tris,
+        weighted=true,
+        regularize_tris=false,
+        tri_solution_mode="pole_constrained_hard",
+        tri_mode_iterations=2,
+        predict_vels=true,
+        pred_se=false,
+        check_closures=false)
+
+    @test results["tri_solution_mode"] == "pole_constrained_hard"
+    for tri in tris
+        tri_result = results["tri_slip_rates"][tri.name]
+        @test isapprox(tri_result["along_fraction"], true_along_fraction; atol=0.05)
+        @test !haskey(tri_result, "cross_fraction")
+    end
+
+    gnss_results = Oiler.ResultsAnalysis.get_gnss_results(results, vel_groups)
+    @test maximum(abs.(gnss_results.obs_ve .- gnss_results.pred_ve)) < 0.05
+    @test maximum(abs.(gnss_results.obs_vn .- gnss_results.pred_vn)) < 0.05
+end
+
+
 
 
 
@@ -568,6 +694,7 @@ end
     test_build_var_cov_weight_matrix_1()
     test_make_block_PvGb_from_vel()
     test_make_block_PvGb_from_vels()
+    test_make_tri_regularization_matrix()
     # test_add_tris_to_PvGb()
     # test_solve_block_invs_from_vel_groups_1_vel()
     # test_set_up_block_inv_w_constraints_1()
@@ -575,4 +702,5 @@ end
 
     test_solver_strategies()
     test_pole_constrained_tri_mode()
+    test_pole_constrained_hard_tri_mode()
 end
