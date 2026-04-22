@@ -7,9 +7,13 @@ import Base.Threads.@spawn
 import Base.Threads.@threads
 
 using ..Oiler
-using ..Oiler: Fault, VelocityVectorSphere, get_gnss_vels,
-    get_coords_from_vel_array, az_to_angle, okada
+using ..Oiler: Fault, okada
 
+
+
+const PartialMatrix = Matrix{Float64}
+const PartialStack = Vector{PartialMatrix}
+const LockingPartialKey = Tuple{UnitRange{Int},UnitRange{Int}}
 
 
 export fault_to_okada
@@ -44,6 +48,73 @@ function fault_to_okada(fault::Fault, sx1::Float64, sy1::Float64,
 
     Dict("strike" => strike, "delta" => delta, "L" => L, "W" => W, "lsd" => lsd,
         "ofx" => ofx, "ofy" => ofy)
+end
+
+
+function build_fault_transform_matrix(fault::Fault)
+    Pf = Oiler.Faults.build_velocity_projection_matrix(fault.strike, fault.dip)
+    vlon, vlat = Oiler.Faults.get_midpoint(fault.trace)
+    PvGbf = Oiler.BlockRotations.build_PvGb_deg(vlon, vlat)
+
+    Pf * PvGbf
+end
+
+
+function transform_partial_stack(elastic_partials::PartialStack, fault::Fault)
+    PfPvGbf = build_fault_transform_matrix(fault)
+    transformed = Vector{Matrix{Float64}}(undef, length(elastic_partials))
+
+    @inbounds for i in eachindex(elastic_partials)
+        transformed[i] = elastic_partials[i] * PfPvGbf
+    end
+
+    transformed
+end
+
+
+function accumulate_partial_stacks!(dest::PartialStack, src::PartialStack)
+    @inbounds for i in eachindex(dest, src)
+        dest[i] .+= src[i]
+    end
+
+    dest
+end
+
+
+function collect_gnss_locking_inputs(vel_groups, vg_keys)
+    gnss_lons = Float64[]
+    gnss_lats = Float64[]
+    gnss_rows = UnitRange{Int}[]
+    row_set_num = 0
+
+    for key in vg_keys
+        for vel in vel_groups[key]
+            row_set_num += 1
+            if vel.vel_type == "GNSS"
+                row_idx = 3 * (row_set_num - 1) + 1
+                push!(gnss_lons, vel.lon)
+                push!(gnss_lats, vel.lat)
+                push!(gnss_rows, row_idx:row_idx+2)
+            end
+        end
+    end
+
+    gnss_lons, gnss_lats, gnss_rows
+end
+
+
+function group_faults_by_key(faults, vel_group_keys)
+    fault_groups = Dict{Tuple{String,String},Vector{Fault}}()
+
+    for fault in faults
+        for key in vel_group_keys
+            if fault.fw in key && fault.hw in key
+                push!(get!(() -> Fault[], fault_groups, key), fault)
+            end
+        end
+    end
+
+    fault_groups
 end
 
 
@@ -84,16 +155,7 @@ function calc_okada_locking_effects_per_fault(fault::Fault, lons, lats;
         end
     end
 
-    # build rotation and transformation matrices
-    Pf = Oiler.Faults.build_velocity_projection_matrix(fault.strike, fault.dip)
-
-    PvGbf = Oiler.BlockRotations.build_PvGb_vel(
-        Oiler.fault_to_vel(fault)
-    )
-
-    PfPvGbf = Pf * PvGbf
-
-    [part * PfPvGbf for part in elastic_partials]
+    transform_partial_stack(elastic_partials, fault)
 end
 
 
@@ -104,8 +166,22 @@ function calc_locking_effects_segmented_fault(fault::Fault, lons, lats;
     simp_trace = Oiler.Geom.simplify_polyline(trace, 0.01)
     # simp_trace = trace
 
-    parts = []
-    for i = 1:size(simp_trace, 1)-1
+    n_segments = size(simp_trace, 1) - 1
+    if n_segments <= 0
+        return [zeros(3, 3) for _ in eachindex(lons)]
+    end
+
+    parts = calc_okada_locking_effects_per_fault(Oiler.Fault(trace=simp_trace[1:2, :],
+            dip=fault.dip,
+            dip_dir=fault.dip_dir,
+            lsd=fault.lsd,
+            usd=fault.usd,
+            check_trace=false,
+        ),
+        lons, lats; elastic_floor=elastic_floor,
+        check_nans=check_nans)
+
+    for i = 2:n_segments
         seg_trace = simp_trace[i:i+1, :]
         part = calc_okada_locking_effects_per_fault(Oiler.Fault(trace=seg_trace,
                 dip=fault.dip,
@@ -117,9 +193,10 @@ function calc_locking_effects_segmented_fault(fault::Fault, lons, lats;
             ),
             lons, lats; elastic_floor=elastic_floor,
             check_nans=check_nans)
-        push!(parts, part)
+        accumulate_partial_stacks!(parts, part)
     end
-    sum(parts)
+
+    parts
 end
 
 
@@ -204,32 +281,26 @@ function calc_tri_locking_effects_per_fault(fault::Fault, lons, lats;
         end
     end
 
-    # build rotation and transformation matrices
-    Pf = Oiler.Faults.build_velocity_projection_matrix(fault.strike, fault.dip)
-
-    PvGbf = Oiler.BlockRotations.build_PvGb_vel(
-        Oiler.fault_to_vel(fault)
-    )
-
-    PfPvGbf = Pf * PvGbf
-
-    [part * PfPvGbf for part in elastic_partials]
+    transform_partial_stack(elastic_partials, fault)
 end
 
 
 function get_fault_tris(fault::Fault)
     lower_trace = Oiler.Faults.project_fault_trace(fault)
 
-    tris = []
-    for i = 1:size(fault.trace, 1)-1
+    n_segs = size(fault.trace, 1) - 1
+    tris = Vector{Oiler.Tris.Tri}(undef, 2 * n_segs)
+
+    for i = 1:n_segs
         t1 = [fault.trace[i, 1]; fault.trace[i, 2]; 0.0]
         t2 = [fault.trace[i+1, 1]; fault.trace[i+1, 2]; 0.0]
         b1 = [lower_trace[i, 1]; lower_trace[i, 2]; -fault.lsd]
         b2 = [lower_trace[i+1, 1]; lower_trace[i+1, 2]; -fault.lsd]
         tri1 = Oiler.Tris.Tri(p1=t1, p2=t2, p3=b1)
         tri2 = Oiler.Tris.Tri(p1=t2, p2=b1, p3=b2)
-        push!(tris, tri1)
-        push!(tris, tri2)
+        tri_idx = 2 * i - 1
+        tris[tri_idx] = tri1
+        tris[tri_idx+1] = tri2
     end
 
     tris
@@ -237,10 +308,16 @@ end
 
 
 
-function distribute_partials(partials::NTuple{9,Array{Float64}})
+function distribute_partials(partials::NTuple{9,Vector{Float64}})
     # (es, ens, )
     n_gnss = length(partials[1])
-    [make_partials_matrix(partials, i) for i = 1:n_gnss]
+    out = Vector{Matrix{Float64}}(undef, n_gnss)
+
+    @inbounds for i = 1:n_gnss
+        out[i] = make_partials_matrix(partials, i)
+    end
+
+    out
 end
 
 
@@ -252,10 +329,18 @@ function make_partials_matrix(partials, i::Integer)
     # the vertical velocities are not returned, as this will cause problems
     # when vertical velocities from GNSS are not used, as is typical.
 
-    [partials[1][i] partials[4][i] partials[7][i]
-        partials[2][i] partials[5][i] partials[8][i]
-        # partials[3][i] partials[6][i] partials[9][i]]
-        0.0 0.0 0.0]
+    out = Matrix{Float64}(undef, 3, 3)
+    out[1, 1] = partials[1][i]
+    out[1, 2] = partials[4][i]
+    out[1, 3] = partials[7][i]
+    out[2, 1] = partials[2][i]
+    out[2, 2] = partials[5][i]
+    out[2, 3] = partials[8][i]
+    out[3, 1] = 0.0
+    out[3, 2] = 0.0
+    out[3, 3] = 0.0
+
+    out
 end
 
 function orient_fault_to_key(fault, key)
@@ -293,15 +378,12 @@ function calc_locking_effects(faults, vel_groups; elastic_floor=1e-4,
     check_nans=false)
 
     @info "\tprepping vels"
-    gnss_vels = get_gnss_vels(vel_groups)
-    gnss_lons = [vel["vel"].lon for vel in gnss_vels]
-    gnss_lats = [vel["vel"].lat for vel in gnss_vels]
-    gnss_idxs = [vel["idx"] for vel in gnss_vels]
+    vg_keys = sort(collect(Tuple(keys(vel_groups))))
+    gnss_lons, gnss_lats, gnss_rows = collect_gnss_locking_inputs(vel_groups, vg_keys)
 
     @info "\tsorting keys and grouping faults"
-    vg_keys = sort(collect(Tuple(keys(vel_groups))))
-    fault_groups = Oiler.Utils.group_faults(faults, vg_keys)
-    locking_partial_groups = Dict()
+    fault_groups = group_faults_by_key(faults, vg_keys)
+    locking_partial_groups = Dict{Tuple{String,String},PartialStack}()
 
 
     # calculate locking effects from each fault at each site
@@ -314,11 +396,19 @@ function calc_locking_effects(faults, vel_groups; elastic_floor=1e-4,
     for vg in vg_keys
         if haskey(fault_groups, vg)
             oriented_faults = [orient_fault_to_key(fault, vg) for fault in fault_groups[vg]]
-            locking_partial_groups[vg] = sum([
-                calc_any_fault_locking_effects(ofault, gnss_lons, gnss_lats,
-                    elastic_floor=elastic_floor, check_nans=check_nans)
-                for ofault in oriented_faults
-            ])
+            n_faults = length(oriented_faults)
+            if n_faults > 0
+                group_partials = calc_any_fault_locking_effects(oriented_faults[1],
+                    gnss_lons, gnss_lats, elastic_floor=elastic_floor,
+                    check_nans=check_nans)
+                for fault_idx = 2:n_faults
+                    fault_partials = calc_any_fault_locking_effects(oriented_faults[fault_idx],
+                        gnss_lons, gnss_lats,
+                        elastic_floor=elastic_floor, check_nans=check_nans)
+                    accumulate_partial_stacks!(group_partials, fault_partials)
+                end
+                locking_partial_groups[vg] = group_partials
+            end
         else
         end
     end
@@ -326,13 +416,13 @@ function calc_locking_effects(faults, vel_groups; elastic_floor=1e-4,
     # make a new dictionary with keys as the indices of the sub-array in
     # the model matrix
     @info "\t\tmaking partials dicts"
-    locking_partials = Dict()
+    locking_partials = Dict{LockingPartialKey,Matrix{Float64}}()
     for (i, vg) in enumerate(vg_keys)
         if haskey(locking_partial_groups, vg)
             col_id = 3 * (i - 1) + 1
             col_idx = col_id:col_id+2
-            for (j, row_idx) in enumerate(gnss_idxs)
-                locking_partials[(row_idx[1], col_idx)] = locking_partial_groups[vg][j]
+            for (j, row_idx) in enumerate(gnss_rows)
+                locking_partials[(row_idx, col_idx)] = locking_partial_groups[vg][j]
             end
         end
     end
@@ -349,8 +439,11 @@ of tris. Only horizontal components are returned.
 """
 function calc_tri_effects(tris, gnss_lons, gnss_lats; elastic_floor=1e-4)
 
+    if isempty(tris)
+        return zeros(length(gnss_lons) * 3, 0)
+    end
+
     tri_gnss_partials = hcat(ThreadsX.collect(
-    #tri_gnss_partials = hcat(collect(
         arrange_tri_partials(
             calc_tri_effects_single_tri(tri, gnss_lons, gnss_lats;
                 elastic_floor=elastic_floor)...)
@@ -405,7 +498,7 @@ function calc_tri_slip(tri, lons, lats; ss=0.0, ds=0.0, ts=0.0, floor=1e-4)
     sun[abs.(sun).<abs(ss * floor)] .= 0.0
     suv[abs.(suv).<abs(ss * floor)] .= 0.0
 
-    due', dun', duv', sue', sun', suv'
+    due, dun, duv, sue, sun, suv
 end
 
 
@@ -418,11 +511,6 @@ function arrange_tri_partials(due, dun, duv, sue, sun, suv; uv_zero=true)
 
     n_vels = length(due)
 
-    if uv_zero == true
-        duv = zeros(size(duv))
-        suv = zeros(size(suv))
-    end
-
     out = zeros(n_vels * 3, 2)
 
     for i = 1:n_vels
@@ -432,10 +520,10 @@ function arrange_tri_partials(due, dun, duv, sue, sun, suv; uv_zero=true)
 
         out[ind_e, 1] = due[i]
         out[ind_n, 1] = dun[i]
-        out[ind_v, 1] = duv[i]
+        out[ind_v, 1] = uv_zero ? 0.0 : duv[i]
         out[ind_e, 2] = sue[i]
         out[ind_n, 2] = sun[i]
-        out[ind_v, 2] = suv[i]
+        out[ind_v, 2] = uv_zero ? 0.0 : suv[i]
     end
     out
 end
