@@ -198,6 +198,28 @@ function make_block_inv_lhs_constraints(PvGb, cm)
 end
 
 
+function locking_partials_to_sparse(locking_partials, n_rows::Int, n_cols::Int)
+    n_entries = 9 * length(locking_partials)
+    row_idxs = Vector{Int}(undef, n_entries)
+    col_idxs = Vector{Int}(undef, n_entries)
+    vals = Vector{Float64}(undef, n_entries)
+    cursor = 1
+
+    for ((row_range, col_range), partials) in locking_partials
+        @inbounds for local_col = 1:3
+            for local_row = 1:3
+                row_idxs[cursor] = row_range[local_row]
+                col_idxs[cursor] = col_range[local_col]
+                vals[cursor] = partials[local_row, local_col]
+                cursor += 1
+            end
+        end
+    end
+
+    sparse(row_idxs, col_idxs, vals, n_rows, n_cols)
+end
+
+
 function add_fault_locking_to_PvGb(faults::Array{Fault},
     vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
     PvGb::SparseMatrixCSC{Float64,Int64}; elastic_floor=1e-4, check_nans=false)
@@ -208,12 +230,10 @@ function add_fault_locking_to_PvGb(faults::Array{Fault},
     #println(locking_partials)
 
     @info "   adding to PvGb"
-    PvGb = Matrix(PvGb)
-    @time for (part_idx, partials) in locking_partials
-        PvGb[part_idx[1], part_idx[2]] = PvGb[part_idx[1], part_idx[2]] + partials
-    end
-    replace!(PvGb, NaN=>0.0, Inf=>0.0, -Inf=>0.0)
-    PvGb = sparse(PvGb)
+    locking_delta = @time locking_partials_to_sparse(locking_partials, size(PvGb, 1),
+        size(PvGb, 2))
+    replace!(locking_delta.nzval, NaN=>0.0, Inf=>0.0, -Inf=>0.0)
+    PvGb = PvGb + locking_delta
     dropzeros!(PvGb)
     PvGb
 end
