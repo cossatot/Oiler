@@ -417,10 +417,60 @@ function test_get_block_idx_for_points()
     @test bx[4] == "1"
 end
 
+
+function test_tris_from_geojson_assign_hw_and_fw()
+    block_df = Oiler.IO.gis_vec_file_to_df(test_gj_blocks)
+    tri_json = Dict(
+        "type" => "FeatureCollection",
+        "features" => [
+            Dict(
+                "type" => "Feature",
+                "properties" => Dict("fid" => "tri_1"),
+                "geometry" => Dict(
+                    "type" => "Polygon",
+                    "coordinates" => [[
+                        [1.0, 1.6, 0.0],
+                        [1.1, 1.7, -10.0],
+                        [1.2, 1.6, -10.0],
+                        [1.0, 1.6, 0.0],
+                    ]]
+                )
+            ),
+            Dict(
+                "type" => "Feature",
+                "properties" => Dict("fid" => "tri_2", "hw" => "manual_hw"),
+                "geometry" => Dict(
+                    "type" => "Polygon",
+                    "coordinates" => [[
+                        [1.0, 1.6, 0.0],
+                        [1.1, 1.7, -10.0],
+                        [1.2, 1.6, -10.0],
+                        [1.0, 1.6, 0.0],
+                    ]]
+                )
+            )
+        ]
+    )
+
+    tris = Oiler.IO.tris_from_geojson(tri_json;
+        depth_positive=false,
+        fw="5",
+        hw="assign",
+        block_df=block_df,
+        epsg=4326)
+
+    @test length(tris) == 2
+    @test tris[1].fw == "5"
+    @test tris[1].hw == "1"
+    @test tris[2].fw == "5"
+    @test tris[2].hw == "manual_hw"
+end
+
 @testset "io.jl unit tests" begin
     test_get_coords_from_geom_polyline()
     ##test_gis_vec_file_to_df_gpkg_faults()
     test_get_block_idx_for_points()
+    test_tris_from_geojson_assign_hw_and_fw()
     test_gis_vec_file_to_df_geojson_blocks()
     ## load_geodataframes
     test_row_to_fault()

@@ -3,6 +3,7 @@ module ResultsAnalysis
 using Setfield
 using Statistics
 using StatsBase# , DataAPI
+using LinearAlgebra
 import Base.Threads.@threads
 using DataFrames, DataFramesMeta
 
@@ -153,16 +154,31 @@ function get_obs_pred_geol_rate_vecs(; geol_slip_rate_df,
 end
 
 
-function get_pred_solution(PvGb, keys, poles; tri_results=Dict())
+function get_pred_solution(PvGb, keys, poles; tri_results=Dict(),
+    tri_solution_mode::AbstractString="linear", tri_basis_mats=nothing,
+    tri_names=nothing)
 
     soln_vec = [[poles[k].x poles[k].y poles[k].z]
                 for k in keys]
     soln_vec = [(soln_vec...)...]
 
     if length(tri_results) > 0
-        tri_soln = [[tri["dip_slip"] tri["strike_slip"]]
-                    for tri in values(tri_results)]
-        tri_soln = [(tri_soln...)...]
+        if isnothing(tri_names)
+            tri_names = collect(keys(tri_results))
+        end
+        if isnothing(tri_basis_mats)
+            tri_basis_mats = [Matrix{Float64}(I, 2, 2) for _ in tri_names]
+        end
+
+        tri_soln = Float64[]
+        for (i, tri_name) in enumerate(tri_names)
+            tri_phys = [tri_results[tri_name]["dip_slip"];
+                        tri_results[tri_name]["strike_slip"]]
+            tri_model = Oiler.Solver.transform_tri_physical_to_model_basis(
+                tri_phys, tri_basis_mats[i];
+                tri_solution_mode=tri_solution_mode)
+            append!(tri_soln, tri_model)
+        end
         append!(soln_vec, tri_soln)
     end
 
@@ -172,9 +188,13 @@ end
 
 
 function calc_RMSE_from_G(block_matrices, results)
+    tri_solution_mode = get(results, "tri_solution_mode", "linear")
     y_pred = get_pred_solution(block_matrices["PvGb"], block_matrices["keys"],
         results["poles"];
-        tri_results=results["tri_slip_rates"])
+        tri_results=results["tri_slip_rates"],
+        tri_solution_mode=tri_solution_mode,
+        tri_basis_mats=get(block_matrices, "tri_basis_mats", nothing),
+        tri_names=get(block_matrices, "tri_names", nothing))
 
     y_obs = block_matrices["Vc"]
     n, p = size(block_matrices["PvGb"])
@@ -222,8 +242,19 @@ end
 function predict_model_velocities_one_pole_set(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
     block_matrices, poles; tri_results=Dict())
 
+    tri_solution_mode = "linear"
+    if length(tri_results) > 0
+        first_tri = tri_results[first(keys(tri_results))]
+        if haskey(first_tri, "along_fraction")
+            tri_solution_mode = "pole_constrained"
+        end
+    end
     pred_vel_vec = get_pred_solution(block_matrices["PvGb"], block_matrices["keys"],
-        poles; tri_results)
+        poles;
+        tri_results=tri_results,
+        tri_solution_mode=tri_solution_mode,
+        tri_basis_mats=get(block_matrices, "tri_basis_mats", nothing),
+        tri_names=get(block_matrices, "tri_names", nothing))
 
     # loop through vels, make new vels for each w/ predicted output
     # return in some form or fashion (pred_vel_groups?)

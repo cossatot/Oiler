@@ -2,6 +2,9 @@ using Test
 
 using SparseArrays
 using LinearAlgebra
+using CSV
+using JSON
+using DataFrames
 
 using Oiler
 
@@ -463,6 +466,89 @@ function test_solver_strategies()
 end
 
 
+function test_pole_constrained_tri_mode()
+    pole = Oiler.PoleCart(
+        x=-4.000480063406787e-10,
+        y=-3.686194245405466e-9,
+        z=3.100995264274769e-9,
+        fix="fix",
+        mov="ca")
+    zero_pole = Oiler.PoleCart(x=0.0, y=0.0, z=0.0, fix="fix", mov="na")
+    pole_dict = Dict(("fix", "ca") => pole, ("fix", "na") => zero_pole)
+
+    tri_json = JSON.parsefile("./test_data/fake_na_ca/ca_na_fake_la_tris.geojson",
+        dicttype=Dict)
+    tris = Oiler.IO.tris_from_geojson(tri_json; depth_positive=false,
+        hw="ca", fw="na")
+
+    vel_df = CSV.read("./test_data/fake_na_ca/ca_na_fake_pts.csv", DataFrame)
+    lons = collect(vel_df.X)
+    lats = collect(vel_df.Y)
+    ca_idx = findall(vel_df.plate .== "ca")
+
+    pe = zeros(length(lons))
+    pn = zeros(length(lats))
+    ca_vels = Oiler.predict_block_vels(lons[ca_idx], lats[ca_idx], pole)
+    for (i, idx) in enumerate(ca_idx)
+        pe[idx] = ca_vels[i].ve
+        pn[idx] = ca_vels[i].vn
+    end
+
+    raw_tri_effects = Oiler.Elastic.calc_tri_effects(tris, lons, lats)
+    tri_basis_mats = Oiler.Solver.build_tri_basis_mats(tris, pole_dict;
+        tri_solution_mode="pole_constrained")
+    tri_effects = Oiler.Solver.transform_tri_effects_to_model_basis(
+        raw_tri_effects, tri_basis_mats; tri_solution_mode="pole_constrained")
+
+    true_along_fraction = 0.8
+    true_cross_fraction = 0.0
+    tri_model_soln = reduce(vcat, [[true_along_fraction; true_cross_fraction]
+        for _ in tris])
+    tri_disp = tri_effects * tri_model_soln
+
+    ve = pe .+ tri_disp[1:3:end]
+    vn = pn .+ tri_disp[2:3:end]
+
+    gnss_vels = [
+        Oiler.VelocityVectorSphere(
+            lon=lons[i],
+            lat=lats[i],
+            ve=ve[i],
+            vn=vn[i],
+            ee=0.01,
+            en=0.01,
+            fix="fix",
+            mov=(i in ca_idx ? "ca" : "na"),
+            vel_type="GNSS",
+            name=string(i))
+        for i in eachindex(lons)
+    ]
+
+    vel_groups = Oiler.group_vels_by_fix_mov(gnss_vels)
+    results = Oiler.solve_block_invs_from_vel_groups(vel_groups;
+        tris=tris,
+        weighted=true,
+        regularize_tris=false,
+        tri_solution_mode="pole_constrained",
+        tri_mode_iterations=2,
+        tri_cross_fraction_err=0.1,
+        predict_vels=true,
+        pred_se=false,
+        check_closures=false)
+
+    @test results["tri_solution_mode"] == "pole_constrained"
+    for tri in tris
+        tri_result = results["tri_slip_rates"][tri.name]
+        @test isapprox(tri_result["along_fraction"], true_along_fraction; atol=0.05)
+        @test isapprox(tri_result["cross_fraction"], true_cross_fraction; atol=0.05)
+    end
+
+    gnss_results = Oiler.ResultsAnalysis.get_gnss_results(results, vel_groups)
+    @test maximum(abs.(gnss_results.obs_ve .- gnss_results.pred_ve)) < 0.05
+    @test maximum(abs.(gnss_results.obs_vn .- gnss_results.pred_vn)) < 0.05
+end
+
+
 
 
 
@@ -488,4 +574,5 @@ end
     # test_set_up_block_inv_w_constraints_1_tri()
 
     test_solver_strategies()
+    test_pole_constrained_tri_mode()
 end

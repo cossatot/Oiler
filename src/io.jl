@@ -989,21 +989,45 @@ function get_stoch_slip_rate_dict(stoch_slip_rates)
 end
 
 
-function tri_from_feature(feat; depth_units="km", depth_positive=false)
+function normalize_tri_block_id(val)
+    if ismissing(val) || isnothing(val)
+        return ""
+    end
+
+    string(strip(string(val)))
+end
+
+
+function tri_from_feature(feat; depth_units="km", depth_positive=false,
+    hw=nothing, fw=nothing)
     props = feat["properties"]
     kps = keys(props)
 
     if "fw" in kps
-        fw = string(props["fw"])
+        feat_fw = normalize_tri_block_id(props["fw"])
     else
-        fw = ""
+        feat_fw = ""
     end
 
     extra_args = Dict{Symbol, Any}()
     for kw in kps
         if (kw in string.(fieldnames(Oiler.Tris.Tri))) & (kw != "fw") & (kw != "name")
-            extra_args[Symbol(kw)] = props[kw]
+            if kw == "hw"
+                feat_hw = normalize_tri_block_id(props["hw"])
+                if !isempty(feat_hw)
+                    extra_args[:hw] = feat_hw
+                end
+            else
+                extra_args[Symbol(kw)] = props[kw]
+            end
         end
+    end
+
+    if !isnothing(hw) && hw != "assign"
+        extra_args[:hw] = normalize_tri_block_id(hw)
+    end
+    if !isnothing(fw)
+        feat_fw = normalize_tri_block_id(fw)
     end
 
     coords = feat["geometry"]["coordinates"][1]
@@ -1028,18 +1052,34 @@ function tri_from_feature(feat; depth_units="km", depth_positive=false)
         p1=p1,
         p2=p2,
         p3=p3,
-        fw=fw,
+        fw=feat_fw,
         extra_args...,
         name=string(feat["properties"]["fid"]),
     )
 end
 
 
-function tris_from_geojson(tri_json; depth_units="km", depth_positive=true)
-    tris = [tri_from_feature(feat; depth_units=depth_units, depth_positive=depth_positive)
+function tris_from_geojson(tri_json; depth_units="km", depth_positive=true,
+    hw=nothing, fw=nothing, block_df=nothing, epsg=102016)
+    tris = [tri_from_feature(feat;
+                depth_units=depth_units,
+                depth_positive=depth_positive,
+                hw=hw,
+                fw=fw)
             for feat in tri_json["features"]]
 
     tris = filter(t -> (t.p1 != t.p2) && (t.p1 != t.p3) && (t.p2 != t.p3), tris)
+
+    if hw == "assign"
+        if isnothing(block_df)
+            throw(ArgumentError("block_df is required when hw=\"assign\""))
+        end
+        tris = get_tri_hanging_walls(tris, block_df; epsg=epsg)
+    end
+
+    if !isnothing(fw)
+        tris = [@set tri.fw = string(fw) for tri in tris]
+    end
 
 end
 
@@ -1495,7 +1535,7 @@ function get_tri_hanging_walls(tris, block_df; epsg=102016)
     tri_idxs = get_block_idx_for_points(tri_df, block_df, epsg)
 
     function update_tri(tri, idx)
-        if ismissing(idx)
+        if !isempty(strip(tri.hw)) || ismissing(idx)
             return tri
         else
             tri = @set tri.hw = idx

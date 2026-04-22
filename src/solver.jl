@@ -142,6 +142,109 @@ function var_cov_from_tri(tri, zero_err_weight=1e-2)
 end
 
 
+function validate_tri_solution_mode(tri_solution_mode::AbstractString)
+    if !(tri_solution_mode in ("linear", "pole_constrained"))
+        throw(ArgumentError("tri_solution_mode must be \"linear\" or \"pole_constrained\""))
+    end
+    tri_solution_mode
+end
+
+
+function build_tri_basis_mats(tris, poles; tri_solution_mode::AbstractString="linear",
+    zero_tol::Float64=1e-6)
+    validate_tri_solution_mode(tri_solution_mode)
+
+    if tri_solution_mode == "linear"
+        return [Matrix{Float64}(I, 2, 2) for _ in tris]
+    end
+
+    tri_basis_mats = Matrix{Float64}[]
+    for tri in tris
+        if (tri.hw == "") || (tri.fw == "")
+            throw(ArgumentError("Tri $(tri.name) requires both hw and fw for pole_constrained mode"))
+        end
+        if tri.hw == tri.fw
+            throw(ArgumentError("Tri $(tri.name) has hw == fw ($(tri.hw)); pole_constrained mode requires different blocks"))
+        end
+
+        pole = Oiler.Utils.get_path_euler_pole(poles, tri.hw, tri.fw)
+        conv_ds, _, conv_ss, _, _ = Oiler.Tris.get_tri_rate_from_pole(tri, pole)
+        conv_vec = [conv_ds; conv_ss]
+        conv_mag = norm(conv_vec)
+        if conv_mag <= zero_tol
+            throw(ArgumentError("Tri $(tri.name) has near-zero convergence magnitude ($conv_mag); pole_constrained mode is ill-posed"))
+        end
+
+        cross_vec = [-conv_ss; conv_ds]
+        push!(tri_basis_mats, hcat(conv_vec, cross_vec))
+    end
+
+    tri_basis_mats
+end
+
+
+function transform_tri_rate_cov_to_model_basis(rate_vec::Vector{Float64},
+    cov_mat::AbstractMatrix{<:Real}, tri_basis_mat::AbstractMatrix{<:Real};
+    tri_solution_mode::AbstractString="linear")
+    if tri_solution_mode == "linear"
+        return rate_vec, Matrix{Float64}(cov_mat)
+    end
+
+    inv_basis = inv(Matrix{Float64}(tri_basis_mat))
+    model_rates = inv_basis * rate_vec
+    model_cov = inv_basis * Matrix{Float64}(cov_mat) * inv_basis'
+
+    model_rates, model_cov
+end
+
+
+function transform_tri_physical_to_model_basis(physical_vec::Vector{Float64},
+    tri_basis_mat::AbstractMatrix{<:Real}; tri_solution_mode::AbstractString="linear")
+    if tri_solution_mode == "linear"
+        return physical_vec
+    end
+
+    inv(Matrix{Float64}(tri_basis_mat)) * physical_vec
+end
+
+
+function transform_tri_model_to_physical_basis(model_vec::Vector{Float64},
+    tri_basis_mat::AbstractMatrix{<:Real}; tri_solution_mode::AbstractString="linear")
+    if tri_solution_mode == "linear"
+        return model_vec
+    end
+
+    Matrix{Float64}(tri_basis_mat) * model_vec
+end
+
+
+function transform_tri_model_cov_to_physical_basis(model_cov::AbstractMatrix{<:Real},
+    tri_basis_mat::AbstractMatrix{<:Real}; tri_solution_mode::AbstractString="linear")
+    if tri_solution_mode == "linear"
+        return Matrix{Float64}(model_cov)
+    end
+
+    tri_basis = Matrix{Float64}(tri_basis_mat)
+    tri_basis * Matrix{Float64}(model_cov) * tri_basis'
+end
+
+
+function transform_tri_effects_to_model_basis(tri_effects::AbstractMatrix,
+    tri_basis_mats; tri_solution_mode::AbstractString="linear")
+    if tri_solution_mode == "linear"
+        return tri_effects
+    end
+
+    tri_effects_out = zeros(size(tri_effects))
+    for (i, tri_basis_mat) in enumerate(tri_basis_mats)
+        cols = 2 * i - 1:2 * i
+        tri_effects_out[:, cols] = tri_effects[:, cols] * tri_basis_mat
+    end
+
+    tri_effects_out
+end
+
+
 function build_var_cov_matrix_from_vels(vels::Array{VelocityVectorSphere})
     diagonalize_matrices([var_cov_from_vel(vel) for vel in vels])
 end
@@ -265,7 +368,14 @@ function make_tri_prior_matrices_old(tris)
 end
 
 
-function make_tri_prior_matrices(tris)
+function make_tri_prior_matrices(tris; tri_solution_mode::AbstractString="linear",
+    tri_basis_mats=nothing)
+    validate_tri_solution_mode(tri_solution_mode)
+
+    if isnothing(tri_basis_mats)
+        tri_basis_mats = [Matrix{Float64}(I, 2, 2) for _ in tris]
+    end
+
     function is_default(tri)
         rates = [tri.dip_slip_rate, tri.dip_slip_err, tri.strike_slip_rate, tri.strike_slip_err]
         all(rates .== 0.0)
@@ -299,27 +409,42 @@ function make_tri_prior_matrices(tris)
             lhs[ds_row_ind, ds_col_ind] = 1.0
             lhs[ss_row_ind, ss_col_ind] = 1.0
 
-            rhs[ds_row_ind] = tri.dip_slip_rate
-            rhs[ss_row_ind] = tri.strike_slip_rate
+            tri_rates = [tri.dip_slip_rate; tri.strike_slip_rate]
+            tri_cov = var_cov_from_tri(tri)
+            model_rates, model_cov = transform_tri_rate_cov_to_model_basis(
+                tri_rates, tri_cov, tri_basis_mats[i];
+                tri_solution_mode=tri_solution_mode)
 
-            push!(var_covs, var_cov_from_tri(tri))
+            rhs[ds_row_ind] = model_rates[1]
+            rhs[ss_row_ind] = model_rates[2]
+
+            push!(var_covs, model_cov)
         end
     end
-    weights = diagonalize_matrices(var_covs)
+    if length(var_covs) == 0
+        weights = spzeros(0, 0)
+    else
+        weights = diagonalize_matrices(var_covs)
+    end
     lhs, rhs, weights
 end
 
 
 
-function make_tri_priors_from_rake_constraints(tri_rake_constraints, tris)
+function make_tri_priors_from_rake_constraints(tri_rake_constraints, tris;
+    tri_solution_mode::AbstractString="linear", tri_basis_mats=nothing)
+    validate_tri_solution_mode(tri_solution_mode)
+
+    if isnothing(tri_basis_mats)
+        tri_basis_mats = [Matrix{Float64}(I, 2, 2) for _ in tris]
+    end
+
     n_tris = length(tris)
     n_constraints = length(tri_rake_constraints)
     
     lhs = zeros(2 * n_constraints, 2 * n_tris)
     vels = ones(2 * n_constraints)
-    weights = Oiler.Utils.diagonalize_matrices(
-        [var_cov_from_tri(trc) for trc in tri_rake_constraints]
-        )
+    var_covs = Matrix{Float64}[]
     
     for (i, trc) in enumerate(tri_rake_constraints)
         ss_row_ind = 2 * i
@@ -332,17 +457,40 @@ function make_tri_priors_from_rake_constraints(tri_rake_constraints, tris)
         lhs[ss_row_ind, ss_col_ind] += 1.0
         lhs[ds_row_ind, ds_col_ind] += 1.0
 
-        vels[ss_row_ind] = trc.strike_slip_rate
-        vels[ds_row_ind] = trc.dip_slip_rate
+        trc_rates = [trc.dip_slip_rate; trc.strike_slip_rate]
+        trc_cov = var_cov_from_tri(trc)
+        model_rates, model_cov = transform_tri_rate_cov_to_model_basis(
+            trc_rates, trc_cov, tri_basis_mats[tri_idx];
+            tri_solution_mode=tri_solution_mode)
+
+        vels[ss_row_ind] = model_rates[2]
+        vels[ds_row_ind] = model_rates[1]
+        push!(var_covs, model_cov)
+    end
+    if length(var_covs) == 0
+        weights = spzeros(0, 0)
+    else
+        weights = Oiler.Utils.diagonalize_matrices(var_covs)
     end
     lhs, vels, weights
 end
 
 
 function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
-        tri_rake_constraints=[], distance_weight::Float64=10.0, elastic_floor=1e-4)
+        tri_rake_constraints=[], distance_weight::Float64=10.0,
+        elastic_floor=1e-4, tri_solution_mode::AbstractString="linear",
+        tri_basis_mats=nothing, tri_cross_fraction_err::Float64=0.1)
+
+    validate_tri_solution_mode(tri_solution_mode)
 
     nt = length(tris)
+
+    if isnothing(tri_basis_mats)
+        if tri_solution_mode == "pole_constrained"
+            throw(ArgumentError("tri_basis_mats are required for pole_constrained tri mode"))
+        end
+        tri_basis_mats = [Matrix{Float64}(I, 2, 2) for _ in tris]
+    end
 
     # Elastic locking effects on GNSS
     PvGb = vd["PvGb"]
@@ -355,6 +503,8 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
     @info "   calculating tri locking partials"
     @time tri_effects = Oiler.Elastic.calc_tri_effects(tris, gnss_lons, gnss_lats;
         elastic_floor=elastic_floor)
+    tri_effects = transform_tri_effects_to_model_basis(tri_effects, tri_basis_mats;
+        tri_solution_mode=tri_solution_mode)
     @info "   done"
     #@info "    making tri effect matrices"
     tri_gnss_effects_matrix = zeros((size(PvGb)[1], size(tri_effects)[2]))
@@ -373,34 +523,46 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
     #@info "    doing regularization"
     # Priors and regularization
     tri_reg_matrix = zeros(0, nt * 2)
-    #tri_reg_weights = zeros(0)
-    tri_reg_weights = ones(0)
+    tri_reg_weights = spzeros(0, 0)
     tri_reg_vels = zeros(0)
 
     # @info "    making regularization matrices"
     if regularize == true
         distance_reg_matrix = make_tri_regularization_matrix(tris, distance_weight)
         tri_reg_matrix = vcat(tri_reg_matrix, distance_reg_matrix)
-        tri_reg_weights = diagm(vcat(tri_reg_weights, ones(size(tri_reg_matrix, 1))))
+        distance_reg_weights = diagm(ones(size(distance_reg_matrix, 1)))
+        tri_reg_weights = diagonalize_matrices([tri_reg_weights, distance_reg_weights])
         tri_reg_vels = vcat(tri_reg_vels, zeros(size(tri_reg_matrix, 1)))
+    end
+
+    if (tri_solution_mode == "pole_constrained") && (nt > 0) &&
+            isfinite(tri_cross_fraction_err) && (tri_cross_fraction_err > 0.0)
+        cross_reg_matrix = zeros(nt, nt * 2)
+        for i in 1:nt
+            cross_reg_matrix[i, 2 * i] = 1.0
+        end
+        cross_reg_weights = diagm(fill(tri_cross_fraction_err^2, nt))
+        tri_reg_matrix = vcat(tri_reg_matrix, cross_reg_matrix)
+        tri_reg_weights = diagonalize_matrices([tri_reg_weights, cross_reg_weights])
+        tri_reg_vels = vcat(tri_reg_vels, zeros(nt))
     end
 
     #@info "    doing priors"
     if priors == true
-        priors, prior_vels, prior_weights = make_tri_prior_matrices(tris)
+        priors, prior_vels, prior_weights = make_tri_prior_matrices(tris;
+            tri_solution_mode=tri_solution_mode,
+            tri_basis_mats=tri_basis_mats)
         tri_reg_matrix = vcat(tri_reg_matrix, priors)
         tri_reg_vels = vcat(tri_reg_vels, prior_vels)
         tri_reg_weights = diagonalize_matrices([tri_reg_weights, prior_weights])
-    else
-        prior_weights = ones(size(tri_reg_weights))
     end
 
     if length(tri_rake_constraints) > 0
         rake_matrix, rake_vels, rake_weights = make_tri_priors_from_rake_constraints(
-                                                    tri_rake_constraints, tris)
-        #fake_rake_weights = ones(length(tri_rake_constraints))
+            tri_rake_constraints, tris;
+            tri_solution_mode=tri_solution_mode,
+            tri_basis_mats=tri_basis_mats)
         tri_reg_matrix = vcat(tri_reg_matrix, rake_matrix)
-        #tri_reg_weights = vcat(tri_reg_weights, fake_rake_weights)
         tri_reg_weights = diagonalize_matrices([tri_reg_weights, rake_weights])
         tri_reg_vels = vcat(tri_reg_vels, rake_vels)
     end
@@ -415,6 +577,8 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
     #vd["weights"] = vcat(vd["weights"], prior_weights)
     #vd["weights"] = vcat(vd["weights"], zeros(size(tri_reg_weights))) # maybe 1s?
     vd["tri_weights"] = tri_reg_weights
+    vd["tri_basis_mats"] = tri_basis_mats
+    vd["tri_names"] = [tri.name for tri in tris]
     vd["Vc"] = vcat(vd["Vc"], tri_reg_vels)
     vd["PvGb"] = PvGb
 
@@ -525,8 +689,11 @@ end
 function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
         faults::Array=[], tris::Array=[], regularize_tris=true, tri_priors=false, 
         tri_rake_constraints=[],
-    tri_distance_weight::Float64=10.0,
+    tri_distance_weight::Float64=10.0, tri_solution_mode::AbstractString="linear",
+    tri_basis_mats=nothing, tri_cross_fraction_err::Float64=0.1,
     elastic_floor=1e-4, check_nans=false, fill_nans=true, nan_fill_val=0.0, bound_faults=[])
+
+    validate_tri_solution_mode(tri_solution_mode)
 
     @info " making block inversion matrices"
     @time vd = make_block_inversion_matrices_from_vels(vel_groups)
@@ -604,7 +771,10 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
             priors=tri_priors, regularize=regularize_tris,
             tri_rake_constraints=tri_rake_constraints,
             distance_weight=tri_distance_weight,
-            elastic_floor=elastic_floor)
+            elastic_floor=elastic_floor,
+            tri_solution_mode=tri_solution_mode,
+            tri_basis_mats=tri_basis_mats,
+            tri_cross_fraction_err=tri_cross_fraction_err)
         @info " done doing tris"
     end
 
@@ -658,14 +828,20 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
     weighted::Bool=true,
     elastic_floor=1e-4,
     regularize_tris::Bool=true, tri_priors::Bool=false,
-    tri_distance_weight::Float64=10.0, sparse_lhs::Bool=false,
+    tri_distance_weight::Float64=10.0, tri_solution_mode::AbstractString="linear",
+    tri_basis_mats=nothing, tri_cross_fraction_err::Float64=0.1, sparse_lhs::Bool=false,
     constraint_method="kkt_sym", check_nans=false)
+
+    validate_tri_solution_mode(tri_solution_mode)
 
     if basic_matrices == Dict()
         basic_matrices = set_up_block_inv_no_constraints(vel_groups;
             faults=faults, tris=tris, regularize_tris=regularize_tris,
             tri_priors=tri_priors, tri_rake_constraints=tri_rake_constraints,
             tri_distance_weight=tri_distance_weight,
+            tri_solution_mode=tri_solution_mode,
+            tri_basis_mats=tri_basis_mats,
+            tri_cross_fraction_err=tri_cross_fraction_err,
             elastic_floor=elastic_floor, check_nans=check_nans)
     end
 
@@ -695,6 +871,9 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
             @info " Using weighted, non-constrained LLS"
             #@warn "does not currently use velocity covariances"
             weights = build_var_cov_weight_matrix(vel_groups)
+            if length(tris) > 0
+                weights = diagonalize_matrices([weights, basic_matrices["tri_weights"]])
+            end
             lhs, rhs = weight_inv_matrices(PvGb, Vc, weights)
         else
             @info " Using weighted, constrained LLS"
@@ -1125,11 +1304,16 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     tri_priors::Bool=false, 
     tri_rake_constraints=[],
     elastic_floor=1e-4,
-    tri_distance_weight::Float64=10.0, check_closures::Bool=true,
+    tri_distance_weight::Float64=10.0, tri_solution_mode::String="linear",
+    tri_mode_iterations::Int=2, tri_cross_fraction_err::Float64=0.1,
+    tri_basis_mats=nothing, tri_skip_pole_constrained_bootstrap::Bool=false,
+    check_closures::Bool=true,
     sparse_lhs::Bool=false, predict_vels::Bool=false, constraint_method="kkt_sym",
     pred_se::Bool=false, se_iters=1000, factorization="lu", check_nans=false,
     stoch_slip_rates::Bool=false,
     non_fault_bounds=[], off_fault_locking_depth::Float64=0.0)
+
+    validate_tri_solution_mode(tri_solution_mode)
 
     bound_faults = []
     if off_fault_locking_depth > 0.0 && length(non_fault_bounds) > 0
@@ -1139,6 +1323,77 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             non_fault_bounds)
     end
 
+    if (tri_solution_mode == "pole_constrained") && (length(tris) > 0) &&
+            !tri_skip_pole_constrained_bootstrap
+        n_iters = max(tri_mode_iterations, 1)
+        @info "bootstrapping pole_constrained tris with one linear tri solve"
+        bootstrap_results = solve_block_invs_from_vel_groups(vel_groups;
+            faults=faults,
+            tris=tris,
+            weighted=weighted,
+            regularize_tris=regularize_tris,
+            tri_priors=tri_priors,
+            tri_rake_constraints=tri_rake_constraints,
+            elastic_floor=elastic_floor,
+            tri_distance_weight=tri_distance_weight,
+            tri_solution_mode="linear",
+            tri_mode_iterations=1,
+            tri_cross_fraction_err=tri_cross_fraction_err,
+            tri_skip_pole_constrained_bootstrap=true,
+            check_closures=false,
+            sparse_lhs=sparse_lhs,
+            predict_vels=false,
+            constraint_method=constraint_method,
+            pred_se=false,
+            se_iters=se_iters,
+            factorization=factorization,
+            check_nans=check_nans,
+            stoch_slip_rates=false,
+            non_fault_bounds=non_fault_bounds,
+            off_fault_locking_depth=off_fault_locking_depth)
+
+        tri_basis_mats = build_tri_basis_mats(tris, bootstrap_results["poles"];
+            tri_solution_mode=tri_solution_mode)
+
+        iter_results = bootstrap_results
+        for iter in 1:n_iters
+            @info "pole_constrained tri solve iteration $iter / $n_iters"
+            is_last_iter = iter == n_iters
+            iter_results = solve_block_invs_from_vel_groups(vel_groups;
+                faults=faults,
+                tris=tris,
+                weighted=weighted,
+                regularize_tris=regularize_tris,
+                tri_priors=tri_priors,
+                tri_rake_constraints=tri_rake_constraints,
+                elastic_floor=elastic_floor,
+                tri_distance_weight=tri_distance_weight,
+                tri_solution_mode=tri_solution_mode,
+                tri_mode_iterations=1,
+                tri_cross_fraction_err=tri_cross_fraction_err,
+                tri_basis_mats=tri_basis_mats,
+                tri_skip_pole_constrained_bootstrap=true,
+                check_closures=(is_last_iter ? check_closures : false),
+                sparse_lhs=sparse_lhs,
+                predict_vels=(is_last_iter ? predict_vels : false),
+                constraint_method=constraint_method,
+                pred_se=(is_last_iter ? pred_se : false),
+                se_iters=se_iters,
+                factorization=factorization,
+                check_nans=check_nans,
+                stoch_slip_rates=(is_last_iter ? stoch_slip_rates : false),
+                non_fault_bounds=non_fault_bounds,
+                off_fault_locking_depth=off_fault_locking_depth)
+
+            if !is_last_iter
+                tri_basis_mats = build_tri_basis_mats(tris, iter_results["poles"];
+                    tri_solution_mode=tri_solution_mode)
+            end
+        end
+
+        return iter_results
+    end
+
     @info "setting up unconstrained matrices"
     @time block_inv_setup = set_up_block_inv_no_constraints(vel_groups;
         faults=faults,
@@ -1146,6 +1401,9 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         regularize_tris=regularize_tris,
         tri_priors=tri_priors,
         tri_distance_weight=tri_distance_weight,
+        tri_solution_mode=tri_solution_mode,
+        tri_basis_mats=tri_basis_mats,
+        tri_cross_fraction_err=tri_cross_fraction_err,
         tri_rake_constraints=tri_rake_constraints,
         elastic_floor=elastic_floor,
         tris=tris, check_nans=check_nans)
@@ -1163,7 +1421,10 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 
         results = Dict()
         results["poles"] = get_poles_from_soln(block_inv_setup["keys"], soln)
-        results["tri_slip_rates"] = get_tri_rates(tri_soln, tris)
+        results["tri_slip_rates"] = get_tri_rates(tri_soln, tris;
+            tri_solution_mode=tri_solution_mode,
+            tri_basis_mats=tri_basis_mats)
+        results["tri_solution_mode"] = tri_solution_mode
 
         results["stats_info"] = Dict{Any,Any}(
             "RMSE_df" => Oiler.ResultsAnalysis.calc_RMSE_from_G(block_inv_setup, results)
@@ -1185,7 +1446,9 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
                 block_inv_setup["keys"])
             if nt > 0
                 get_tri_uncertainties!(pole_var, tris, results["tri_slip_rates"],
-                    tri_soln_idx)
+                    tri_soln_idx;
+                    tri_solution_mode=tri_solution_mode,
+                    tri_basis_mats=tri_basis_mats)
             end
         end
 
@@ -1214,6 +1477,9 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         tri_priors=tri_priors,
         tris=tris,
         tri_distance_weight=tri_distance_weight,
+        tri_solution_mode=tri_solution_mode,
+        tri_basis_mats=tri_basis_mats,
+        tri_cross_fraction_err=tri_cross_fraction_err,
         tri_rake_constraints=tri_rake_constraints,
         elastic_floor=elastic_floor,
         sparse_lhs=sparse_lhs,
@@ -1265,7 +1531,10 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 
     results = Dict()
     results["poles"] = get_poles_from_soln(block_inv_setup["keys"], soln)
-    results["tri_slip_rates"] = get_tri_rates(tri_soln, tris)
+    results["tri_slip_rates"] = get_tri_rates(tri_soln, tris;
+        tri_solution_mode=tri_solution_mode,
+        tri_basis_mats=tri_basis_mats)
+    results["tri_solution_mode"] = tri_solution_mode
 
     results["stats_info"] = Dict{Any,Any}(
         "RMSE_df" => Oiler.ResultsAnalysis.calc_RMSE_from_G(block_inv_setup, results)
@@ -1298,7 +1567,9 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             block_inv_setup["keys"])
         if nt > 0
             get_tri_uncertainties!(pole_var, tris, results["tri_slip_rates"],
-                tri_soln_idx)
+                tri_soln_idx;
+                tri_solution_mode=tri_solution_mode,
+                tri_basis_mats=tri_basis_mats)
         end
 
         if stoch_slip_rates == true
@@ -1504,7 +1775,14 @@ function get_pole_uncertainties!(poles, pole_var, vel_group_keys)
 end
 
 
-function get_tri_rates(tri_soln, tris)
+function get_tri_rates(tri_soln, tris; tri_solution_mode::AbstractString="linear",
+    tri_basis_mats=nothing)
+    validate_tri_solution_mode(tri_solution_mode)
+
+    if isnothing(tri_basis_mats)
+        tri_basis_mats = [Matrix{Float64}(I, 2, 2) for _ in tris]
+    end
+
     tri_results = Dict()
 
     if length(tris) > 0
@@ -1512,24 +1790,50 @@ function get_tri_rates(tri_soln, tris)
         for (i, tri) in enumerate(tris)
             ds_ind = i * 2 - 1
             ss_ind = i * 2
+            tri_model_params = [tri_soln[ds_ind]; tri_soln[ss_ind]]
+            tri_phys_params = transform_tri_model_to_physical_basis(
+                tri_model_params, tri_basis_mats[i];
+                tri_solution_mode=tri_solution_mode)
             tri_results[tri.name] = Dict()
-            tri_results[tri.name]["dip_slip"] = tri_soln[ds_ind]
-            tri_results[tri.name]["strike_slip"] = tri_soln[ss_ind]
+            tri_results[tri.name]["dip_slip"] = tri_phys_params[1]
+            tri_results[tri.name]["strike_slip"] = tri_phys_params[2]
+            if tri_solution_mode == "pole_constrained"
+                tri_results[tri.name]["along_fraction"] = tri_model_params[1]
+                tri_results[tri.name]["cross_fraction"] = tri_model_params[2]
+                tri_results[tri.name]["convergence_dip_slip"] = tri_basis_mats[i][1, 1]
+                tri_results[tri.name]["convergence_strike_slip"] = tri_basis_mats[i][2, 1]
+            end
         end
     end
     tri_results
 end
 
 
-function get_tri_uncertainties!(pole_var, tris, tri_results, tri_soln_idx)
+function get_tri_uncertainties!(pole_var, tris, tri_results, tri_soln_idx;
+    tri_solution_mode::AbstractString="linear", tri_basis_mats=nothing)
+    validate_tri_solution_mode(tri_solution_mode)
+
+    if isnothing(tri_basis_mats)
+        tri_basis_mats = [Matrix{Float64}(I, 2, 2) for _ in tris]
+    end
+
     tri_var = pole_var[tri_soln_idx, tri_soln_idx]
     if length(tris) > 0
         for (i, tri) in enumerate(tris)
             ds_ind = i * 2 - 1
             ss_ind = i * 2
-            tri_results[tri.name]["dip_slip_err"] = sqrt(tri_var[ds_ind, ds_ind])
-            tri_results[tri.name]["strike_slip_err"] = sqrt(tri_var[ss_ind, ss_ind])
-            tri_results[tri.name]["dsc"] = tri_var[ds_ind, ss_ind]
+            tri_model_cov = Matrix{Float64}(tri_var[ds_ind:ss_ind, ds_ind:ss_ind])
+            tri_phys_cov = transform_tri_model_cov_to_physical_basis(
+                tri_model_cov, tri_basis_mats[i];
+                tri_solution_mode=tri_solution_mode)
+            tri_results[tri.name]["dip_slip_err"] = sqrt(max(tri_phys_cov[1, 1], 0.0))
+            tri_results[tri.name]["strike_slip_err"] = sqrt(max(tri_phys_cov[2, 2], 0.0))
+            tri_results[tri.name]["dsc"] = tri_phys_cov[1, 2]
+            if tri_solution_mode == "pole_constrained"
+                tri_results[tri.name]["along_fraction_err"] = sqrt(max(tri_model_cov[1, 1], 0.0))
+                tri_results[tri.name]["cross_fraction_err"] = sqrt(max(tri_model_cov[2, 2], 0.0))
+                tri_results[tri.name]["along_cross_cov"] = tri_model_cov[1, 2]
+            end
         end
     end
 end
