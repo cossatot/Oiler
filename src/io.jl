@@ -1501,9 +1501,58 @@ function features_to_geojson(feature_df; name="", min_dist=0.0001, simplify=fals
 end
 
 
-function write_block_df(block_df, outfile; name="", min_dist=0.0001, simplify=false)
-    gj = features_to_geojson(block_df; name=name, min_dist=min_dist,
-        check_poly_winding_order=true)
+function add_block_strain_results_to_df(block_df, results)
+    if isnothing(results) || !(haskey(results, "block_strain_rates"))
+        return copy(block_df)
+    end
+
+    strain_results = results["block_strain_rates"]
+    if isempty(strain_results)
+        return copy(block_df)
+    end
+
+    out_df = copy(block_df)
+    strain_fields = String[]
+
+    for block_result in values(strain_results)
+        if !(block_result isa AbstractDict)
+            continue
+        end
+        for field in keys(block_result)
+            field = string(field)
+            if !(field in strain_fields)
+                push!(strain_fields, field)
+            end
+        end
+    end
+
+    for field in strain_fields
+        out_df[!, Symbol(field)] = Any[nothing for _ in 1:size(out_df, 1)]
+    end
+
+    for i in 1:size(out_df, 1)
+        fid = string(out_df[i, :fid])
+        if !haskey(strain_results, fid)
+            continue
+        end
+
+        block_result = strain_results[fid]
+        for field in strain_fields
+            if haskey(block_result, field)
+                out_df[i, Symbol(field)] = block_result[field]
+            end
+        end
+    end
+
+    out_df
+end
+
+
+function write_block_df(block_df, outfile; results=nothing, name="", min_dist=0.0001,
+    simplify=false)
+    out_df = add_block_strain_results_to_df(block_df, results)
+    gj = features_to_geojson(out_df; name=name, min_dist=min_dist,
+        simplify=simplify, check_poly_winding_order=true)
     open(outfile, "w") do f
         JSON.print(f, gj)
     end

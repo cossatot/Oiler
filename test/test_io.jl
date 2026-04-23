@@ -1,6 +1,7 @@
 using Test
 
 using Oiler
+using JSON
 
 using PyPlot
 
@@ -466,11 +467,42 @@ function test_tris_from_geojson_assign_hw_and_fw()
     @test tris[2].hw == "manual_hw"
 end
 
+
+function test_write_block_df_includes_block_strain_results()
+    block_df = Oiler.IO.gis_vec_file_to_df(test_gj_blocks)
+    results = Dict(
+        "block_strain_rates" => Dict(
+            "1" => Dict(
+                "ee" => 1.5,
+                "en" => -0.25,
+                "nn" => 0.75,
+                "ee_err" => 0.1,
+            )
+        )
+    )
+
+    outfile = tempname() * ".geojson"
+    Oiler.IO.write_block_df(block_df, outfile; results=results)
+
+    gj = JSON.parsefile(outfile)
+    props_by_fid = Dict(
+        string(feature["properties"]["fid"]) => feature["properties"]
+        for feature in gj["features"]
+    )
+
+    @test props_by_fid["1"]["ee"] == 1.5
+    @test props_by_fid["1"]["en"] == -0.25
+    @test props_by_fid["1"]["nn"] == 0.75
+    @test props_by_fid["1"]["ee_err"] == 0.1
+    @test isnothing(props_by_fid["3"]["ee"])
+end
+
 @testset "io.jl unit tests" begin
     test_get_coords_from_geom_polyline()
     ##test_gis_vec_file_to_df_gpkg_faults()
     test_get_block_idx_for_points()
     test_tris_from_geojson_assign_hw_and_fw()
+    test_write_block_df_includes_block_strain_results()
     test_gis_vec_file_to_df_geojson_blocks()
     ## load_geodataframes
     test_row_to_fault()

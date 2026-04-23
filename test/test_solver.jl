@@ -675,6 +675,83 @@ function test_pole_constrained_hard_tri_mode()
 end
 
 
+function test_block_strain_min_data_threshold()
+    block_df = DataFrame(fid=["ca"], lon=[0.0], lat=[0.0])
+    vels = [
+        Oiler.VelocityVectorSphere(
+            lon=lon,
+            lat=lat,
+            ve=0.0,
+            vn=0.0,
+            ee=0.01,
+            en=0.01,
+            fix="fix",
+            mov="ca",
+            vel_type="GNSS",
+            name=string(i))
+        for (i, (lon, lat)) in enumerate(((-0.2, 0.0), (0.2, 0.0), (0.0, 0.2)))
+    ]
+
+    vel_groups = Oiler.group_vels_by_fix_mov(vels)
+    vd = Oiler.Solver.set_up_block_inv_no_constraints(vel_groups;
+        block_df=block_df,
+        regularize_strain=false,
+        strain_min_data=4)
+
+    @test isempty(vd["strain_block_ids"])
+    @test size(vd["PvGb"], 2) == 3
+end
+
+
+function test_block_strain_solver_mode()
+    block_df = DataFrame(fid=["ca"], lon=[0.0], lat=[0.0])
+    true_strain = [20.0, 5.0, -10.0]
+    coords = [
+        (-0.6, 0.0),
+        (0.6, 0.0),
+        (0.0, 0.6),
+        (0.0, -0.6),
+        (0.35, 0.25),
+        (-0.3, 0.2),
+    ]
+
+    vels = Oiler.VelocityVectorSphere[]
+    for (i, (lon, lat)) in enumerate(coords)
+        lhs = Oiler.Strain.make_strain_rate_equations(lon, lat, 0.0, 0.0)
+        ve, vn = lhs * true_strain
+        push!(vels, Oiler.VelocityVectorSphere(
+            lon=lon,
+            lat=lat,
+            ve=ve,
+            vn=vn,
+            ee=0.01,
+            en=0.01,
+            fix="fix",
+            mov="ca",
+            vel_type="GNSS",
+            name=string(i)))
+    end
+
+    vel_groups = Oiler.group_vels_by_fix_mov(vels)
+    results = Oiler.solve_block_invs_from_vel_groups(vel_groups;
+        weighted=true,
+        block_df=block_df,
+        regularize_strain=false,
+        predict_vels=true,
+        pred_se=false,
+        check_closures=false)
+
+    block_strain = results["block_strain_rates"]["ca"]
+    @test isapprox(block_strain["ee"], true_strain[1]; atol=0.05)
+    @test isapprox(block_strain["en"], true_strain[2]; atol=0.05)
+    @test isapprox(block_strain["nn"], true_strain[3]; atol=0.05)
+
+    gnss_results = Oiler.ResultsAnalysis.get_gnss_results(results, vel_groups)
+    @test maximum(abs.(gnss_results.obs_ve .- gnss_results.pred_ve)) < 0.05
+    @test maximum(abs.(gnss_results.obs_vn .- gnss_results.pred_vn)) < 0.05
+end
+
+
 
 
 
@@ -701,6 +778,8 @@ end
     # test_set_up_block_inv_w_constraints_1_tri()
 
     test_solver_strategies()
+    test_block_strain_min_data_threshold()
+    test_block_strain_solver_mode()
     test_pole_constrained_tri_mode()
     test_pole_constrained_hard_tri_mode()
 end

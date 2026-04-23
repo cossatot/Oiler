@@ -45,7 +45,7 @@ function write_web_viewer(; results, block_df, directory::AbstractString, ref_po
     #cp(main_file, "joinpath(directory, "js", "main.js")"; force = true)
 
     Oiler.IO.write_solution_poles(pole_filepath, results, block_df, ref_pole)
-    Oiler.IO.write_block_df(block_df, block_filepath, simplify=true)
+    Oiler.IO.write_block_df(block_df, block_filepath; results=results, simplify=true)
 
     open(joinpath(directory, "index.html"), "w") do f
         write(f, filled_index_html)

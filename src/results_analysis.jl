@@ -154,13 +154,25 @@ function get_obs_pred_geol_rate_vecs(; geol_slip_rate_df,
 end
 
 
-function get_pred_solution(PvGb, keys, poles; tri_results=Dict(),
+function get_pred_solution(PvGb, keys, poles; strain_results=Dict(), tri_results=Dict(),
     tri_solution_mode::AbstractString="linear", tri_basis_mats=nothing,
-    tri_names=nothing)
+    tri_names=nothing, strain_block_ids=nothing)
 
     soln_vec = [[poles[k].x poles[k].y poles[k].z]
                 for k in keys]
     soln_vec = [(soln_vec...)...]
+
+    if length(strain_results) > 0
+        if isnothing(strain_block_ids)
+            strain_block_ids = collect(keys(strain_results))
+        end
+        strain_soln = Float64[]
+        for block_id in strain_block_ids
+            block_rates = strain_results[block_id]
+            append!(strain_soln, [block_rates["ee"], block_rates["en"], block_rates["nn"]])
+        end
+        append!(soln_vec, strain_soln)
+    end
 
     if length(tri_results) > 0
         if isnothing(tri_names)
@@ -192,10 +204,12 @@ function calc_RMSE_from_G(block_matrices, results)
     tri_solution_mode = get(results, "tri_solution_mode", "linear")
     y_pred = get_pred_solution(block_matrices["PvGb"], block_matrices["keys"],
         results["poles"];
+        strain_results=get(results, "block_strain_rates", Dict()),
         tri_results=results["tri_slip_rates"],
         tri_solution_mode=tri_solution_mode,
         tri_basis_mats=get(block_matrices, "tri_basis_mats", nothing),
-        tri_names=get(block_matrices, "tri_names", nothing))
+        tri_names=get(block_matrices, "tri_names", nothing),
+        strain_block_ids=get(block_matrices, "strain_block_ids", nothing))
 
     y_obs = block_matrices["Vc"]
     n, p = size(block_matrices["PvGb"])
@@ -204,7 +218,7 @@ function calc_RMSE_from_G(block_matrices, results)
 end
 
 function predict_model_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
-    block_matrices, poles; tri_results=Dict())
+    block_matrices, poles; strain_results=Dict(), tri_results=Dict())
 
     # this is for propagating uncertainties to GNSS vels, unfinished
     # but I don't want to leave it in a branch.
@@ -236,12 +250,12 @@ function predict_model_velocities(vel_groups::Dict{Tuple{String,String},Array{Ve
     #    end
     #end
     predict_model_velocities_one_pole_set(vel_groups,
-        block_matrices, poles; tri_results=tri_results)
+        block_matrices, poles; strain_results=strain_results, tri_results=tri_results)
 end
 
 
 function predict_model_velocities_one_pole_set(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
-    block_matrices, poles; tri_results=Dict())
+    block_matrices, poles; strain_results=Dict(), tri_results=Dict())
 
     tri_solution_mode = "linear"
     if length(tri_results) > 0
@@ -254,10 +268,12 @@ function predict_model_velocities_one_pole_set(vel_groups::Dict{Tuple{String,Str
     end
     pred_vel_vec = get_pred_solution(block_matrices["PvGb"], block_matrices["keys"],
         poles;
+        strain_results=strain_results,
         tri_results=tri_results,
         tri_solution_mode=tri_solution_mode,
         tri_basis_mats=get(block_matrices, "tri_basis_mats", nothing),
-        tri_names=get(block_matrices, "tri_names", nothing))
+        tri_names=get(block_matrices, "tri_names", nothing),
+        strain_block_ids=get(block_matrices, "strain_block_ids", nothing))
 
     # loop through vels, make new vels for each w/ predicted output
     # return in some form or fashion (pred_vel_groups?)
@@ -602,9 +618,10 @@ function calculate_resid_block_strain_rates(results; min_stations=5.)
     lc_stress = zeros(n_blocks)
 
     for (i, block) in enumerate(eachrow(blocks))
-        block_strain = Oiler.Strain.get_block_strain_rates(block.fid, vels, blocks; 
-                                              min_stations=min_stations,
-            ve=:resid_e, vn=:resid_n)
+        block_strain = Oiler.Strain.estimate_block_strain_rates(block.fid, vels, blocks; 
+            min_stations=min_stations,
+            ve=:resid_e, vn=:resid_n,
+            fit_translation=true)
     
         strain_ee[i] = block_strain.ee
         strain_en[i] = block_strain.en

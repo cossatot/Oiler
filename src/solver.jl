@@ -193,7 +193,39 @@ function n_tri_model_params(tris, tri_basis_mats=nothing;
     tri_solution_mode::AbstractString="linear")
     tri_basis_mats = get_tri_basis_mats(tris, tri_basis_mats;
         tri_solution_mode=tri_solution_mode)
-    sum(size(tri_basis_mat, 2) for tri_basis_mat in tri_basis_mats)
+    sum(size(tri_basis_mat, 2) for tri_basis_mat in tri_basis_mats; init=0)
+end
+
+
+function n_strain_model_params(strain_block_ids)
+    3 * length(strain_block_ids)
+end
+
+
+function get_solution_layout(vel_group_keys, strain_block_ids, tris;
+    tri_solution_mode::AbstractString="linear", tri_basis_mats=nothing)
+    np = length(vel_group_keys)
+    n_pole_params = 3 * np
+    n_strain_params = n_strain_model_params(strain_block_ids)
+    n_tri_params = n_tri_model_params(tris, tri_basis_mats;
+        tri_solution_mode=tri_solution_mode)
+
+    pole_soln_idx = 1:n_pole_params
+    strain_soln_idx = (n_pole_params + 1):(n_pole_params + n_strain_params)
+    tri_start = n_pole_params + n_strain_params + 1
+    tri_end = n_pole_params + n_strain_params + n_tri_params
+    tri_soln_idx = tri_start:tri_end
+
+    Dict(
+        "n_pole_params" => n_pole_params,
+        "n_strain_params" => n_strain_params,
+        "n_tri_params" => n_tri_params,
+        "n_extra_params" => n_strain_params + n_tri_params,
+        "pole_soln_idx" => pole_soln_idx,
+        "strain_soln_idx" => strain_soln_idx,
+        "tri_soln_idx" => tri_soln_idx,
+        "soln_length" => n_pole_params + n_strain_params + n_tri_params,
+    )
 end
 
 
@@ -714,6 +746,8 @@ function add_tris_to_PvGb(tris, vel_groups, vd; priors=false, regularize=true,
     #vd["weights"] = vcat(vd["weights"], prior_weights)
     #vd["weights"] = vcat(vd["weights"], zeros(size(tri_reg_weights))) # maybe 1s?
     vd["tri_weights"] = tri_reg_weights
+    vd["extra_weights"] = diagonalize_matrices(
+        [get(vd, "extra_weights", spzeros(0, 0)), tri_reg_weights])
     vd["tri_basis_mats"] = tri_basis_mats
     vd["tri_names"] = [tri.name for tri in tris]
     vd["Vc"] = vcat(vd["Vc"], tri_reg_vels)
@@ -826,6 +860,8 @@ end
 function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
         faults::Array=[], tris::Array=[], regularize_tris=true, tri_priors=false, 
         tri_rake_constraints=[],
+    strain_blocks=[], block_df=nothing, regularize_strain::Bool=true,
+    strain_rate_err::Float64=5.0, strain_min_data::Int=5,
     tri_distance_weight::Float64=10.0, tri_solution_mode::AbstractString="linear",
     tri_basis_mats=nothing, tri_cross_fraction_err::Float64=0.1,
     tri_regularization_order::Int=2,
@@ -836,6 +872,8 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
 
     @info " making block inversion matrices"
     @time vd = make_block_inversion_matrices_from_vels(vel_groups)
+    vd["extra_weights"] = spzeros(0, 0)
+    vd["strain_block_ids"] = String[]
     PvGb_size = size(vd["PvGb"])
     @info "  raw PvGb size: $PvGb_size"
 
@@ -904,6 +942,16 @@ function set_up_block_inv_no_constraints(vel_groups::Dict{Tuple{String,String},A
         end
     end
 
+    if !isnothing(block_df)
+        @info " doing block strains"
+        @time vd = Oiler.Strain.add_strain_to_PvGb(vel_groups, vd, block_df,
+            strain_blocks;
+            regularize=regularize_strain,
+            strain_rate_err=strain_rate_err,
+            min_data=strain_min_data)
+        @info " done doing block strains"
+    end
+
     if length(tris) > 0
         @info " doing tris"
         @time vd = add_tris_to_PvGb(tris, vel_groups, vd;
@@ -965,6 +1013,8 @@ end
 
 function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}};
         basic_matrices::Dict=Dict(), faults::Array=[], tris::Array=[], tri_rake_constraints=[],
+    strain_blocks=[], block_df=nothing, regularize_strain::Bool=true,
+    strain_rate_err::Float64=5.0, strain_min_data::Int=5,
     weighted::Bool=true,
     elastic_floor=1e-4,
     regularize_tris::Bool=true, tri_priors::Bool=false,
@@ -979,6 +1029,10 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
         basic_matrices = set_up_block_inv_no_constraints(vel_groups;
             faults=faults, tris=tris, regularize_tris=regularize_tris,
             tri_priors=tri_priors, tri_rake_constraints=tri_rake_constraints,
+            strain_blocks=strain_blocks, block_df=block_df,
+            regularize_strain=regularize_strain,
+            strain_rate_err=strain_rate_err,
+            strain_min_data=strain_min_data,
             tri_distance_weight=tri_distance_weight,
             tri_solution_mode=tri_solution_mode,
             tri_basis_mats=tri_basis_mats,
@@ -1001,11 +1055,12 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
         cm = []
     else
         cm = build_constraint_matrices(cycles, basic_matrices["keys"])
-        if length(tris) > 0
-            n_tri_params = n_tri_model_params(tris,
-                get(basic_matrices, "tri_basis_mats", tri_basis_mats);
-                tri_solution_mode=tri_solution_mode)
-            cm = hcat(cm, zeros(size(cm)[1], n_tri_params))
+        layout = get_solution_layout(basic_matrices["keys"],
+            get(basic_matrices, "strain_block_ids", String[]), tris;
+            tri_solution_mode=tri_solution_mode,
+            tri_basis_mats=get(basic_matrices, "tri_basis_mats", tri_basis_mats))
+        if layout["n_extra_params"] > 0
+            cm = hcat(cm, zeros(size(cm)[1], layout["n_extra_params"]))
             cm = vcat(cm, zeros(size(PvGb, 1) - size(cm, 1), size(PvGb, 2)))
         end
         cm = Oiler.Utils.sort_sparse_matrix(cm)
@@ -1016,8 +1071,8 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
             @info " Using weighted, non-constrained LLS"
             #@warn "does not currently use velocity covariances"
             weights = build_var_cov_weight_matrix(vel_groups)
-            if length(tris) > 0
-                weights = diagonalize_matrices([weights, basic_matrices["tri_weights"]])
+            if size(get(basic_matrices, "extra_weights", spzeros(0, 0)), 1) > 0
+                weights = diagonalize_matrices([weights, basic_matrices["extra_weights"]])
             end
             lhs, rhs = weight_inv_matrices(PvGb, Vc, weights)
         else
@@ -1026,10 +1081,9 @@ function set_up_block_inv_w_constraints(vel_groups::Dict{Tuple{String,String},Ar
             weights = build_var_cov_weight_matrix(vel_groups)
             basic_matrices["var_cov_matrix"] = weights
 
-            if length(tris) > 0
+            if size(get(basic_matrices, "extra_weights", spzeros(0, 0)), 1) > 0
                 weights = diagonalize_matrices([weights,
-                    #(basic_matrices["tri_weights"] .^ 2)])
-                    (basic_matrices["tri_weights"])])
+                    basic_matrices["extra_weights"]])
             end
 
             lhs, rhs = make_weighted_constrained_lls_matrices(PvGb, Vc, cm,
@@ -1255,11 +1309,14 @@ function solve_reduced_null_space(block_inv_setup::Dict, vel_groups, tris;
     PvGb = block_inv_setup["PvGb"]
     Vc = block_inv_setup["Vc"]
     keys_ = block_inv_setup["keys"]
-    np = length(keys_)
     tri_basis_mats = get(block_inv_setup, "tri_basis_mats", nothing)
     tri_solution_mode = get(block_inv_setup, "tri_solution_mode", "linear")
-    n_tri_params = n_tri_model_params(tris, tri_basis_mats;
-        tri_solution_mode=tri_solution_mode)
+    layout = get_solution_layout(keys_,
+        get(block_inv_setup, "strain_block_ids", String[]), tris;
+        tri_solution_mode=tri_solution_mode,
+        tri_basis_mats=tri_basis_mats)
+    np = length(keys_)
+    n_extra_params = layout["n_extra_params"]
     n_data = length(Vc)
 
     @info "  building null-space basis Z from pair-graph spanning tree"
@@ -1267,13 +1324,13 @@ function solve_reduced_null_space(block_inv_setup::Dict, vel_groups, tris;
     n_tree = length(tree_nodes)
     @info "   tree has $(n_tree) free pair(s); $(np - n_tree) cycle constraint(s) eliminated"
 
-    if n_tri_params > 0
-        Z = blockdiag(Z_pole, spdiagm(0 => ones(n_tri_params)))
+    if n_extra_params > 0
+        Z = blockdiag(Z_pole, spdiagm(0 => ones(n_extra_params)))
     else
         Z = Z_pole
     end
     Z_sz = size(Z)
-    @info "   Z size: $Z_sz (pair layout rows × $(n_tree*3 + n_tri_params) reduced params)"
+    @info "   Z size: $Z_sz (pair layout rows × $(n_tree*3 + n_extra_params) reduced params)"
 
     @info "  forming reduced design matrix K = PvGb * Z"
     @time K = PvGb * Z
@@ -1289,17 +1346,17 @@ function solve_reduced_null_space(block_inv_setup::Dict, vel_groups, tris;
             end
             W_inv_data = diagonalize_matrices(vel_blocks)
 
-            n_tri_reg = n_data - size(W_inv_data, 1)
-            if n_tri_reg > 0
-                tri_w = block_inv_setup["tri_weights"]
-                if isdiag(tri_w)
-                    diag_vals = [tri_w[i, i] for i in 1:size(tri_w, 1)]
-                    W_inv_tri = spdiagm(0 => 1.0 ./ diag_vals)
+            n_extra_reg = n_data - size(W_inv_data, 1)
+            if n_extra_reg > 0
+                extra_w = block_inv_setup["extra_weights"]
+                if isdiag(extra_w)
+                    diag_vals = [extra_w[i, i] for i in 1:size(extra_w, 1)]
+                    W_inv_extra = spdiagm(0 => 1.0 ./ diag_vals)
                 else
-                    @info "   tri_weights not diagonal; inverting as dense block"
-                    W_inv_tri = sparse(inv(Matrix(tri_w)))
+                    @info "   extra_weights not diagonal; inverting as dense block"
+                    W_inv_extra = sparse(inv(Matrix(extra_w)))
                 end
-                W_inv = diagonalize_matrices([W_inv_data, W_inv_tri])
+                W_inv = diagonalize_matrices([W_inv_data, W_inv_extra])
             else
                 W_inv = W_inv_data
             end
@@ -1338,18 +1395,18 @@ end
 
 
 """
-    get_reduced_soln_covariance_matrix(y_fact, Z, np, n_tri_params, rmse)
+    get_reduced_soln_covariance_matrix(y_fact, Z, np, n_extra_params, rmse)
 
 Propagates parameter covariance from the reduced-parameter space `y` back to the
 original pair layout `x = Z y`, using `cov(x) = Z * (A_red^{-1}) * Z'`, scaled
 by `rmse^2` (consistent with `get_soln_covariance_matrix`). Only the
-block-diagonal entries consumed by `get_pole_uncertainties!` and
-`get_tri_uncertainties!` are populated; off-diagonal inter-pair covariances are
-left as zero to keep memory bounded.
+block-diagonal entries consumed by the post-processing uncertainty helpers are
+populated; off-diagonal inter-pair covariances are left as zero to keep memory
+bounded.
 """
-function get_reduced_soln_covariance_matrix(y_fact, Z, np::Int, n_tri_params::Int,
+function get_reduced_soln_covariance_matrix(y_fact, Z, np::Int, n_extra_params::Int,
     rmse::Float64)
-    n_params = 3 * np + n_tri_params
+    n_params = 3 * np + n_extra_params
     I_list = Int[]
     J_list = Int[]
     V_list = Float64[]
@@ -1381,9 +1438,9 @@ function get_reduced_soln_covariance_matrix(y_fact, Z, np::Int, n_tri_params::In
         push_block!(rows, Z_i * M_i)
     end
 
-    if n_tri_params > 0
-        @info "  propagating covariance for tri block ($(n_tri_params) x $(n_tri_params))"
-        tri_rows = (3 * np + 1):(3 * np + n_tri_params)
+    if n_extra_params > 0
+        @info "  propagating covariance for extra parameter block ($(n_extra_params) x $(n_extra_params))"
+        tri_rows = (3 * np + 1):(3 * np + n_extra_params)
         local blk
         @time begin
             Z_tri = Matrix(Z[tri_rows, :])
@@ -1452,6 +1509,8 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     regularize_tris::Bool=true,
     tri_priors::Bool=false, 
     tri_rake_constraints=[],
+    strain_blocks=[], block_df=nothing, regularize_strain::Bool=true,
+    strain_rate_err::Float64=5.0, strain_min_data::Int=5,
     elastic_floor=1e-4,
     tri_distance_weight::Float64=10.0, tri_solution_mode::String="linear",
     tri_mode_iterations::Int=2, tri_cross_fraction_err::Float64=0.1,
@@ -1485,6 +1544,11 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             regularize_tris=regularize_tris,
             tri_priors=tri_priors,
             tri_rake_constraints=tri_rake_constraints,
+            strain_blocks=strain_blocks,
+            block_df=block_df,
+            regularize_strain=regularize_strain,
+            strain_rate_err=strain_rate_err,
+            strain_min_data=strain_min_data,
             elastic_floor=elastic_floor,
             tri_distance_weight=tri_distance_weight,
             tri_solution_mode="linear",
@@ -1518,6 +1582,11 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
                 regularize_tris=regularize_tris,
                 tri_priors=tri_priors,
                 tri_rake_constraints=tri_rake_constraints,
+                strain_blocks=strain_blocks,
+                block_df=block_df,
+                regularize_strain=regularize_strain,
+                strain_rate_err=strain_rate_err,
+                strain_min_data=strain_min_data,
                 elastic_floor=elastic_floor,
                 tri_distance_weight=tri_distance_weight,
                 tri_solution_mode=tri_solution_mode,
@@ -1553,6 +1622,11 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         bound_faults=bound_faults,
         regularize_tris=regularize_tris,
         tri_priors=tri_priors,
+        strain_blocks=strain_blocks,
+        block_df=block_df,
+        regularize_strain=regularize_strain,
+        strain_rate_err=strain_rate_err,
+        strain_min_data=strain_min_data,
         tri_distance_weight=tri_distance_weight,
         tri_solution_mode=tri_solution_mode,
         tri_basis_mats=tri_basis_mats,
@@ -1562,8 +1636,12 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         elastic_floor=elastic_floor,
         tris=tris, check_nans=check_nans)
     tri_basis_mats = get(block_inv_setup, "tri_basis_mats", tri_basis_mats)
-    n_tri_params = n_tri_model_params(tris, tri_basis_mats;
-        tri_solution_mode=tri_solution_mode)
+    layout = get_solution_layout(block_inv_setup["keys"],
+        get(block_inv_setup, "strain_block_ids", String[]), tris;
+        tri_solution_mode=tri_solution_mode,
+        tri_basis_mats=tri_basis_mats)
+    n_strain_params = layout["n_strain_params"]
+    n_tri_params = layout["n_tri_params"]
 
     if factorization == "reduce"
         @info "NULL-SPACE REDUCTION (skipping KKT assembly)"
@@ -1572,11 +1650,15 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         soln = reduce_out.soln
 
         np = length(block_inv_setup["keys"])
-        tri_soln_idx = (np*3+1):(np*3)+n_tri_params
+        strain_soln_idx = layout["strain_soln_idx"]
+        tri_soln_idx = layout["tri_soln_idx"]
+        strain_soln = n_strain_params > 0 ? soln[strain_soln_idx] : Float64[]
         tri_soln = n_tri_params > 0 ? soln[tri_soln_idx] : Float64[]
 
         results = Dict()
         results["poles"] = get_poles_from_soln(block_inv_setup["keys"], soln)
+        results["block_strain_rates"] = Oiler.Strain.get_block_strain_results(
+            strain_soln, get(block_inv_setup, "strain_block_ids", String[]))
         results["tri_slip_rates"] = get_tri_rates(tri_soln, tris;
             tri_solution_mode=tri_solution_mode,
             tri_basis_mats=tri_basis_mats)
@@ -1588,18 +1670,24 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         RMSE_string = "RMSE: " * string(results["stats_info"]["RMSE_df"])
         @info RMSE_string
         results["stats_info"]["n_obs"] = count_scalar_observations(vel_groups)
-        results["stats_info"]["n_params"] = count_independent_pole_params(block_inv_setup["keys"]) + n_tri_params
+        results["stats_info"]["n_params"] = count_independent_pole_params(block_inv_setup["keys"]) +
+            n_strain_params + n_tri_params
 
         if pred_se == true
             @info "Estimating solution uncertainties (analytical via reduced normal equations)"
             @time pole_var = get_reduced_soln_covariance_matrix(
-                reduce_out.y_fact, reduce_out.Z, np, n_tri_params,
+                reduce_out.y_fact, reduce_out.Z, np, layout["n_extra_params"],
                 results["stats_info"]["RMSE_df"])
             standard_error_vec = sqrt.(max.(diag(pole_var), 0.0))
             mean_se = sum(standard_error_vec) / length(standard_error_vec)
             @info "mean standard error: $mean_se"
             get_pole_uncertainties!(results["poles"], pole_var,
                 block_inv_setup["keys"])
+            if n_strain_params > 0
+                Oiler.Strain.get_block_strain_uncertainties!(pole_var,
+                    results["block_strain_rates"], strain_soln_idx,
+                    get(block_inv_setup, "strain_block_ids", String[]))
+            end
             if n_tri_params > 0
                 get_tri_uncertainties!(pole_var, tris, results["tri_slip_rates"],
                     tri_soln_idx;
@@ -1612,6 +1700,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             results["predicted_vels"] = Oiler.ResultsAnalysis.predict_model_velocities(
                 vel_groups,
                 block_inv_setup, results["poles"];
+                strain_results=results["block_strain_rates"],
                 tri_results=results["tri_slip_rates"])
 
             results["predicted_slip_rates"] = Oiler.ResultsAnalysis.predict_slip_rates(
@@ -1631,6 +1720,11 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         weighted=weighted,
         regularize_tris=regularize_tris,
         tri_priors=tri_priors,
+        strain_blocks=strain_blocks,
+        block_df=block_df,
+        regularize_strain=regularize_strain,
+        strain_rate_err=strain_rate_err,
+        strain_min_data=strain_min_data,
         tris=tris,
         tri_distance_weight=tri_distance_weight,
         tri_solution_mode=tri_solution_mode,
@@ -1673,20 +1767,30 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
 
     nk = length(full_soln)
     np = length(block_inv_setup["keys"])
+    layout = get_solution_layout(block_inv_setup["keys"],
+        get(block_inv_setup, "strain_block_ids", String[]), tris;
+        tri_solution_mode=tri_solution_mode,
+        tri_basis_mats=tri_basis_mats)
+    n_strain_params = layout["n_strain_params"]
+    n_tri_params = layout["n_tri_params"]
 
-    soln_length = np * 3 + n_tri_params
+    soln_length = layout["soln_length"]
     if constraint_method == "kkt_sym"
         soln_idx = nk-soln_length+1:nk
     else
         soln_idx = 1:soln_length
     end
 
-    tri_soln_idx = (np*3+1):(np*3)+n_tri_params
     soln = full_soln[soln_idx]
-    tri_soln = soln[tri_soln_idx]
+    strain_soln_idx = layout["strain_soln_idx"]
+    tri_soln_idx = layout["tri_soln_idx"]
+    strain_soln = n_strain_params > 0 ? soln[strain_soln_idx] : Float64[]
+    tri_soln = n_tri_params > 0 ? soln[tri_soln_idx] : Float64[]
 
     results = Dict()
     results["poles"] = get_poles_from_soln(block_inv_setup["keys"], soln)
+    results["block_strain_rates"] = Oiler.Strain.get_block_strain_results(
+        strain_soln, get(block_inv_setup, "strain_block_ids", String[]))
     results["tri_slip_rates"] = get_tri_rates(tri_soln, tris;
         tri_solution_mode=tri_solution_mode,
         tri_basis_mats=tri_basis_mats)
@@ -1702,7 +1806,8 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     #)
     
     results["stats_info"]["n_obs"] = count_scalar_observations(vel_groups)
-    results["stats_info"]["n_params"] = count_independent_pole_params(block_inv_setup["keys"]) + n_tri_params
+    results["stats_info"]["n_params"] = count_independent_pole_params(block_inv_setup["keys"]) +
+        n_strain_params + n_tri_params
 
     if pred_se == true
         if weighted == true
@@ -1721,6 +1826,11 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         )
         get_pole_uncertainties!(results["poles"], pole_var,
             block_inv_setup["keys"])
+        if n_strain_params > 0
+            Oiler.Strain.get_block_strain_uncertainties!(pole_var,
+                results["block_strain_rates"], strain_soln_idx,
+                get(block_inv_setup, "strain_block_ids", String[]))
+        end
         if n_tri_params > 0
             get_tri_uncertainties!(pole_var, tris, results["tri_slip_rates"],
                 tri_soln_idx;
@@ -1745,6 +1855,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         results["predicted_vels"] = Oiler.ResultsAnalysis.predict_model_velocities(
             vel_groups,
             block_inv_setup, results["poles"];
+            strain_results=results["block_strain_rates"],
             tri_results=results["tri_slip_rates"])
 
         results["predicted_slip_rates"] = Oiler.ResultsAnalysis.predict_slip_rates(
