@@ -117,7 +117,7 @@ function get_active_strain_blocks(vel_groups, block_df, strain_blocks; min_data:
         end
         n_obs = get(data_counts, block_id, 0)
         if n_obs < min_data
-            @info "skipping strain block $block_id: $n_obs GNSS-type observations < min_data=$min_data"
+            #@info "skipping strain block $block_id: $n_obs GNSS-type observations < min_data=$min_data"
             continue
         end
         push!(active_blocks, block_id)
