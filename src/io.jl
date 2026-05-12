@@ -1059,7 +1059,7 @@ function tri_from_feature(feat; depth_units="km", depth_positive=false,
 end
 
 
-function tris_from_geojson(tri_json; depth_units="km", depth_positive=true,
+function tris_from_geojson(tri_json; depth_units="km", depth_positive=false,
     hw=nothing, fw=nothing, block_df=nothing, epsg=102016)
     tris = [tri_from_feature(feat;
                 depth_units=depth_units,
@@ -1080,7 +1080,7 @@ function tris_from_geojson(tri_json; depth_units="km", depth_positive=true,
     if !isnothing(fw)
         tris = [@set tri.fw = string(fw) for tri in tris]
     end
-
+    tris
 end
 
 
