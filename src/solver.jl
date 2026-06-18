@@ -2017,8 +2017,10 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
         end
     end
 
-    var = results["stats_info"]["RMSE_df"]^2 * var_cov
-    var = results["stats_info"]["RMSE_df"]^2 * var_cov
+    # scale the covariance by RMSE^2 in place; var_cov is a fresh matrix we own,
+    # so mutate it rather than allocating another p×p copy (~1.79 TB at global scale)
+    rmul!(var_cov, results["stats_info"]["RMSE_df"]^2)
+    var = var_cov
     standard_error_vec = sqrt.(diag(var))
 
     SE_string = "mean standard error: " * string(
