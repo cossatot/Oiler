@@ -2,6 +2,8 @@ using Test
 
 using SparseArrays
 using LinearAlgebra
+using Statistics
+using Random
 using CSV
 using JSON
 using DataFrames
@@ -755,6 +757,119 @@ end
 
 
 
+function test_pred_se_wls_pole_uncertainties()
+    # Deterministic WLS covariance path (varying weights, single block -> no
+    # closures, so cm is empty). This exercises the RMSE^2 scaling in
+    # get_soln_covariance_matrix; golden values guard against a dropped or
+    # doubled scaling (either shifts the SEs by ~RMSE, i.e. >4x here).
+    true_pole = Oiler.PoleCart(x=1.0e-9, y=-2.0e-9, z=1.5e-9, fix="fix", mov="ca")
+    coords = [(-0.6, 0.1), (0.5, -0.2), (0.1, 0.6),
+        (-0.3, -0.4), (0.4, 0.35), (-0.2, 0.25)]
+    lons = [c[1] for c in coords]
+    lats = [c[2] for c in coords]
+    pv = Oiler.predict_block_vels(lons, lats, true_pole)
+    # deterministic residuals so RMSE != 0 and the covariance is meaningful
+    dve = [0.3, -0.2, 0.15, -0.35, 0.25, -0.1]
+    dvn = [-0.15, 0.25, -0.3, 0.1, -0.2, 0.35]
+    vels = [Oiler.VelocityVectorSphere(lon=lons[i], lat=lats[i],
+                ve=pv[i].ve + dve[i], vn=pv[i].vn + dvn[i], ee=0.2, en=0.2,
+                fix="fix", mov="ca", vel_type="GNSS", name=string(i))
+            for i in eachindex(lons)]
+    vel_groups = Oiler.group_vels_by_fix_mov(vels)
+    results = Oiler.solve_block_invs_from_vel_groups(vel_groups;
+        weighted=true, predict_vels=true, pred_se=true, check_closures=false)
+
+    p = results["poles"][("fix", "ca")]
+
+    @test isapprox(results["stats_info"]["RMSE_df"], 0.202706430888; rtol=1e-4)
+    @test isapprox(p.ex, 2.89909151767e-10; rtol=1e-4)
+    @test isapprox(p.ey, 2.59927971627e-12; rtol=1e-4)
+    @test isapprox(p.ez, 2.66412223727e-12; rtol=1e-4)
+    @test isapprox(p.cxy, -2.44483856854e-23; rtol=1e-3)
+    @test isapprox(p.cxz, 1.71134113386e-22; rtol=1e-3)
+    @test isapprox(p.cyz, -4.97432311248e-26; rtol=1e-3)
+end
+
+
+function test_pred_se_constrained_uncertainty_invariants()
+    # Constrained (KKT) Monte-Carlo covariance path -- the path the global
+    # inversion uses. A 3-block circuit (fix, a, b) creates closures so cm is
+    # non-empty. Sampling is nondeterministic, so assert structural invariants
+    # that must hold for any valid (RMSE^2-scaled) covariance.
+    faults = [
+        Oiler.Fault(trace=[0.0 0.0; 0.0 1.0], dip=89.0, dip_dir="W",
+            hw="a", fw="fix", name="f_fix_a"),
+        Oiler.Fault(trace=[1.0 0.0; 1.0 1.0], dip=89.0, dip_dir="E",
+            hw="b", fw="fix", name="f_fix_b"),
+        Oiler.Fault(trace=[0.5 0.0; 0.5 1.0], dip=89.0, dip_dir="W",
+            hw="b", fw="a", name="f_a_b"),
+    ]
+    fault_vels = Oiler.IO.make_vels_from_faults(faults)
+    pa = Oiler.PoleCart(x=1e-9, y=-1e-9, z=2e-9, fix="fix", mov="a")
+    pb = Oiler.PoleCart(x=-1e-9, y=2e-9, z=1e-9, fix="fix", mov="b")
+    function gpt(lon, lat, pole, mov)
+        v = Oiler.predict_block_vels([lon], [lat], pole)[1]
+        Oiler.VelocityVectorSphere(lon=lon, lat=lat, ve=v.ve + 0.1, vn=v.vn - 0.1,
+            ee=0.3, en=0.3, fix="fix", mov=mov, vel_type="GNSS", name="g")
+    end
+    gnss = [gpt(-0.3, 0.5, pa, "a"), gpt(-0.2, 0.3, pa, "a"),
+        gpt(0.7, 0.5, pb, "b"), gpt(0.8, 0.6, pb, "b")]
+    vel_groups = Oiler.group_vels_by_fix_mov(vcat(fault_vels, gnss))
+    results = Oiler.solve_block_invs_from_vel_groups(vel_groups; faults=faults,
+        weighted=true, predict_vels=true, pred_se=true,
+        constraint_method="kkt_sym", se_iters=200, check_closures=false)
+
+    for (_, p) in results["poles"]
+        for e in (p.ex, p.ey, p.ez)
+            @test isfinite(e)
+            @test e >= 0.0
+        end
+        # |cov| <= sigma_i * sigma_j (correlation in [-1,1]) for any covariance;
+        # RMSE^2 scaling preserves this, so a botched scaling that hit only the
+        # diagonal (or only off-diagonal) would break it.
+        if p.ex > 0.0 && p.ey > 0.0
+            @test abs(p.cxy) / (p.ex * p.ey) <= 1.0 + 1e-6
+        end
+        if p.ex > 0.0 && p.ez > 0.0
+            @test abs(p.cxz) / (p.ex * p.ez) <= 1.0 + 1e-6
+        end
+        if p.ey > 0.0 && p.ez > 0.0
+            @test abs(p.cyz) / (p.ey * p.ez) <= 1.0 + 1e-6
+        end
+    end
+end
+
+
+function test_lazy_covariance_matches_dense()
+    # The lazy covariance must reproduce `scale .* cov(stoch_poles; dims=1)`
+    # exactly (same samples, no randomness in the comparison).
+    rng = MersenneTwister(42)
+    S = randn(rng, 40, 25)   # 40 Monte-Carlo samples, 25 params
+    scale = 3.7
+
+    dense = scale .* cov(S; dims=1)
+    lazy = Oiler.Solver.lazy_covariance_from_samples(S, scale)
+
+    @test size(lazy) == size(dense)
+    @test isapprox(Matrix(lazy), dense; rtol=1e-10)
+    @test isapprox(diag(lazy), diag(dense); rtol=1e-10)
+
+    # scalar indexing (used by get_pole_uncertainties!) and symmetry
+    @test isapprox(lazy[3, 7], dense[3, 7]; rtol=1e-10)
+    @test isapprox(lazy[7, 3], dense[7, 3]; rtol=1e-10)
+    @test isapprox(lazy[4, 11], lazy[11, 4]; rtol=1e-10)
+
+    # block (lazy view) indexing matches the dense sub-block and composes,
+    # mirroring get_tri_uncertainties! / get_block_strain_uncertainties!
+    idx = [2, 5, 9, 14]
+    sub = lazy[idx, idx]
+    @test sub isa Oiler.Solver.LazyCovariance
+    @test isapprox(Matrix{Float64}(sub), dense[idx, idx]; rtol=1e-10)
+    sub2 = sub[2:3, 2:3]
+    @test isapprox(Matrix{Float64}(sub2), dense[idx[2:3], idx[2:3]]; rtol=1e-10)
+end
+
+
 # test_solve_block_invs_from_vel_groups_1_vel()
 @testset "basic Solver tests" begin
     test_build_constraint_matrix()
@@ -782,4 +897,7 @@ end
     test_block_strain_solver_mode()
     test_pole_constrained_tri_mode()
     test_pole_constrained_hard_tri_mode()
+    test_pred_se_wls_pole_uncertainties()
+    test_pred_se_constrained_uncertainty_invariants()
+    test_lazy_covariance_matches_dense()
 end

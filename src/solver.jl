@@ -1816,7 +1816,7 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
             se_weights = ones(size(block_inv_setup["weights"]))
         end
         @info "Estimating solution uncertainties"
-        @time pole_var = get_soln_covariance_matrix(block_inv_setup,
+        @time pole_var = get_soln_covariance_matrix_lazy(block_inv_setup,
             lhs_fact,
             results,
             soln_idx,
@@ -1921,6 +1921,25 @@ function make_CWLS_cov_iter(lhs, var_cov_matrix, Vc, cm, n_pole_vars, soln_idx,
 end
 
 
+"""
+    sample_velocity_noise(var_cov_matrix, n_iters)
+
+Draw `n_iters` samples ~ N(0, `var_cov_matrix`) as an `m × n_iters` matrix
+(one sample per column). Uses a sparse Cholesky so the (large, block-diagonal)
+covariance is never densified. For a CHOLMOD factor F (A[p,p] = L·L' with
+p = F.p), setting x[p] = L·z gives Cov(x) = A when z ~ N(0, I).
+"""
+function sample_velocity_noise(var_cov_matrix, n_iters)
+    m = size(var_cov_matrix, 1)
+    @info "    sampling vel noise: sparse Cholesky of $(m)x$(m) cov"
+    F = cholesky(Symmetric(sparse(var_cov_matrix)))
+    L = sparse(F.L)
+    @info "    drawing $(n_iters) noise realizations ($(m)x$(n_iters))"
+    samples = zeros(m, n_iters)
+    samples[F.p, :] = L * randn(m, n_iters)
+    samples
+end
+
 function make_stoch_poles(lhs, var_cov_matrix, Vc, cm, n_pole_vars, soln_idx,
     n_iters, constraint_method)
 
@@ -1932,13 +1951,20 @@ function make_stoch_poles(lhs, var_cov_matrix, Vc, cm, n_pole_vars, soln_idx,
     # rand_vel_noise = randn((length(Vc), n_iters))
 
     # this works but is a bit RAM intensive
-    vel_stds = rand(Distributions.MvNormal(Matrix(var_cov_matrix)), n_iters)
+    # vel_stds = rand(Distributions.MvNormal(Matrix(var_cov_matrix)), n_iters)
+
+    # sample ~ N(0, var_cov_matrix) via a sparse Cholesky, avoiding the dense
+    # Matrix(var_cov_matrix) and MvNormal's dense factorization
+    @info "  making stochastic poles ($(n_iters) iters, $(n_pole_vars) params)"
+    vel_stds = sample_velocity_noise(var_cov_matrix, n_iters)
 
     n_remaining = length(Vc) - size(var_cov_matrix, 1)
     zeros_remaining = zeros(n_remaining)
 
     stoch_poles = zeros((n_iters, n_pole_vars)) # we want each soln to be a row
 
+    @info "    solving $(n_iters) stochastic systems"
+    done = Threads.Atomic{Int}(0)
     @threads for i = 1:n_iters
     #for i = 1:n_iters
         # Vc_stochastic = Vc + vel_stds .* rand_vel_noise[:,i]
@@ -1952,7 +1978,9 @@ function make_stoch_poles(lhs, var_cov_matrix, Vc, cm, n_pole_vars, soln_idx,
         full_soln = lhs \ rhs
         soln = full_soln[soln_idx]
         stoch_poles[i, :] = soln'
+        @info "    stochastic solve $(Threads.atomic_add!(done, 1) + 1)/$(n_iters) done"
     end
+    @info "  done making stochastic poles"
     stoch_poles
 end
 
@@ -1966,12 +1994,15 @@ function make_stoch_poles_(lhs, var_cov_matrix, Vc, cm, n_pole_vars, soln_idx,
     # Calculate batch size as a fraction of n_iters, ensuring at least 1 iteration per batch
     batch_size = max(1, round(Int, n_iters * batch_fraction))
     
+    @info "  making stochastic poles ($(n_iters) iters, batch $(batch_size))"
     for batch_start in 1:batch_size:n_iters
         batch_end = min(batch_start + batch_size - 1, n_iters)
         batch_size_actual = batch_end - batch_start + 1
-        
-        vel_stds = rand(Distributions.MvNormal(Matrix(var_cov_matrix)), batch_size_actual)
-        
+
+        @info "    batch $(batch_start):$(batch_end) of $(n_iters)"
+        # vel_stds = rand(Distributions.MvNormal(Matrix(var_cov_matrix)), batch_size_actual)
+        vel_stds = sample_velocity_noise(var_cov_matrix, batch_size_actual)
+
         Threads.@threads for i in batch_start:batch_end
             Vc_stochastic = Vc + vcat(vel_stds[:, i - batch_start + 1], zeros_remaining)
             if constraint_method == "kkt_sym"
@@ -1987,6 +2018,55 @@ function make_stoch_poles_(lhs, var_cov_matrix, Vc, cm, n_pole_vars, soln_idx,
     
     return stoch_poles
 end
+
+
+"""
+    LazyCovariance{T} <: AbstractMatrix{T}
+
+A deferred representation of the (RMSE²-scaled) Monte-Carlo solution covariance
+`scale * cov(stoch_poles; dims=1)`. Instead of materializing the dense `p×p`
+matrix (≈1.79 TB at global block scale), it stores only the centered sample
+matrix (`n_iters × p`, ~MBs) and computes covariance entries on demand:
+
+    C[i, j] = s * dot(Xc[:, ridx[i]], Xc[:, cidx[j]])      s = scale / (n_iters - 1)
+
+Scalar indexing returns a single covariance entry; indexing with vectors/ranges
+returns another `LazyCovariance` view (no materialization), so the block-diagonal
+sub-blocks the uncertainty consumers actually read (3×3 per pole, per-tri model
+blocks, per-block strain) only get densified when they are tiny. `diag`, `Matrix`,
+etc. work via the `AbstractMatrix` interface.
+"""
+struct LazyCovariance{T<:Real,RV<:AbstractVector{Int},CV<:AbstractVector{Int}} <: AbstractMatrix{T}
+    Xc::Matrix{T}   # centered samples, n_iters × n_params
+    s::T            # scale / (n_iters - 1)
+    ridx::RV        # columns of Xc backing the rows of this view
+    cidx::CV        # columns of Xc backing the columns of this view
+end
+
+"""
+    lazy_covariance_from_samples(stoch_poles, scale)
+
+Build a [`LazyCovariance`](@ref) equivalent to `scale .* cov(stoch_poles; dims=1)`
+from the `n_iters × p` Monte-Carlo sample matrix, without forming the dense result.
+"""
+function lazy_covariance_from_samples(stoch_poles::AbstractMatrix{T},
+    scale::Real) where {T<:Real}
+    n, p = size(stoch_poles)
+    Xc = Matrix{T}(stoch_poles .- mean(stoch_poles; dims=1))
+    LazyCovariance(Xc, T(scale) / (n - 1), 1:p, 1:p)
+end
+
+Base.size(C::LazyCovariance) = (length(C.ridx), length(C.cidx))
+Base.IndexStyle(::Type{<:LazyCovariance}) = IndexCartesian()
+
+Base.@propagate_inbounds function Base.getindex(C::LazyCovariance, i::Int, j::Int)
+    @boundscheck checkbounds(C, i, j)
+    @inbounds C.s * dot(view(C.Xc, :, C.ridx[i]), view(C.Xc, :, C.cidx[j]))
+end
+
+# vector/range indexing returns another lazy view rather than materializing
+Base.getindex(C::LazyCovariance, I::AbstractVector{<:Integer},
+    J::AbstractVector{<:Integer}) = LazyCovariance(C.Xc, C.s, C.ridx[I], C.cidx[J])
 
 
 function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
@@ -2021,6 +2101,61 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
     # so mutate it rather than allocating another p×p copy (~1.79 TB at global scale)
     rmul!(var_cov, results["stats_info"]["RMSE_df"]^2)
     var = var_cov
+    standard_error_vec = sqrt.(diag(var))
+
+    SE_string = "mean standard error: " * string(
+        sum(standard_error_vec) / length(standard_error_vec))
+    @info SE_string
+
+    var
+end
+
+
+"""
+    get_soln_covariance_matrix_lazy(...)
+
+Memory-frugal variant of [`get_soln_covariance_matrix`](@ref). For the
+constrained Monte-Carlo path it returns a [`LazyCovariance`](@ref) instead of the
+dense `p×p` matrix, avoiding the ~1.79 TB allocation at global block scale. The
+deterministic analytic paths (OLS/WLS, used for small/unconstrained problems)
+still return a dense matrix, as before. Returned values are identical to the dense
+function; only the representation of the Monte-Carlo covariance differs.
+"""
+function get_soln_covariance_matrix_lazy(block_matrices, lhs_fact, results, soln_idx,
+    constraint_method; n_iters=1000,
+    weighted=true, save_stoch_poles=true)
+    PvGb = block_matrices["PvGb"]
+    cm = block_matrices["cm"]
+    y_obs = block_matrices["Vc"]
+    n, p = size(PvGb)
+
+    if weighted == true
+        weights = block_matrices["weights"]
+    else
+        weights = ones(length(block_matrices["weights"]))
+    end
+
+    scale = results["stats_info"]["RMSE_df"]^2
+
+    if all(x -> x == 1.0, weights) & (length(cm) == 0)
+        var_cov = make_OLS_cov(PvGb)
+        rmul!(var_cov, scale)
+        var = var_cov
+    elseif any(x -> x != 1.0, weights) & (length(cm) == 0)
+        var_cov = make_WLS_cov(PvGb, weights)
+        rmul!(var_cov, scale)
+        var = var_cov
+    else
+        stoch_poles = make_stoch_poles(lhs_fact,
+            block_matrices["var_cov_matrix"], y_obs, cm,
+            p, soln_idx, n_iters, constraint_method)
+        if save_stoch_poles == true
+            block_matrices["stoch_poles"] = stoch_poles
+        end
+        # defer the dense p×p covariance; consumers only read tiny sub-blocks
+        var = lazy_covariance_from_samples(stoch_poles, scale)
+    end
+
     standard_error_vec = sqrt.(diag(var))
 
     SE_string = "mean standard error: " * string(
