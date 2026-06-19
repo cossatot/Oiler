@@ -1395,17 +1395,19 @@ end
 
 
 """
-    get_reduced_soln_covariance_matrix(y_fact, Z, np, n_extra_params, rmse)
+    get_reduced_soln_covariance_matrix(y_fact, Z, np, n_extra_params, cov_scale)
 
 Propagates parameter covariance from the reduced-parameter space `y` back to the
 original pair layout `x = Z y`, using `cov(x) = Z * (A_red^{-1}) * Z'`, scaled
-by `rmse^2` (consistent with `get_soln_covariance_matrix`). Only the
-block-diagonal entries consumed by the post-processing uncertainty helpers are
-populated; off-diagonal inter-pair covariances are left as zero to keep memory
-bounded.
+by `cov_scale^2` (consistent with `get_soln_covariance_matrix`). For a weighted
+solve `cov_scale = √χ²ᵣ` (so the applied factor is the dimensionless reduced
+chi-square); for an unweighted solve it is the OLS residual standard error. Only
+the block-diagonal entries consumed by the post-processing uncertainty helpers
+are populated; off-diagonal inter-pair covariances are left as zero to keep
+memory bounded.
 """
 function get_reduced_soln_covariance_matrix(y_fact, Z, np::Int, n_extra_params::Int,
-    rmse::Float64)
+    cov_scale::Float64)
     n_params = 3 * np + n_extra_params
     I_list = Int[]
     J_list = Int[]
@@ -1455,7 +1457,7 @@ function get_reduced_soln_covariance_matrix(y_fact, Z, np::Int, n_extra_params::
     end
 
     pole_var = sparse(I_list, J_list, V_list, n_params, n_params)
-    return rmse^2 * pole_var
+    return cov_scale^2 * pole_var
 end
 
 
@@ -1672,12 +1674,26 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
         results["stats_info"]["n_obs"] = count_scalar_observations(vel_groups)
         results["stats_info"]["n_params"] = count_independent_pole_params(block_inv_setup["keys"]) +
             n_strain_params + n_tri_params
+        # store the data covariance so the reduced chi-square uses the same full
+        # (Mahalanobis) weighting that solve_reduced_null_space used (W_inv).
+        if weighted && !haskey(block_inv_setup, "var_cov_matrix")
+            block_inv_setup["var_cov_matrix"] = build_var_cov_weight_matrix(vel_groups)
+        end
+        results["stats_info"]["chi_sq_red"] =
+            Oiler.ResultsAnalysis.calc_weighted_reduced_chi_sq(block_inv_setup, results)
 
         if pred_se == true
             @info "Estimating solution uncertainties (analytical via reduced normal equations)"
+            # Z·A_red⁻¹·Z' is the physical formal covariance of the weighted,
+            # constrained solve, so scale by √χ²ᵣ (squared internally) — the same
+            # dimensionless reduced chi-square the KKT/Monte-Carlo path uses. For
+            # an unweighted solve A_red = K'K is unit-variance, so fall back to
+            # RMSE_df (the OLS σ̂ convention).
+            cov_scale = weighted ? sqrt(results["stats_info"]["chi_sq_red"]) :
+                results["stats_info"]["RMSE_df"]
             @time pole_var = get_reduced_soln_covariance_matrix(
                 reduce_out.y_fact, reduce_out.Z, np, layout["n_extra_params"],
-                results["stats_info"]["RMSE_df"])
+                cov_scale)
             standard_error_vec = sqrt.(max.(diag(pole_var), 0.0))
             mean_se = sum(standard_error_vec) / length(standard_error_vec)
             @info "mean standard error: $mean_se"
@@ -1808,6 +1824,11 @@ function solve_block_invs_from_vel_groups(vel_groups::Dict{Tuple{String,String},
     results["stats_info"]["n_obs"] = count_scalar_observations(vel_groups)
     results["stats_info"]["n_params"] = count_independent_pole_params(block_inv_setup["keys"]) +
         n_strain_params + n_tri_params
+    # dimensionless data-only reduced chi-square; scales the (C)WLS / Monte-Carlo
+    # covariance (see get_soln_covariance_matrix_lazy). RMSE_df above is kept only
+    # as a reported diagnostic and for the OLS path.
+    results["stats_info"]["chi_sq_red"] =
+        Oiler.ResultsAnalysis.calc_weighted_reduced_chi_sq(block_inv_setup, results)
 
     if pred_se == true
         if weighted == true
@@ -2083,10 +2104,21 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
         weights = ones(length(block_matrices["weights"]))
     end
 
+    # A-posteriori scaling differs by path (see get_soln_covariance_matrix_lazy
+    # for the detailed rationale):
+    #   OLS   -> (GᵀG)⁻¹ is unit-variance, so scale by the estimated residual
+    #            variance σ̂² = RMSE² (unweighted; textbook OLS covariance).
+    #   (C)WLS / MC -> the covariance already carries the data errors, so scale
+    #            by the dimensionless reduced chi-square (≈1 for a good fit).
+    rmse_scale = results["stats_info"]["RMSE_df"]^2
+    chi_sq_scale = get(results["stats_info"], "chi_sq_red", rmse_scale)
+
     if all(x -> x == 1.0, weights) & (length(cm) == 0)
         var_cov = make_OLS_cov(PvGb)
+        scale = rmse_scale
     elseif any(x -> x != 1.0, weights) & (length(cm) == 0)
         var_cov = make_WLS_cov(PvGb, weights)
+        scale = chi_sq_scale
     else
         stoch_poles = make_stoch_poles(lhs_fact,
             block_matrices["var_cov_matrix"], y_obs, cm,
@@ -2095,11 +2127,12 @@ function get_soln_covariance_matrix(block_matrices, lhs_fact, results, soln_idx,
         if save_stoch_poles == true
             block_matrices["stoch_poles"] = stoch_poles
         end
+        scale = chi_sq_scale
     end
 
-    # scale the covariance by RMSE^2 in place; var_cov is a fresh matrix we own,
-    # so mutate it rather than allocating another p×p copy (~1.79 TB at global scale)
-    rmul!(var_cov, results["stats_info"]["RMSE_df"]^2)
+    # scale in place; var_cov is a fresh matrix we own, so mutate it rather than
+    # allocating another p×p copy (~1.79 TB at global scale)
+    rmul!(var_cov, scale)
     var = var_cov
     standard_error_vec = sqrt.(diag(var))
 
@@ -2135,15 +2168,28 @@ function get_soln_covariance_matrix_lazy(block_matrices, lhs_fact, results, soln
         weights = ones(length(block_matrices["weights"]))
     end
 
-    scale = results["stats_info"]["RMSE_df"]^2
+    # A-posteriori covariance scaling depends on what the formal covariance
+    # already encodes:
+    #   OLS  -- make_OLS_cov = (GᵀG)⁻¹ assumes unit-variance errors, so it must
+    #           be scaled by the *estimated* residual variance σ̂² = RMSE_df²
+    #           (the unweighted residual standard error; standard OLS result).
+    #   (C)WLS / Monte-Carlo -- make_WLS_cov = inv(GᵀWG) (W = 1/σ²) and the MC
+    #           sample covariance both already incorporate the real data errors,
+    #           so they are physical formal covariances. The correct multiplier
+    #           is then the dimensionless reduced chi-square χ²ᵣ (≈1 for a fit
+    #           consistent with the stated data errors), NOT a residual variance
+    #           in (mm/yr)². Using RMSE_df² here would double-count units and let
+    #           a few high-misfit/outlier data inflate every parameter's error.
+    rmse_scale = results["stats_info"]["RMSE_df"]^2
+    chi_sq_scale = get(results["stats_info"], "chi_sq_red", rmse_scale)
 
     if all(x -> x == 1.0, weights) & (length(cm) == 0)
         var_cov = make_OLS_cov(PvGb)
-        rmul!(var_cov, scale)
+        rmul!(var_cov, rmse_scale)
         var = var_cov
     elseif any(x -> x != 1.0, weights) & (length(cm) == 0)
         var_cov = make_WLS_cov(PvGb, weights)
-        rmul!(var_cov, scale)
+        rmul!(var_cov, chi_sq_scale)
         var = var_cov
     else
         stoch_poles = make_stoch_poles(lhs_fact,
@@ -2153,7 +2199,7 @@ function get_soln_covariance_matrix_lazy(block_matrices, lhs_fact, results, soln
             block_matrices["stoch_poles"] = stoch_poles
         end
         # defer the dense p×p covariance; consumers only read tiny sub-blocks
-        var = lazy_covariance_from_samples(stoch_poles, scale)
+        var = lazy_covariance_from_samples(stoch_poles, chi_sq_scale)
     end
 
     standard_error_vec = sqrt.(diag(var))

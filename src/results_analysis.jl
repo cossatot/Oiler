@@ -217,6 +217,62 @@ function calc_RMSE_from_G(block_matrices, results)
     RMSE = Oiler.Stats.RMSE(y_obs, y_pred, n, p)
 end
 
+
+"""
+    calc_weighted_reduced_chi_sq(block_matrices, results)
+
+Reduced chi-square computed over the *data* (velocity) rows only, weighted by the
+data covariance, with `dof = n_data - n_params`. `n_params` is read from
+`results["stats_info"]["n_params"]`, which is the count of *independent*
+parameters (closure constraints already removed; see
+`count_independent_pole_params`) -- not `size(PvGb, 2)`, which would over-count
+the constrained-away pole components.
+
+This is the dimensionless multiplier for the (C)WLS / Monte-Carlo / reduced-
+normal-equation covariances, which are already in physical units (they carry the
+data errors). Contrast `calc_RMSE_from_G`, which is unweighted, includes the
+appended regularization/prior rows, and is the σ̂² estimate appropriate only for
+the unit-variance OLS covariance.
+
+Uses the full block-diagonal `var_cov_matrix` (Mahalanobis, incl. E-N
+covariances) when present; falls back to the diagonal inverse-variance `weights`
+vector otherwise (the WLS path). Returns `1.0` (with a warning) if `dof <= 0`.
+"""
+function calc_weighted_reduced_chi_sq(block_matrices, results)
+    tri_solution_mode = get(results, "tri_solution_mode", "linear")
+    y_pred = get_pred_solution(block_matrices["PvGb"], block_matrices["keys"],
+        results["poles"];
+        strain_results=get(results, "block_strain_rates", Dict()),
+        tri_results=results["tri_slip_rates"],
+        tri_solution_mode=tri_solution_mode,
+        tri_basis_mats=get(block_matrices, "tri_basis_mats", nothing),
+        tri_names=get(block_matrices, "tri_names", nothing),
+        strain_block_ids=get(block_matrices, "strain_block_ids", nothing))
+
+    y_obs = block_matrices["Vc"]
+
+    # data rows lead PvGb/Vc; regularization + prior rows are appended after
+    # (cf. n_remaining in make_stoch_poles), so restrict to the first m rows.
+    if haskey(block_matrices, "var_cov_matrix")
+        vcov = block_matrices["var_cov_matrix"]
+        m = size(vcov, 1)
+        r = y_pred[1:m] .- y_obs[1:m]
+        chi_sq = dot(r, vcov \ r)
+    else
+        w = block_matrices["weights"]          # inverse variances (1/σ²), per component
+        m = length(w)
+        r = y_pred[1:m] .- y_obs[1:m]
+        chi_sq = sum(w .* r .^ 2)
+    end
+
+    dof = m - results["stats_info"]["n_params"]
+    if dof <= 0
+        @warn "calc_weighted_reduced_chi_sq: n_data ($m) <= n_params ($(results["stats_info"]["n_params"])); returning 1.0"
+        return 1.0
+    end
+    chi_sq / dof
+end
+
 function predict_model_velocities(vel_groups::Dict{Tuple{String,String},Array{VelocityVectorSphere,1}},
     block_matrices, poles; strain_results=Dict(), tri_results=Dict())
 

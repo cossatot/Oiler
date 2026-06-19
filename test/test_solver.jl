@@ -759,9 +759,13 @@ end
 
 function test_pred_se_wls_pole_uncertainties()
     # Deterministic WLS covariance path (varying weights, single block -> no
-    # closures, so cm is empty). This exercises the RMSE^2 scaling in
-    # get_soln_covariance_matrix; golden values guard against a dropped or
-    # doubled scaling (either shifts the SEs by ~RMSE, i.e. >4x here).
+    # closures, so cm is empty). inv(GᵀWG) is already a physical covariance, so it
+    # is scaled by the dimensionless reduced chi-square chi_sq_red (NOT RMSE^2).
+    # Because the residuals here are consistent with the 0.2 mm/yr errors,
+    # chi_sq_red ≈ 1, i.e. the SEs are ≈ the formal WLS errors. The expected
+    # reference values below guard against a dropped/doubled scaling or a
+    # regression to RMSE^2 scaling (which would shrink the SEs by ~RMSE, ~5x
+    # here).
     true_pole = Oiler.PoleCart(x=1.0e-9, y=-2.0e-9, z=1.5e-9, fix="fix", mov="ca")
     coords = [(-0.6, 0.1), (0.5, -0.2), (0.1, 0.6),
         (-0.3, -0.4), (0.4, 0.35), (-0.2, 0.25)]
@@ -781,13 +785,19 @@ function test_pred_se_wls_pole_uncertainties()
 
     p = results["poles"][("fix", "ca")]
 
+    # RMSE_df is still computed (diagnostic) but no longer scales the covariance.
     @test isapprox(results["stats_info"]["RMSE_df"], 0.202706430888; rtol=1e-4)
-    @test isapprox(p.ex, 2.89909151767e-10; rtol=1e-4)
-    @test isapprox(p.ey, 2.59927971627e-12; rtol=1e-4)
-    @test isapprox(p.ez, 2.66412223727e-12; rtol=1e-4)
-    @test isapprox(p.cxy, -2.44483856854e-23; rtol=1e-3)
-    @test isapprox(p.cxz, 1.71134113386e-22; rtol=1e-3)
-    @test isapprox(p.cyz, -4.97432311248e-26; rtol=1e-3)
+    # n_params is the independent pole-parameter count (3 here; no closures), the
+    # denominator of the reduced chi-square's dof.
+    @test results["stats_info"]["n_params"] == 3
+    # residuals consistent with the stated errors -> reduced chi-square ≈ 1.
+    @test isapprox(results["stats_info"]["chi_sq_red"], 1.027247428086; rtol=1e-4)
+    @test isapprox(p.ex, 1.4495457588360e-9; rtol=1e-4)
+    @test isapprox(p.ey, 1.2996398581332e-11; rtol=1e-4)
+    @test isapprox(p.ez, 1.3320611186336e-11; rtol=1e-4)
+    @test isapprox(p.cxy, -6.112096421362e-22; rtol=1e-3)
+    @test isapprox(p.cxz, 4.278352834651e-21; rtol=1e-3)
+    @test isapprox(p.cyz, -1.243580778121e-24; rtol=1e-3)
 end
 
 
@@ -795,7 +805,7 @@ function test_pred_se_constrained_uncertainty_invariants()
     # Constrained (KKT) Monte-Carlo covariance path -- the path the global
     # inversion uses. A 3-block circuit (fix, a, b) creates closures so cm is
     # non-empty. Sampling is nondeterministic, so assert structural invariants
-    # that must hold for any valid (RMSE^2-scaled) covariance.
+    # that must hold for any valid (reduced-chi-square-scaled) covariance.
     faults = [
         Oiler.Fault(trace=[0.0 0.0; 0.0 1.0], dip=89.0, dip_dir="W",
             hw="a", fw="fix", name="f_fix_a"),
@@ -870,6 +880,49 @@ function test_lazy_covariance_matches_dense()
 end
 
 
+function test_weighted_reduced_chi_sq()
+    # Direct unit test of calc_weighted_reduced_chi_sq, the dimensionless factor
+    # that scales the (C)WLS / Monte-Carlo / reduced covariance. Confirms:
+    #   (1) only the leading *data* rows count -- trailing regularization/prior
+    #       rows are excluded (here given a huge residual that must be ignored),
+    #   (2) the residuals are weighted by the data covariance, and
+    #   (3) dof = n_data - n_params, with n_params the *independent* parameter
+    #       count (not size(PvGb,2), which is 3 here vs n_params = 2).
+    keys_ = [("fix", "ca")]
+    poles = Dict(("fix", "ca") =>
+        Oiler.PoleCart(x=1.0, y=2.0, z=3.0, fix="fix", mov="ca"))
+    soln = [1.0, 2.0, 3.0]
+
+    m_data = 6
+    PvGb = vcat(randn(MersenneTwister(7), m_data, 3),
+                randn(MersenneTwister(8), 2, 3))      # 6 data rows + 2 reg rows
+    pred = PvGb * soln
+    resid_data = [0.3, -0.2, 0.15, -0.35, 0.25, -0.1]
+    Vc = copy(pred)
+    Vc[1:m_data] .= pred[1:m_data] .- resid_data       # resid = pred - Vc = resid_data
+    Vc[m_data+1:end] .= 1.0e6                           # huge "reg" residual; must be ignored
+
+    sigmas = [0.2, 0.3, 0.25, 0.4, 0.2, 0.35]
+    weights = 1.0 ./ sigmas .^ 2                        # inverse variances
+    n_params = 2
+    results = Dict("poles" => poles, "tri_slip_rates" => Dict(),
+        "stats_info" => Dict{Any,Any}("n_params" => n_params))
+
+    expected = sum(weights .* resid_data .^ 2) / (m_data - n_params)
+
+    # diagonal "weights"-vector path (WLS fallback)
+    bm_w = Dict("PvGb" => PvGb, "keys" => keys_, "Vc" => Vc, "weights" => weights)
+    @test isapprox(Oiler.ResultsAnalysis.calc_weighted_reduced_chi_sq(bm_w, results),
+        expected; rtol=1e-12)
+
+    # full-covariance (Mahalanobis) path with the same diagonal covariance agrees
+    bm_c = Dict("PvGb" => PvGb, "keys" => keys_, "Vc" => Vc,
+        "var_cov_matrix" => sparse(Diagonal(sigmas .^ 2)))
+    @test isapprox(Oiler.ResultsAnalysis.calc_weighted_reduced_chi_sq(bm_c, results),
+        expected; rtol=1e-10)
+end
+
+
 # test_solve_block_invs_from_vel_groups_1_vel()
 @testset "basic Solver tests" begin
     test_build_constraint_matrix()
@@ -900,4 +953,5 @@ end
     test_pred_se_wls_pole_uncertainties()
     test_pred_se_constrained_uncertainty_invariants()
     test_lazy_covariance_matches_dense()
+    test_weighted_reduced_chi_sq()
 end
