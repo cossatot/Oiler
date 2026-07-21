@@ -5,6 +5,9 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    permissions:
+      actions: write
+      contents: read
     strategy:
       matrix:
         version: ['1.10', '1.11', '1.12']
@@ -16,29 +19,22 @@ jobs:
         #    julia-arch: x86
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      # Set up Python and install Matplotlib
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
-          python-version: 3.9
+          python-version: "3.12"
 
-      - name: Install Matplotlib
-        run: pip install matplotlib
+      - name: Install Python deps
+        run: python -m pip install --upgrade pip matplotlib
 
-      # Continue with existing Julia setup
-      - uses: julia-actions/setup-julia@v1
+      - uses: julia-actions/setup-julia@v3
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
 
-      - uses: actions/cache@v4
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-julia-artifacts-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-julia-artifacts-
+      - uses: julia-actions/cache@v3
 
       - uses: julia-actions/julia-buildpkg@v1
         env:
